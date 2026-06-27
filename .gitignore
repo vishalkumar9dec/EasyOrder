@@ -1,0 +1,30 @@
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment and local state
+.env
+.env.*
+!.env.example
+*.local
+
+# Docker
+*.pid
+docker-compose.override.yml

@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: easyorder-postgres
+    environment:
+      POSTGRES_DB: easyorder
+      POSTGRES_USER: easyorder
+      POSTGRES_PASSWORD: easyorder
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U easyorder -d easyorder']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - easyorder-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  easyorder-postgres-data:
