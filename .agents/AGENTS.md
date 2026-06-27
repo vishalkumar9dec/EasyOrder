@@ -66,6 +66,7 @@ Use this instead of asking "which skill should I use?":
 | Write tests first, then implement     | `/tdd`                 | `Implement X using /tdd (red-green-refactor)`         |
 | Debug a broken feature                | `/diagnosing-bugs`     | `Diagnose why X is failing`                           |
 | Deploy to production                  | `/deploy-to-vercel`    | `Deploy and give me the link`                         |
+| Build a food ordering website         | `/food-ordering-website` | `Build a modern food ordering site for [brand]`     |
 
 ---
 
