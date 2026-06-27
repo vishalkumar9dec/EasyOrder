@@ -114,6 +114,14 @@ curl http://localhost:8000/readyz
 docker compose -f infra/docker-compose.yml exec db psql -U easyorder -d easyorder -c "SELECT 1;"
 ```
 
+Verify the local WhatsApp webhook mock:
+
+```bash
+curl "http://localhost:8000/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=local-verify-token&hub.challenge=challenge-123"
+```
+
+The response should be the exact challenge text: `challenge-123`.
+
 Open the web app at [http://localhost:5173](http://localhost:5173). The app should
 render the local playground.
 
