@@ -55,6 +55,9 @@ make frontend-dev
 
 Open the web app at [http://localhost:5173](http://localhost:5173).
 
+The local app starts as a pre-session playground. It uses deterministic mock data only:
+no LLM, WhatsApp, Swiggy, OAuth, Supabase, sessions, tokens, or RLS calls are made.
+
 Build the frontend:
 
 ```bash
@@ -111,8 +114,22 @@ curl http://localhost:8000/readyz
 docker compose -f infra/docker-compose.yml exec db psql -U easyorder -d easyorder -c "SELECT 1;"
 ```
 
-Open the web app at [http://localhost:5173](http://localhost:5173). The foundation
-screen should render with the backend, frontend, database, and mock-mode checklist.
+Open the web app at [http://localhost:5173](http://localhost:5173). The app should
+render the local playground.
+
+Review these mock use cases from the selector:
+
+- Normal group order
+- Over-budget cart
+- Dietary mismatch
+- Degraded Food availability
+- Degraded Instamart availability
+- Stock change at validation
+- Price change at validation
+
+For each use case, test the host-style prompt, editable cart quantities, budget and
+dietary warnings, degraded-state messaging, host/guest toggle, and mock checkout
+validation state.
 
 Stop the long-running services when you are done:
 
@@ -128,7 +145,9 @@ Use `Ctrl+C` in the backend and frontend terminals.
 make setup
 make backend-smoke
 make backend-test
+make frontend-test
 make frontend-build
+make test
 make smoke
 ```
 
@@ -139,6 +158,13 @@ different port:
 
 ```bash
 make backend-dev BACKEND_PORT=8001
+```
+
+If port `5173` is already in use, stop the old frontend process or run the web app on a
+different port:
+
+```bash
+make frontend-dev FRONTEND_PORT=5174
 ```
 
 ## Environment
