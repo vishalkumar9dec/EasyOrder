@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5173",
+    "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
-    "test": "tsc -b --pretty false"
+    "test": "tsc -b --pretty false && vitest run"
   },
   "dependencies": {
     "react": "19.2.7",
@@ -18,6 +18,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.3",
     "typescript": "6.0.3",
+    "vitest": "4.1.9",
     "vite": "8.1.0"
   }
 }

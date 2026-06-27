@@ -1,9 +1,12 @@
 BACKEND_PYTHON := src/backend/.venv/bin/python
 BACKEND_PORT ?= 8000
+FRONTEND_PORT ?= 5173
 
-.PHONY: setup backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-down smoke
+.PHONY: setup test backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-down smoke
 
 setup: backend-install frontend-install
+
+test: backend-test frontend-test
 
 backend-venv:
 	cd src/backend && python3 -m venv .venv
@@ -24,7 +27,7 @@ frontend-install:
 	cd src/frontend && npm install
 
 frontend-dev:
-	cd src/frontend && npm run dev
+	cd src/frontend && npm run dev -- --port $(FRONTEND_PORT) --strictPort
 
 frontend-build:
 	cd src/frontend && npm run build
