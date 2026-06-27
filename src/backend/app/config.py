@@ -8,7 +8,13 @@ class Settings(BaseSettings):
     app_env: str = "local"
     backend_cors_origins: str = "http://localhost:5173"
     database_url: str = "postgresql://easyorder:easyorder@localhost:5432/easyorder"
+
+    # WhatsApp
+    whatsapp_verify_token: str = "local-verify-token"
+    whatsapp_app_secret: str = ""
     whatsapp_provider_mode: str = "mock"
+
+    # External integrations
     swiggy_client_mode: str = "mock"
     llm_mode: str = "mock"
 
@@ -21,6 +27,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.backend_cors_origins.split(",") if origin.strip()]
+
+    @property
+    def skip_signature_verification(self) -> bool:
+        """Skip webhook signature verification only in local dev with no secret configured."""
+        return self.app_env == "local" and not self.whatsapp_app_secret
 
 
 @lru_cache

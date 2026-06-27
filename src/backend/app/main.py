@@ -1,12 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.whatsapp import create_mock_agent_service
+from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name)
+    app.state.agent_service = create_mock_agent_service()
 
     app.add_middleware(
         CORSMiddleware,
@@ -33,6 +36,8 @@ def create_app() -> FastAPI:
             "swiggy": settings.swiggy_client_mode,
             "llm": settings.llm_mode,
         }
+
+    app.include_router(whatsapp_router)
 
     return app
 
