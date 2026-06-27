@@ -1,78 +1,161 @@
-# EasyOrder (Swiggy Builder Program Project)
+# EasyOrder
 
-EasyOrder is a WhatsApp-first agentic food coordination system linked with a collaborative visual PWA canvas. Groups can plan their food orders (Swiggy Food) and supplies (Swiggy Instamart) in real-time, enforcing budgets and executing checkouts sequentially via Swiggy OAuth.
+EasyOrder is a WhatsApp-first group ordering system for coordinating Swiggy Food and
+Instamart carts. The MVP starts as a mobile-first web app opened from a WhatsApp link,
+with mock integrations by default so the product flow can be tested locally before live
+WhatsApp, Swiggy, OAuth, or Supabase credentials are required.
 
----
-
-## 1. Project Directory Structure
+## Project Structure
 
 ```text
-/Users/vishalkumar/projects/swiggy_builder_prog/
-├── docs/                        # Specifications & architectural designs
-│   ├── easyorder-prd.md         # Product Requirements Document
-│   ├── hld.md                   # High-Level Design (Architecture & Flows)
-│   ├── lld.md                   # Low-Level Design (APIs & Interfaces)
-│   ├── decision-map.md          # Log of resolved design decisions
-│   └── easyorder-visual-guide.md# Mockups and user journey flows
-├── CONTEXT.md                   # Project Domain Glossary
-└── README.md                    # This file (Setup & Debugging Guide)
+.
+├── docs/                    # Product, architecture, ADRs, and implementation plans
+├── infra/                   # Local infrastructure such as PostgreSQL
+├── src/
+│   ├── backend/             # FastAPI service
+│   └── frontend/            # React/Vite web app
+├── Makefile                 # Common local commands
+└── README.md
 ```
 
----
+## Requirements
 
-## 2. Local-First & Freemium Setup
+- Python 3.12+
+- Node.js 22+
+- Docker, for local PostgreSQL
 
-This project is designed to be fully testable and debuggable locally for **₹0** before deploying to cloud hosting.
+## Backend Setup
 
-### 2.1 Backend Local Setup (Python FastAPI)
-1. Navigate to the backend directory (once created) and create a virtual environment:
-   ```bash
-   cd src/backend
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
-2. Start the FastAPI server locally:
-   ```bash
-   uvicorn main:app --reload --port 8000
-   ```
-3. Expose port 8000 for Meta WhatsApp Webhooks using **localtunnel** (Free):
-   ```bash
-   npx localtunnel --port 8000
-   ```
-4. Copy the secure HTTPS URL provided and paste it into the Webhook settings on the Meta App Dashboard under the WhatsApp Cloud API section.
+```bash
+make setup
+cp src/backend/.env.example src/backend/.env
+make backend-dev
+```
 
-### 2.2 Frontend Local Setup (React PWA)
-1. Navigate to the frontend directory:
-   ```bash
-   cd src/frontend
-   npm install
-   ```
-2. Start the local Vite server:
-   ```bash
-   npm run dev
-   ```
+Health checks:
 
-### 2.3 Database Emulator Setup (Firestore)
-We use the **Firebase Local Emulator Suite** during development to avoid read/write cloud costs:
-1. Ensure the Firebase CLI is installed:
-   ```bash
-   npm install -g firebase-tools
-   ```
-2. Start the emulators:
-   ```bash
-   firebase emulators:start --only firestore
-   ```
-3. Set the environment variable in your local shell running FastAPI or React:
-   ```bash
-   export FIRESTORE_EMULATOR_HOST="localhost:8080"
-   ```
-   All database writes will route to the emulator interface (`http://localhost:4000/firestore`).
+```bash
+curl http://localhost:8000/healthz
+curl http://localhost:8000/readyz
+```
 
----
+Run backend tests:
 
-## 3. Authentication & Access Scopes
+```bash
+make backend-test
+```
 
-* **Guest Token:** Delivered publicly in the group URL (`/session/{id}?token=guest_abc`). Restricts modifications to cart items only.
-* **Host Token:** Delivered privately to the host's WhatsApp phone. Enables administrative functions and the **Swiggy OAuth Handoff** flow.
-* **Swiggy OAuth Callback:** Swiggy returns authorization codes to `https://easyorder.app/oauth/callback?code=xxx`. The backend exchanges this for an access token to create carts on Swiggy MCP.
+## Frontend Setup
+
+```bash
+make setup
+cp src/frontend/.env.example src/frontend/.env
+make frontend-dev
+```
+
+Open the web app at [http://localhost:5173](http://localhost:5173).
+
+Build the frontend:
+
+```bash
+make frontend-build
+```
+
+## Local Database
+
+Start PostgreSQL:
+
+```bash
+make db-up
+```
+
+Verify the database:
+
+```bash
+docker compose -f infra/docker-compose.yml exec db psql -U easyorder -d easyorder -c "SELECT 1;"
+```
+
+Stop PostgreSQL:
+
+```bash
+make db-down
+```
+
+Supabase local stack support can be added in later slices when Auth and Realtime are
+needed. For now, PostgreSQL is the local persistence base and all external integrations
+default to mock mode.
+
+## Manual Verification
+
+From a clean checkout, run setup once:
+
+```bash
+make setup
+cp src/backend/.env.example src/backend/.env
+cp src/frontend/.env.example src/frontend/.env
+```
+
+Start the services in separate terminals:
+
+```bash
+make db-up
+make backend-dev
+make frontend-dev
+```
+
+Verify the running services:
+
+```bash
+curl http://localhost:8000/healthz
+curl http://localhost:8000/readyz
+docker compose -f infra/docker-compose.yml exec db psql -U easyorder -d easyorder -c "SELECT 1;"
+```
+
+Open the web app at [http://localhost:5173](http://localhost:5173). The foundation
+screen should render with the backend, frontend, database, and mock-mode checklist.
+
+Stop the long-running services when you are done:
+
+```bash
+make db-down
+```
+
+Use `Ctrl+C` in the backend and frontend terminals.
+
+## Common Commands
+
+```bash
+make setup
+make backend-smoke
+make backend-test
+make frontend-build
+make smoke
+```
+
+## Troubleshooting
+
+If port `8000` is already in use, stop the old backend process or run the backend on a
+different port:
+
+```bash
+make backend-dev BACKEND_PORT=8001
+```
+
+## Environment
+
+Environment samples live at:
+
+- `src/backend/.env.example`
+- `src/frontend/.env.example`
+
+Do not commit real secrets. Mock mode is the expected local default for WhatsApp, Swiggy,
+and LLM behavior.
+
+## Documentation
+
+- Product scope: `docs/easyorder-prd.md`
+- High-level design: `docs/hld.md`
+- Low-level design: `docs/lld.md`
+- Delivery plan: `docs/implementation-plan.md`
+- Task list: `docs/implementation-tasks.md`
+- Domain glossary: `CONTEXT.md`
