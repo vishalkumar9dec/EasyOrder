@@ -23,6 +23,13 @@ const statusLabel = {
   partial: 'Partial',
 };
 
+const statusTone = {
+  ready: 'good',
+  blocked: 'danger',
+  partial: 'warn',
+  idle: 'muted',
+};
+
 export function App() {
   const [scenarioId, setScenarioId] = useState(scenarios[0].id);
   const [role, setRole] = useState<Role>('host');
@@ -34,6 +41,9 @@ export function App() {
   const warnings = useMemo(() => getWarnings(scenario, cart), [scenario, cart]);
   const isHost = role === 'host';
   const checkoutResult = checkoutRan ? scenario.checkoutResult : undefined;
+  const budgetDelta = scenario.budgetLimit - total;
+  const budgetPercent = Math.min(100, Math.round((total / scenario.budgetLimit) * 100));
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   function selectScenario(nextScenarioId: string) {
     const nextScenario = getScenarioById(nextScenarioId);
@@ -53,32 +63,48 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
-      <section className="control-band" aria-label="Mock scenario controls">
-        <div className="brand">
-          <span className="mark" aria-hidden="true">
-            EO
-          </span>
-          <div>
-            <p className="eyebrow">EasyOrder playground</p>
-            <h1>Local group order canvas</h1>
-          </div>
+    <main className="club-shell">
+      <section className="hero-board" aria-label="EasyOrder session board">
+        <div className="hero-copy">
+          <p className="kicker">WhatsApp to shared cart</p>
+          <h1>EasyOrder Club</h1>
+          <p className="hero-line">
+            A live score room for group orders, budgets, warnings, and host checkout.
+          </p>
         </div>
 
-        <label className="select-field">
-          <span>Use case</span>
-          <select value={scenario.id} onChange={(event) => selectScenario(event.target.value)}>
-            {scenarios.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.title}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="prompt-board" aria-label="Active WhatsApp prompt">
+          <span className="prompt-token">Mention detected</span>
+          <p>{scenario.prompt}</p>
+        </div>
 
-        <div className="role-toggle" aria-label="Perspective">
+        <div className="score-strip" aria-label="Session score">
+          <ScoreCell label="Total" value={formatCurrency(total)} tone={total > scenario.budgetLimit ? 'danger' : 'good'} />
+          <ScoreCell label="Budget" value={formatCurrency(scenario.budgetLimit)} />
+          <ScoreCell label="Items" value={String(cartCount)} />
+          <ScoreCell label="People" value={String(scenario.headcount)} />
+        </div>
+      </section>
+
+      <section className="command-bar" aria-label="Playground controls">
+        <div className="scenario-rail" aria-label="Use cases">
+          {scenarios.map((option, index) => (
+            <button
+              className={option.id === scenario.id ? 'active' : ''}
+              key={option.id}
+              type="button"
+              onClick={() => selectScenario(option.id)}
+              aria-pressed={option.id === scenario.id}
+            >
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              {option.shortLabel}
+            </button>
+          ))}
+        </div>
+
+        <div className="role-switch" aria-label="Perspective">
           <button
-            className={isHost ? 'selected' : ''}
+            className={isHost ? 'active' : ''}
             type="button"
             onClick={() => setRole('host')}
             aria-pressed={isHost}
@@ -86,7 +112,7 @@ export function App() {
             Host
           </button>
           <button
-            className={!isHost ? 'selected' : ''}
+            className={!isHost ? 'active' : ''}
             type="button"
             onClick={() => setRole('guest')}
             aria-pressed={!isHost}
@@ -96,94 +122,70 @@ export function App() {
         </div>
       </section>
 
-      <section className="prompt-strip" aria-label="Mock prompt">
-        <span>@</span>
-        <p>{scenario.prompt}</p>
-      </section>
+      <section className="workspace" aria-label="Planning canvas">
+        <aside className="session-panel" aria-label="Session status">
+          <div>
+            <p className="section-label">Now playing</p>
+            <h2>{scenario.title}</h2>
+          </div>
 
-      <section className="dashboard" aria-label="Planning canvas">
-        <aside className="summary-panel" aria-label="Session summary">
-          <div>
-            <p className="section-label">Budget</p>
-            <strong>{formatCurrency(scenario.budgetLimit)}</strong>
-            <span>{scenario.headcount} people</span>
+          <div className="budget-meter" aria-label={`Budget used ${budgetPercent} percent`}>
+            <div>
+              <span>Budget used</span>
+              <strong>{budgetPercent}%</strong>
+            </div>
+            <div className="meter-track">
+              <span style={{ width: `${budgetPercent}%` }} />
+            </div>
+            <p className={budgetDelta < 0 ? 'danger-text' : ''}>
+              {budgetDelta < 0
+                ? `${formatCurrency(Math.abs(budgetDelta))} over`
+                : `${formatCurrency(budgetDelta)} left`}
+            </p>
           </div>
-          <div>
-            <p className="section-label">Cart total</p>
-            <strong className={total > scenario.budgetLimit ? 'danger' : ''}>
-              {formatCurrency(total)}
-            </strong>
-            <span>{total > scenario.budgetLimit ? 'Over budget' : 'Within budget'}</span>
-          </div>
-          <div>
-            <p className="section-label">Preference</p>
-            <strong>{scenario.dietaryPreference}</strong>
-            <span>{role === 'host' ? 'Checkout controls visible' : 'Checkout hidden'}</span>
+
+          <div className="mini-ledger">
+            <StatusLine label="Preference" value={scenario.dietaryPreference} />
+            <StatusLine label="Role" value={isHost ? 'Host controls' : 'Guest editing'} />
+            <StatusLine
+              label="Verticals"
+              value={scenario.degradedVerticals.length ? 'Degraded' : 'Healthy'}
+              tone={scenario.degradedVerticals.length ? 'warn' : 'good'}
+            />
           </div>
         </aside>
 
-        <section className="cart-panel" aria-label="Consolidated cart">
-          <div className="panel-header">
+        <section className="cart-stage" aria-label="Consolidated cart">
+          <div className="stage-header">
             <div>
-              <p className="section-label">Consolidated cart</p>
-              <h2>{scenario.title}</h2>
+              <p className="section-label">Order board</p>
+              <h2>Ranked cart lines</h2>
             </div>
             <div className="add-actions">
               <button type="button" onClick={() => addItem('food')}>
-                + Food
+                Add Food
               </button>
               <button type="button" onClick={() => addItem('instamart')}>
-                + Instamart
+                Add Instamart
               </button>
             </div>
           </div>
 
           <div className="cart-list">
-            {cart.map((item) => (
-              <article className={`cart-row ${item.issue ? 'has-issue' : ''}`} key={item.id}>
-                <div>
-                  <p className="item-name">{item.name}</p>
-                  <div className="item-meta">
-                    <span>{formatVertical(item.vertical)}</span>
-                    <span>{item.dietaryTag}</span>
-                    <span>{formatCurrency(item.unitPrice)}</span>
-                  </div>
-                  {item.substitute ? <p className="substitute">Substitute: {item.substitute}</p> : null}
-                </div>
-
-                <div className="quantity-control">
-                  <button
-                    type="button"
-                    aria-label={`Decrease ${item.name}`}
-                    onClick={() => setQuantity(item.id, item.quantity - 1)}
-                  >
-                    -
-                  </button>
-                  <input
-                    aria-label={`${item.name} quantity`}
-                    inputMode="numeric"
-                    min="0"
-                    max="99"
-                    type="number"
-                    value={item.quantity}
-                    onChange={(event) => setQuantity(item.id, Number(event.target.value))}
-                  />
-                  <button
-                    type="button"
-                    aria-label={`Increase ${item.name}`}
-                    onClick={() => setQuantity(item.id, item.quantity + 1)}
-                  >
-                    +
-                  </button>
-                </div>
-              </article>
+            {cart.map((item, index) => (
+              <CartRow
+                item={item}
+                key={item.id}
+                rank={index + 1}
+                onQuantityChange={(quantity) => setQuantity(item.id, quantity)}
+              />
             ))}
           </div>
         </section>
 
-        <aside className="status-panel" aria-label="Warnings and checkout">
+        <aside className="console-panel" aria-label="Warnings and checkout">
           <section>
-            <p className="section-label">Warnings</p>
+            <p className="section-label">Signals</p>
             <div className="warning-list">
               {warnings.map((warning) => (
                 <p key={warning}>{warning}</p>
@@ -199,7 +201,7 @@ export function App() {
           </section>
 
           <section className="checkout-box">
-            <p className="section-label">Mock checkout</p>
+            <p className="section-label">Host checkout</p>
             {isHost ? (
               <>
                 <button className="checkout-button" type="button" onClick={() => setCheckoutRan(true)}>
@@ -208,12 +210,107 @@ export function App() {
                 <CheckoutState result={checkoutResult} />
               </>
             ) : (
-              <p className="guest-note">Guests can edit the cart but cannot validate checkout.</p>
+              <p className="guest-note">Guests can tune the cart. Checkout stays with the host.</p>
             )}
           </section>
         </aside>
       </section>
     </main>
+  );
+}
+
+function ScoreCell({
+  label,
+  value,
+  tone = 'muted',
+}: {
+  label: string;
+  value: string;
+  tone?: 'good' | 'danger' | 'muted';
+}) {
+  return (
+    <div className={`score-cell ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function StatusLine({
+  label,
+  value,
+  tone = 'muted',
+}: {
+  label: string;
+  value: string;
+  tone?: 'good' | 'warn' | 'muted';
+}) {
+  return (
+    <p className={`status-line ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </p>
+  );
+}
+
+function CartRow({
+  item,
+  rank,
+  onQuantityChange,
+}: {
+  item: CartItem;
+  rank: number;
+  onQuantityChange: (quantity: number) => void;
+}) {
+  const lineTotal = item.quantity * item.unitPrice;
+
+  return (
+    <article className={`cart-row ${item.issue ? 'has-issue' : ''}`}>
+      <div className="rank" aria-hidden="true">
+        {String(rank).padStart(2, '0')}
+      </div>
+
+      <div className="item-copy">
+        <p className="item-name">{item.name}</p>
+        <div className="item-meta">
+          <span>{formatVertical(item.vertical)}</span>
+          <span>{item.dietaryTag}</span>
+          <span>{formatCurrency(item.unitPrice)}</span>
+        </div>
+        {item.substitute ? <p className="substitute">Substitute: {item.substitute}</p> : null}
+      </div>
+
+      <div className="line-total">
+        <span>Line</span>
+        <strong>{formatCurrency(lineTotal)}</strong>
+      </div>
+
+      <div className="quantity-control">
+        <button
+          type="button"
+          aria-label={`Decrease ${item.name}`}
+          onClick={() => onQuantityChange(item.quantity - 1)}
+        >
+          -
+        </button>
+        <input
+          aria-label={`${item.name} quantity`}
+          inputMode="numeric"
+          min="0"
+          max="99"
+          type="number"
+          value={item.quantity}
+          onChange={(event) => onQuantityChange(Number(event.target.value))}
+        />
+        <button
+          type="button"
+          aria-label={`Increase ${item.name}`}
+          onClick={() => onQuantityChange(item.quantity + 1)}
+        >
+          +
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -223,14 +320,16 @@ function CheckoutState({ result }: { result: CheckoutResult | undefined }) {
   }
 
   return (
-    <div className={`checkout-result ${result.status}`}>
+    <div className={`checkout-result ${statusTone[result.status]}`}>
       <span>{statusLabel[result.status]}</span>
       <strong>{result.title}</strong>
       <p>{result.detail}</p>
-      {result.foodCheckoutUrl ? <a href={result.foodCheckoutUrl}>Food mock checkout</a> : null}
-      {result.instamartCheckoutUrl ? (
-        <a href={result.instamartCheckoutUrl}>Instamart mock checkout</a>
-      ) : null}
+      <div className="checkout-links">
+        {result.foodCheckoutUrl ? <a href={result.foodCheckoutUrl}>Food mock checkout</a> : null}
+        {result.instamartCheckoutUrl ? (
+          <a href={result.instamartCheckoutUrl}>Instamart mock checkout</a>
+        ) : null}
+      </div>
     </div>
   );
 }

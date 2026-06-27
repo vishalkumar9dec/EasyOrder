@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Skill"
+  short_description: "Design polished, modern, image-led frontend UI"
+  default_prompt: "Use the frontend skill to redesign this app with a distinctive, premium interface."
