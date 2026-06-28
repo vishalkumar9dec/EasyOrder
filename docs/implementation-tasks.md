@@ -75,9 +75,9 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 |---:|---|---|---|
 | 01 | [#1](https://github.com/vishalkumar9dec/EasyOrder/issues/1) | Tasks 0.1, 0.2, 1.1 | Closed |
 | 02 | [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) | Product validation slice before production session work | Closed |
-| 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2, 1.3, 1.4, 2.1 | Implemented locally, pending merge/close |
+| 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2, 1.3, 1.4, 2.1 | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1, 3.2 | Closed |
-| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Open, blocked by #14 |
+| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Open, ready next |
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Open, blocked by #4 |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Open, blocked by #14 and #4 |
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Open, blocked by #6 |
