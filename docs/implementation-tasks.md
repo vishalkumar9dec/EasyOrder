@@ -31,9 +31,8 @@ Last verified: 2026-06-28.
 
 Branch state:
 
-- Local `main` contains Task 0 foundation work and the local frontend playground.
-- `origin/main` is still at the foundation scaffold until the verified local changes are merged and pushed.
-- `issue-3-whatsapp-intake` contains the WhatsApp webhook intake slice plus the refreshed frontend demo UI.
+- Local `main` and `origin/main` both contain Task 0 foundation work, the local frontend playground, and the verified WhatsApp intake slice.
+- GitHub issue titles use an `Order NN | Tasks X-Y` prefix because GitHub issue numbers cannot be changed after creation.
 
 Verified complete:
 
@@ -59,6 +58,27 @@ Verification completed on 2026-06-28:
 - `make frontend-build`: passed.
 - Browser smoke test against `http://localhost:5173`: hero render, scenario switching, host-only checkout, guest restriction, dietary blocked state, degraded vertical badge, manual add item, quantity editing, over-budget recovery, and mobile viewport render all passed.
 - Local PostgreSQL runtime check was not completed because Docker was not running on the verification machine: `Cannot connect to the Docker daemon`.
+
+## GitHub Issue Order
+
+Use this table when choosing the next GitHub issue. The GitHub issue number is the permanent tracker ID; the `Order` prefix is the intended implementation sequence.
+
+| Order | GitHub issue | Implementation task mapping | Current state |
+|---:|---|---|---|
+| 01 | [#1](https://github.com/vishalkumar9dec/EasyOrder/issues/1) | Tasks 0.1, 0.2, 1.1 | Closed |
+| 02 | [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) | Product validation slice before production session work | Closed |
+| 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2, 1.3, 1.4, 2.1 | Open, ready next |
+| 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1, 3.2 | Closed |
+| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Open, blocked by #14 |
+| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Open, blocked by #4 |
+| 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Open, blocked by #14 and #4 |
+| 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Open, blocked by #6 |
+| 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Open, blocked by #7 |
+| 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Task 6.4, Task 7.1 | Open, blocked by #8 |
+| 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Open, blocked by #9 |
+| 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Open, blocked by #5 and #10 |
+| 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Open, blocked by #11 |
+| 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Open, blocked by #12 |
 
 ## PRD Traceability
 
