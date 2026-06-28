@@ -58,6 +58,7 @@ Verification completed on 2026-06-28:
 - `make frontend-test`: 6 passed.
 - `make frontend-build`: passed.
 - Browser smoke test against `http://localhost:5173`: hero render, scenario switching, host-only checkout, guest restriction, dietary blocked state, degraded vertical badge, manual add item, quantity editing, over-budget recovery, and mobile viewport render all passed.
+- Local PostgreSQL runtime check was not completed because Docker was not running on the verification machine: `Cannot connect to the Docker daemon`.
 
 ## PRD Traceability
 
