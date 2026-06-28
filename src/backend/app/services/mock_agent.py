@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.models.session import Session, generate_host_token, hash_host_token
+from app.models.session import Session, generate_session_tokens
 from app.models.whatsapp import IncomingMessage
 from app.services.protocols import IAgentService, ISessionStore
 
@@ -34,10 +34,11 @@ class MockAgentService(IAgentService):
 
     async def handle_tagged_message(self, message: IncomingMessage) -> Session:
         self.handled_messages.append(message)
-        raw_host_token = generate_host_token()
+        tokens = generate_session_tokens()
         session = Session(
             whatsapp_group_id=message.phone_number_id,
             host_phone=message.sender_id,
-            host_token_hash=hash_host_token(raw_host_token),
+            host_token_hash=tokens.host_token_hash,
+            guest_token=tokens.guest_token,
         )
         return await self.store.create_session(session)
