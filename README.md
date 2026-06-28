@@ -78,6 +78,18 @@ Verify the database:
 docker compose -f infra/docker-compose.yml exec db psql -U easyorder -d easyorder -c "SELECT 1;"
 ```
 
+Apply the session/cart persistence migration:
+
+```bash
+make db-migrate
+```
+
+Rollback is available during local development:
+
+```bash
+make db-rollback
+```
+
 Stop PostgreSQL:
 
 ```bash
@@ -112,6 +124,7 @@ Verify the running services:
 curl http://localhost:8000/healthz
 curl http://localhost:8000/readyz
 docker compose -f infra/docker-compose.yml exec db psql -U easyorder -d easyorder -c "SELECT 1;"
+make db-migrate
 ```
 
 Verify the local WhatsApp webhook mock:

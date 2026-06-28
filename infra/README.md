@@ -16,6 +16,18 @@ Check the connection:
 docker compose -f infra/docker-compose.yml exec db psql -U easyorder -d easyorder -c "SELECT 1;"
 ```
 
+Apply the session/cart schema, indexes, realtime publication hook, and RLS policies:
+
+```bash
+make db-migrate
+```
+
+Roll the migration back:
+
+```bash
+make db-rollback
+```
+
 Stop the database:
 
 ```bash

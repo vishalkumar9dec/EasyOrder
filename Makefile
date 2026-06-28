@@ -2,7 +2,7 @@ BACKEND_PYTHON := src/backend/.venv/bin/python
 BACKEND_PORT ?= 8000
 FRONTEND_PORT ?= 5173
 
-.PHONY: setup test backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-down smoke
+.PHONY: setup test backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-migrate db-rollback db-down smoke
 
 setup: backend-install frontend-install
 
@@ -37,6 +37,12 @@ frontend-test:
 
 db-up:
 	docker compose -f infra/docker-compose.yml up -d db
+
+db-migrate:
+	docker compose -f infra/docker-compose.yml exec -T db psql -U easyorder -d easyorder -v ON_ERROR_STOP=1 -f - < infra/migrations/0001_session_persistence.sql
+
+db-rollback:
+	docker compose -f infra/docker-compose.yml exec -T db psql -U easyorder -d easyorder -v ON_ERROR_STOP=1 -f - < infra/migrations/0001_session_persistence.down.sql
 
 db-down:
 	docker compose -f infra/docker-compose.yml down

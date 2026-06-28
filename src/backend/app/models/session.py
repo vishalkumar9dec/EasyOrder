@@ -1,17 +1,18 @@
-"""Session domain models.
-
-These are the internal representations used by the backend.
-They are independent of the database layer (Supabase/PostgreSQL).
-"""
+"""Session, cart, checkout, and token domain models."""
 
 from __future__ import annotations
 
 import hashlib
+import secrets
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+DEFAULT_BUDGET_LIMIT = Decimal("3000.00")
+DEFAULT_HEAD_COUNT = 4
 
 
 class SessionStatus(StrEnum):
@@ -24,27 +25,155 @@ class SessionStatus(StrEnum):
     ORDERED = "ORDERED"
 
 
-class Session(BaseModel):
-    """Core session domain model."""
+class DietaryTag(StrEnum):
+    """Dietary classifications used by Swiggy results and EasyOrder sessions."""
 
-    session_id: str = Field(default_factory=lambda: f"session_{uuid.uuid4().hex[:12]}")
-    whatsapp_group_id: str | None = None
-    host_phone: str = ""
-    host_token_hash: str = ""
-    guest_token: str = Field(default_factory=lambda: f"guest_{uuid.uuid4().hex[:12]}")
-    budget_limit: float = 3000.0
-    head_count: int = 4
+    VEG = "VEG"
+    NON_VEG = "NON-VEG"
+    ANY = "ANY"
+
+
+class Vertical(StrEnum):
+    """Swiggy verticals supported by the MVP."""
+
+    FOOD = "food"
+    INSTAMART = "instamart"
+
+
+class SessionWarning(BaseModel):
+    """A non-blocking warning shown to collaborators."""
+
+    code: str
+    message: str
+    vertical: Vertical | None = None
+    item_id: str | None = None
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
+class CartItem(BaseModel):
+    """A single consolidated cart item."""
+
+    id: int | None = None
+    session_id: str | None = None
+    item_id: str
+    name: str
+    quantity: int = Field(default=1, ge=0, le=99)
+    price: Decimal = Field(gt=Decimal("0"))
+    added_by: str
+    dietary_tag: DietaryTag = DietaryTag.ANY
+    vertical: Vertical
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    @field_validator("price", mode="before")
+    @classmethod
+    def normalize_price(cls, value: Decimal | float | int | str) -> Decimal:
+        return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+class SessionCreate(BaseModel):
+    """Inputs needed to create a persisted session."""
+
+    whatsapp_group_id: str
+    host_phone: str
+    budget_limit: Decimal = DEFAULT_BUDGET_LIMIT
+    head_count: int = Field(default=DEFAULT_HEAD_COUNT, ge=1, le=100)
+    dietary_preference: DietaryTag = DietaryTag.ANY
     status: SessionStatus = SessionStatus.INITIALIZING
     budget_warning: bool = False
-    degraded_verticals: list[str] = Field(default_factory=list)
+    degraded_verticals: list[Vertical] = Field(default_factory=list)
+    warnings: list[SessionWarning] = Field(default_factory=list)
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    @field_validator("budget_limit", mode="before")
+    @classmethod
+    def normalize_budget(cls, value: Decimal | float | int | str) -> Decimal:
+        return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+class Session(BaseModel):
+    """Persisted EasyOrder session state."""
+
+    session_id: str = Field(default_factory=lambda: f"session_{uuid.uuid4().hex[:12]}")
+    whatsapp_group_id: str
+    host_phone: str
+    host_token_hash: str
+    guest_token: str
+    budget_limit: Decimal = DEFAULT_BUDGET_LIMIT
+    head_count: int = Field(default=DEFAULT_HEAD_COUNT, ge=1, le=100)
+    dietary_preference: DietaryTag = DietaryTag.ANY
+    status: SessionStatus = SessionStatus.INITIALIZING
+    budget_warning: bool = False
+    degraded_verticals: list[Vertical] = Field(default_factory=list)
+    warnings: list[SessionWarning] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    cart_items: list[CartItem] = Field(default_factory=list)
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    @field_validator("budget_limit", mode="before")
+    @classmethod
+    def normalize_budget(cls, value: Decimal | float | int | str) -> Decimal:
+        return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+class SessionInitResponse(BaseModel):
+    """Response returned after a tagged prompt initializes a session."""
+
+    session_id: str
+    host_token: str
+    guest_link: str
+
+
+class CheckoutRequest(BaseModel):
+    """Host checkout confirmation request."""
+
+    oauth_code: str = Field(min_length=1)
+    host_token: str = Field(min_length=1)
+
+
+class CheckoutResponse(BaseModel):
+    """Sequential checkout URLs returned after cart creation."""
+
+    food_checkout_url: str | None = None
+    instamart_checkout_url: str | None = None
+
+
+class GeneratedSessionTokens(BaseModel):
+    """Generated raw and stored token forms for a new session."""
+
+    host_token: str
+    host_token_hash: str
+    guest_token: str
 
 
 def generate_host_token() -> str:
-    """Generate a raw host token (sent via WhatsApp DM)."""
-    return f"host_{uuid.uuid4().hex}"
+    """Generate a raw host token sent only through private host channels."""
+
+    return f"host_{secrets.token_urlsafe(32)}"
+
+
+def generate_guest_token() -> str:
+    """Generate a public guest token safe to include in a group link."""
+
+    return f"guest_{secrets.token_urlsafe(24)}"
 
 
 def hash_host_token(raw_token: str) -> str:
-    """SHA-256 hash a raw host token for storage."""
+    """SHA-256 hash a raw host token for storage and lookup."""
+
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def generate_session_tokens() -> GeneratedSessionTokens:
+    """Generate host and guest token material for a new session."""
+
+    host_token = generate_host_token()
+    return GeneratedSessionTokens(
+        host_token=host_token,
+        host_token_hash=hash_host_token(host_token),
+        guest_token=generate_guest_token(),
+    )

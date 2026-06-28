@@ -6,9 +6,10 @@ can be swapped for mocks in tests (AGENTS.md rule #23).
 
 from __future__ import annotations
 
-from typing import Protocol
+from collections.abc import Sequence
+from typing import Any, Protocol
 
-from app.models.session import Session
+from app.models.session import CartItem, Session, SessionCreate, SessionStatus
 from app.models.whatsapp import IncomingMessage
 
 
@@ -45,4 +46,59 @@ class ISessionStore(Protocol):
 
     async def update_session_status(self, session_id: str, status: str) -> None:
         """Update a session's status field."""
+        ...
+
+
+class ISwiggyMcpClient(Protocol):
+    """Protocol for Swiggy MCP clients."""
+
+    async def search_restaurants(self, lat: float, lng: float, query: str) -> list[dict[str, Any]]:
+        """Search Swiggy Food restaurants or dishes."""
+        ...
+
+    async def get_restaurant_menu(self, restaurant_id: str) -> list[dict[str, Any]]:
+        """Return a normalized restaurant menu."""
+        ...
+
+    async def search_instamart(self, lat: float, lng: float, query: str) -> list[dict[str, Any]]:
+        """Search Swiggy Instamart items."""
+        ...
+
+    async def create_cart(
+        self,
+        auth_header: str,
+        vertical: str,
+        items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Create a Swiggy checkout cart for one vertical."""
+        ...
+
+    async def get_substitute_items(self, item_id: str) -> list[dict[str, Any]]:
+        """Return substitute candidates for an unavailable item."""
+        ...
+
+
+class IDBAdapter(Protocol):
+    """Protocol for production session and cart persistence."""
+
+    async def create_session(
+        self,
+        session: SessionCreate,
+        host_token_hash: str,
+        guest_token: str,
+        cart_items: Sequence[CartItem] | None = None,
+    ) -> Session:
+        """Create a session and its initial cart atomically."""
+        ...
+
+    async def get_session(self, session_id: str) -> Session | None:
+        """Retrieve a session and its cart by ID."""
+        ...
+
+    async def update_cart_items(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
+        """Replace a session cart with validated items."""
+        ...
+
+    async def update_session_status(self, session_id: str, status: SessionStatus | str) -> None:
+        """Update session lifecycle status."""
         ...
