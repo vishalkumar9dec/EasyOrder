@@ -25,6 +25,40 @@ Recommended GitHub issue shape:
 - Body sections: Objective, dependencies, implementation notes, acceptance criteria, automated tests, manual test, debug strategy.
 - Milestone: match the phase in [implementation-plan.md](implementation-plan.md).
 
+## Implementation Status
+
+Last verified: 2026-06-28.
+
+Branch state:
+
+- Local `main` contains Task 0 foundation work and the local frontend playground.
+- `origin/main` is still at the foundation scaffold until the verified local changes are merged and pushed.
+- `issue-3-whatsapp-intake` contains the WhatsApp webhook intake slice plus the refreshed frontend demo UI.
+
+Verified complete:
+
+- Task 0.1: Repository structure, backend/frontend scaffolds, environment samples, and common setup commands.
+- Task 0.2: Local PostgreSQL compose file, common Makefile commands, and CI-friendly smoke/test commands.
+- Task 1.1: FastAPI app shell, settings, CORS middleware, and health/readiness endpoints.
+- Task 3.1: WhatsApp webhook challenge verification and HMAC signature helper.
+- Task 3.2: Mention-only WhatsApp ingestion in mock mode. Untagged messages are ignored without agent calls; tagged messages create in-memory mock sessions and return guest links.
+
+Partially complete:
+
+- Task 1.2: WhatsApp/domain schemas and service protocols exist for the current webhook slice. Checkout-specific schemas and the full database boundary still need to be completed before the persistence tasks.
+- Task 2.2: Deterministic frontend playground scenarios cover mock ordering states, but the backend `MockSwiggyMcpClient` described by the task is not implemented yet.
+
+Not started:
+
+- Task 1.3, Task 1.4, Task 2.1, Task 4.1 onward.
+
+Verification completed on 2026-06-28:
+
+- `make backend-test`: 10 passed.
+- `make frontend-test`: 6 passed.
+- `make frontend-build`: passed.
+- Browser smoke test against `http://localhost:5173`: hero render, scenario switching, host-only checkout, guest restriction, dietary blocked state, degraded vertical badge, manual add item, quantity editing, over-budget recovery, and mobile viewport render all passed.
+
 ## PRD Traceability
 
 | PRD story | User outcome | Primary tasks |
