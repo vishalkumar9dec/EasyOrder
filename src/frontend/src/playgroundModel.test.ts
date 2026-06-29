@@ -4,6 +4,7 @@ import {
   addManualItem,
   calculateCartTotal,
   getScenarioById,
+  getCheckoutResult,
   getWarnings,
   scenarios,
   updateItemQuantity,
@@ -40,6 +41,69 @@ describe('playground scenarios', () => {
     const warnings = getWarnings(scenario, scenario.cart);
 
     expect(warnings).toContain('Vegetarian preference has non-veg items in the cart.');
+  });
+
+  it('updates dietary warnings when food preference changes', () => {
+    const scenario = getScenarioById('dietary-mismatch');
+
+    expect(getWarnings(scenario, scenario.cart, 'VEG')).toContain(
+      'Vegetarian preference has non-veg items in the cart.',
+    );
+    expect(getWarnings(scenario, scenario.cart, 'NON-VEG')).not.toContain(
+      'Vegetarian preference has non-veg items in the cart.',
+    );
+  });
+
+  it('unblocks dietary checkout when selected preference allows the cart', () => {
+    const scenario = getScenarioById('dietary-mismatch');
+
+    expect(getCheckoutResult(scenario, scenario.cart, 'VEG').status).toBe('blocked');
+    expect(getCheckoutResult(scenario, scenario.cart, 'NON-VEG')).toMatchObject({
+      status: 'ready',
+      title: 'Ready for mock checkout',
+    });
+  });
+
+  it('removes budget warnings when edited cart returns under budget', () => {
+    const scenario = getScenarioById('over-budget-cart');
+    const reducedCart = updateItemQuantity(scenario.cart, 'food-pizza', 1);
+    const warnings = getWarnings(scenario, reducedCart);
+
+    expect(warnings.some((warning) => warning.includes('over budget'))).toBe(false);
+  });
+
+  it('removes unavailable-item warnings and unblocks checkout after the item is removed', () => {
+    const scenario = getScenarioById('stock-change');
+    const updatedCart = updateItemQuantity(scenario.cart, 'im-icecream', 0);
+
+    expect(getWarnings(scenario, scenario.cart)).toContain(
+      'A checkout validation item is unavailable and has a substitute.',
+    );
+    expect(getWarnings(scenario, updatedCart)).not.toContain(
+      'A checkout validation item is unavailable and has a substitute.',
+    );
+    expect(getCheckoutResult(scenario, scenario.cart).status).toBe('blocked');
+    expect(getCheckoutResult(scenario, updatedCart)).toMatchObject({
+      status: 'ready',
+      title: 'Ready for mock checkout',
+    });
+  });
+
+  it('removes price-change warnings and unblocks checkout after the item is removed', () => {
+    const scenario = getScenarioById('price-change');
+    const updatedCart = updateItemQuantity(scenario.cart, 'food-sushi', 0);
+
+    expect(getWarnings(scenario, scenario.cart)).toContain(
+      'A checkout validation item changed price before payment.',
+    );
+    expect(getWarnings(scenario, updatedCart)).not.toContain(
+      'A checkout validation item changed price before payment.',
+    );
+    expect(getCheckoutResult(scenario, scenario.cart).status).toBe('blocked');
+    expect(getCheckoutResult(scenario, updatedCart)).toMatchObject({
+      status: 'ready',
+      title: 'Ready for mock checkout',
+    });
   });
 
   it('updates quantities and removes zero-quantity items', () => {

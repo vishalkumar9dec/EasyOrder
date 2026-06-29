@@ -90,7 +90,7 @@ export const scenarios: PlaygroundScenario[] = [
     headcount: 8,
     dietaryPreference: 'ANY',
     degradedVerticals: [],
-    warnings: ['Cart total is above the host budget. Collaboration can continue.'],
+    warnings: [],
     cart: [
       {
         id: 'food-pizza',
@@ -134,7 +134,7 @@ export const scenarios: PlaygroundScenario[] = [
     headcount: 5,
     dietaryPreference: 'VEG',
     degradedVerticals: [],
-    warnings: ['A non-veg item appears in a vegetarian session.'],
+    warnings: [],
     cart: [
       {
         id: 'food-paneer',
@@ -246,7 +246,7 @@ export const scenarios: PlaygroundScenario[] = [
     headcount: 5,
     dietaryPreference: 'ANY',
     degradedVerticals: [],
-    warnings: ['A checkout validation item is unavailable and has a substitute.'],
+    warnings: [],
     cart: [
       {
         id: 'food-noodles',
@@ -290,7 +290,7 @@ export const scenarios: PlaygroundScenario[] = [
     headcount: 4,
     dietaryPreference: 'ANY',
     degradedVerticals: [],
-    warnings: ['A checkout validation item changed price before payment.'],
+    warnings: [],
     cart: [
       {
         id: 'food-sushi',
@@ -352,7 +352,19 @@ export function getScenarioById(id: string): PlaygroundScenario {
   return scenarios.find((scenario) => scenario.id === id) ?? scenarios[0];
 }
 
-export function getWarnings(scenario: PlaygroundScenario, cart: CartItem[]): string[] {
+export function hasDietaryMismatch(dietaryPreference: DietaryTag, cart: CartItem[]): boolean {
+  return dietaryPreference === 'VEG' && cart.some((item) => item.dietaryTag === 'NON-VEG');
+}
+
+export function getCartIssueItems(cart: CartItem[], issue: NonNullable<CartItem['issue']>): CartItem[] {
+  return cart.filter((item) => item.issue === issue);
+}
+
+export function getWarnings(
+  scenario: PlaygroundScenario,
+  cart: CartItem[],
+  dietaryPreference: DietaryTag = scenario.dietaryPreference,
+): string[] {
   const total = calculateCartTotal(cart);
   const warnings = new Set(scenario.warnings);
 
@@ -360,11 +372,16 @@ export function getWarnings(scenario: PlaygroundScenario, cart: CartItem[]): str
     warnings.add(`Cart is ${formatCurrency(total - scenario.budgetLimit)} over budget.`);
   }
 
-  if (
-    scenario.dietaryPreference === 'VEG' &&
-    cart.some((item) => item.dietaryTag === 'NON-VEG')
-  ) {
+  if (hasDietaryMismatch(dietaryPreference, cart)) {
     warnings.add('Vegetarian preference has non-veg items in the cart.');
+  }
+
+  if (getCartIssueItems(cart, 'unavailable').length > 0) {
+    warnings.add('A checkout validation item is unavailable and has a substitute.');
+  }
+
+  if (getCartIssueItems(cart, 'price-change').length > 0) {
+    warnings.add('A checkout validation item changed price before payment.');
   }
 
   for (const vertical of scenario.degradedVerticals) {
@@ -372,6 +389,66 @@ export function getWarnings(scenario: PlaygroundScenario, cart: CartItem[]): str
   }
 
   return Array.from(warnings);
+}
+
+export function getCheckoutResult(
+  scenario: PlaygroundScenario,
+  cart: CartItem[],
+  dietaryPreference: DietaryTag = scenario.dietaryPreference,
+): CheckoutResult {
+  if (scenario.id === 'dietary-mismatch' && !hasDietaryMismatch(dietaryPreference, cart)) {
+    return {
+      status: 'ready',
+      title: 'Ready for mock checkout',
+      detail: 'Dietary preference is compatible with the current cart.',
+      foodCheckoutUrl: 'https://mock.swiggy.local/checkout/food-dietary',
+      instamartCheckoutUrl: 'https://mock.swiggy.local/checkout/instamart-dietary',
+    };
+  }
+
+  const unavailableItems = getCartIssueItems(cart, 'unavailable');
+  if (scenario.id === 'stock-change') {
+    if (unavailableItems.length === 0) {
+      return {
+        status: 'ready',
+        title: 'Ready for mock checkout',
+        detail: 'Unavailable items were removed from the current cart.',
+        foodCheckoutUrl: 'https://mock.swiggy.local/checkout/food-stock',
+        instamartCheckoutUrl: 'https://mock.swiggy.local/checkout/instamart-stock',
+      };
+    }
+
+    const [item] = unavailableItems;
+    return {
+      status: 'blocked',
+      title: 'Unavailable item',
+      detail: `${item.name} is out of stock.${
+        item.substitute ? ` Suggested substitute: ${item.substitute}.` : ''
+      }`,
+    };
+  }
+
+  const priceChangedItems = getCartIssueItems(cart, 'price-change');
+  if (scenario.id === 'price-change') {
+    if (priceChangedItems.length === 0) {
+      return {
+        status: 'ready',
+        title: 'Ready for mock checkout',
+        detail: 'Price-change items were removed from the current cart.',
+        foodCheckoutUrl: 'https://mock.swiggy.local/checkout/food-price',
+        instamartCheckoutUrl: 'https://mock.swiggy.local/checkout/instamart-price',
+      };
+    }
+
+    const [item] = priceChangedItems;
+    return {
+      status: 'blocked',
+      title: 'Price changed',
+      detail: `${item.name} changed price before payment. Review the new total before checkout.`,
+    };
+  }
+
+  return scenario.checkoutResult;
 }
 
 export function formatCurrency(amount: number): string {

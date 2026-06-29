@@ -102,6 +102,16 @@ default to mock mode.
 
 ## Manual Verification
 
+To prepare, verify, and launch the full local stack in one command:
+
+```bash
+make up
+```
+
+This starts PostgreSQL, applies migrations, runs backend and frontend checks, builds the
+frontend, then launches the backend and frontend dev servers. Use `Ctrl+C` to stop the
+dev servers and tear down the local database.
+
 From a clean checkout, run setup once:
 
 ```bash
@@ -170,6 +180,7 @@ make frontend-test
 make frontend-build
 make test
 make smoke
+make up
 ```
 
 ## Troubleshooting
