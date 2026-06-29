@@ -72,16 +72,18 @@ The first version focuses on a group of 4–10 people planning food and drinks.
 
 ### User Flow:
 1. **Initiate on WhatsApp:** The host adds the EasyOrder bot to their WhatsApp group chat and prompts: `@EasyOrder 6 of us want biryani and starters under Rs 3000, arriving in 45 mins.`
-2. **AI Intent Parsing & MCP Lookup:** The orchestrator agent calls the Swiggy `/food` MCP tool to search for matching restaurants, cross-referencing rating and ETA constraints.
+2. **AI Intent Parsing & MCP Lookup:** The orchestrator agent calls the Swiggy `/food` MCP tool to search for matching restaurants, cross-referencing rating and ETA constraints while preserving restaurant identity for every Food item.
 3. **The Magic Canvas Link:** The bot posts a reply in the WhatsApp group chat: 
    > *"I found 3 great biryani options. Tap this link to add your favorite drinks, customize plates, and checkout: `[easyorder.app/session/123]`"*
 4. **Collaborative Planning Canvas (PWA):**
    - Clicking the link opens a lightweight, mobile-first Web PWA.
    - All group members can join the active session.
    - The host sees the AI-recommended biryani and starter packages.
+   - Every Food item shows which restaurant it comes from.
+   - Every Instamart item shows brand/source context where available.
    - Group members can tap to add cold drinks or ice from Swiggy Instamart (`/im`) to the same planning session.
    - Dietary preferences (veg/non-veg split) are clearly visible.
-5. **Secure Checkout Handoff:** Once the group is satisfied, the host taps "Order via Swiggy". This triggers the Swiggy OAuth login, matches their delivery address, builds the cart, and redirects them to Swiggy's secure checkout page.
+5. **Secure Checkout Handoff:** Once the group is satisfied, the host taps "Order via Swiggy". The PWA previews the required Swiggy orders: one checkout per Food restaurant plus a separate Instamart checkout when grocery items exist. This triggers the Swiggy OAuth login, matches the delivery address, builds each checkout payload, and redirects the host through the required Swiggy checkout pages.
 6. **WhatsApp Tracking:** The bot updates the WhatsApp group chat in real-time as the delivery status changes.
 
 ## 7. Expansion Use Case: Occasion Concierge & Contextual Recommendations
@@ -158,6 +160,8 @@ Messaging Gateway / Webhook
 
 - **No Autonomous Ordering:** The agent can never place an order or charge a card without explicit user validation and checkout confirmation on the PWA.
 - **Cart Sync Verification:** The PWA must re-verify item availability and pricing with Swiggy MCP right before the user initiates OAuth checkout to prevent out-of-stock errors.
+- **Source Transparency:** The PWA must show restaurant names for Food items and brand/source context for Instamart items before checkout.
+- **Restaurant-Bounded Food Checkout:** Swiggy Food orders cannot span multiple restaurants, so EasyOrder must split Food checkout steps by restaurant instead of presenting one combined Food order.
 - **Clear Quantity Hypotheses:** Group sizes must show serving estimates: *"This package contains 3 main dishes and 2 starters (estimated serving: 5-6 moderate eaters)."*
 
 ## 11. LLM Model Selection & Cost Analysis

@@ -13,15 +13,16 @@ EasyOrder is a WhatsApp-first agentic assistant linked with a collaborative Web 
 1. As a party host, I want to add EasyOrder to my WhatsApp group, so that it can help us coordinate our dinner plans automatically.
 2. As a party host, I want to request biryani and starters for a group of 6 under a specific budget, so that the AI can suggest options matching my pricing constraints.
 3. As a group member, I want to receive a collaborative link in our WhatsApp group chat, so that I can view and customize the group's order from my own device.
-4. As a group guest, I want to open the shared PWA link, so that I can see the host's selected food packages and add my own choice of drinks from Instamart.
+4. As a group guest, I want to open the shared PWA link, so that I can see the host's selected food packages, the restaurant each Food item comes from, and add my own choice of drinks from Instamart.
 5. As a group member, I want to see real-time updates when other guests add items to the canvas, so that we do not duplicate selections.
 6. As a guest with dietary restrictions, I want to mark my additions as vegetarian or gluten-free on the canvas, so that the host can ensure my preferences are respected.
 7. As a host, I want the bot to perform a final stock and price check, so that I don't attempt to order items that recently went out of stock.
 8. As a host, I want to log in using Swiggy OAuth, so that my cart is created directly on my Swiggy account.
-9. As a host, I want to checkout sequentially for food and grocery orders, so that Swiggy can dispatch the deliveries to separate riders.
-10. As a WhatsApp group member, I want the bot to post delivery updates directly to the group chat, so that everyone knows when the food is arriving.
-11. As a group host, I want to opt in to sports or tournament updates during PWA session setup, so that the bot can nudge us with relevant food deals during matches.
-12. As a group member, I want the bot to ignore general conversations and only reply when tagged with `@EasyOrder`, so that my group's privacy is respected.
+9. As a host, I want food items grouped by restaurant and grocery items grouped by Instamart brand/vendor context, so that I know exactly where every item will be ordered from before payment.
+10. As a host, I want to checkout sequentially for each required Swiggy order, so that Food items from different restaurants and Instamart items are placed as separate Swiggy orders when Swiggy requires it.
+11. As a WhatsApp group member, I want the bot to post delivery updates directly to the group chat, so that everyone knows when the food is arriving.
+12. As a group host, I want to opt in to sports or tournament updates during PWA session setup, so that the bot can nudge us with relevant food deals during matches.
+13. As a group member, I want the bot to ignore general conversations and only reply when tagged with `@EasyOrder`, so that my group's privacy is respected.
 
 ## Implementation Decisions
 
@@ -36,9 +37,16 @@ EasyOrder is a WhatsApp-first agentic assistant linked with a collaborative Web 
   * **Budget & Qty Worker** (computes cost analysis and serving estimates)
 * **Parallel Execution & Timeout:** Workers are invoked concurrently (e.g., via `Promise.all` or `asyncio.gather`). A strict 2.5-second timeout is enforced per worker thread.
 * **Graceful Degradation:** If one worker fails or times out, the orchestrator proceeds with a partial payload (e.g., serving the PWA link with only food items and notifying the user that grocery items can be added later on the canvas).
+* **Source Attribution:** Every recommended and manually added cart item must carry a displayable source:
+  * Food items must include `restaurant_id` and `restaurant_name`.
+  * Instamart items must include `brand_name` when available and an Instamart source/store label when available.
+  * The PWA must display this source context on cart rows so collaborators and the host know where each item will be ordered from.
+* **Food Restaurant Grouping:** The agent should prefer coherent Food recommendations from one restaurant when that satisfies the prompt and budget. If group choices require multiple restaurants, the session must preserve separate restaurant groups instead of pretending they can become one Swiggy Food cart.
 
 ### 3. Swiggy OAuth & Checkout Handoff
-* **Sequential Checkout:** Since Swiggy treats Food and Instamart as separate delivery verticals, the backend generates two separate Swiggy carts using the host's Swiggy OAuth session token. The PWA leads the host through a sequential checkout experience (first food checkout, then Instamart checkout).
+* **Sequential Checkout:** Since Swiggy treats Food and Instamart as separate delivery verticals, the backend generates separate Swiggy carts using the host's Swiggy OAuth session token. The PWA leads the host through a sequential checkout experience.
+* **Restaurant-Specific Food Orders:** Swiggy Food does not support a single Food order containing items from multiple restaurants. EasyOrder must split Food checkout payloads by `restaurant_id`. A session with items from two restaurants creates two separate Food checkout steps, followed by the Instamart checkout step when Instamart items exist.
+* **Checkout Step Visibility:** Before OAuth handoff, the host must see the number of Swiggy orders required, grouped by restaurant or Instamart source, with each group's subtotal and item list.
 * **Inventory Verification:** Immediately before OAuth redirection, the PWA validates item pricing and stock levels. If an item is out of stock, the client displays a replacement modal (e.g., suggesting a substitute brand) before confirming the final order creation.
 
 ### 4. Group Privacy & Proactive Prompts
@@ -50,7 +58,8 @@ EasyOrder is a WhatsApp-first agentic assistant linked with a collaborative Web 
 * **Orchestrator-Worker Concurrency Unit Tests:** Mock Swiggy MCP server latency to verify that individual worker timeouts (2.5 seconds) degrade gracefully and return partial carts.
 * **Real-time Sync Integration Tests:** Simulate 5 concurrent clients modifying a single session cart via WebSockets/Firebase to ensure state consistency and verify that there are no race conditions.
 * **Handoff Token Validation Tests:** Verify that token-based guest access is secure, session-scoped, and restricted from accessing checkout or payment settings.
-* **Mock OAuth Redirection Tests:** Assert that the sequential cart generation accurately compiles independent carts for the `/food` and `/im` endpoints.
+* **Vendor/Brand Display Tests:** Verify that Food cart rows display restaurant names and Instamart rows display brand/source context.
+* **Mock OAuth Redirection Tests:** Assert that sequential cart generation compiles independent checkout payloads by Food restaurant and Instamart source, including multi-restaurant Food sessions.
 
 ## Out of Scope
 

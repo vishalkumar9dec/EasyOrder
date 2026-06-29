@@ -21,7 +21,7 @@ Current GitHub status:
 | 02 | [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) | Product validation slice: local app playground | Closed |
 | 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2-2.1: domain, persistence, tokens, RLS | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1-3.2: mention-only WhatsApp intake | Closed |
-| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Tasks 2.2, 4.1-4.5: agent initializes consolidated cart | Implemented locally |
+| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Tasks 2.2, 4.1-4.5: agent initializes consolidated cart | Needs vendor/source follow-up |
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | WhatsApp group/host link handoff | Open, ready next |
 | 07-14 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Session PWA, realtime, warnings, checkout, integrations, E2E, hardening | Open, blocked |
 
@@ -67,6 +67,16 @@ What this means for manual testing:
 - Use `API-01` through `API-07` below to test the new backend agent path.
 - You cannot yet open the returned `/session/...` guest link in a real session UI; that
   comes with the PWA bootstrap work in issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6).
+
+## Required UI Changes From Vendor/Restaurant Discovery
+
+These are new requirements discovered after the issue #4 backend slice:
+
+- Food cart rows must display the restaurant name for every item.
+- Instamart cart rows must display brand/source context when available.
+- Session summaries and checkout previews must show how many Swiggy orders the host will place.
+- Food checkout preview must group items by restaurant because Swiggy Food cannot place one order across multiple restaurants.
+- If a session includes two restaurants plus Instamart, the host should see three checkout steps before payment.
 
 ## How To Run The Current UI
 
@@ -202,7 +212,7 @@ The cases that require internal state inspection are covered by automated tests:
 | 5 | Open the same session in two browser windows and confirm realtime cart updates. | Realtime subscription and cart mutation API are not implemented yet. | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7). |
 | 6 | Persist guest dietary additions and verify host-visible warnings. | Current dietary state is scenario fixture data only. | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
 | 7 | Run final stock and price validation against mock Swiggy state. | Current stock/price changes are pre-modeled UI states, not API responses. | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
-| 8, 9 | Host completes mock Swiggy OAuth and sees separate Food and Instamart checkout URLs. | Current links are static mock URLs. OAuth confirmation and sequential cart creation are not implemented yet. | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10), then real MCP and WhatsApp work in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
+| 8, 9, 10 | Host completes mock Swiggy OAuth and sees one checkout step per Food restaurant plus Instamart when needed. | Current links are static mock URLs. OAuth confirmation, restaurant-grouped Food checkout creation, and sequential cart creation are not implemented yet. | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10), then real MCP and WhatsApp work in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
 | 10 | Delivery updates are posted back to WhatsApp group. | Deferred unless delivery-status hooks are available. | Scaffold/provider placeholder in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11), broader demo/runbook coverage in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
 | 11 | Host opts into sports/tournament nudges during setup. | Deferred for MVP; only template-message placeholder is planned. | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
 

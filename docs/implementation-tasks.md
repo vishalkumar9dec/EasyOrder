@@ -31,9 +31,10 @@ Last verified: 2026-06-29.
 
 Branch state:
 
-- Local `main` and `origin/main` contain Task 0 foundation work, the local frontend
-  playground, the verified WhatsApp intake slice, and the issue #4 agent
-  initialization implementation.
+- Local `main` contains Task 0 foundation work, the local frontend playground, the
+  verified WhatsApp intake slice, and the issue #4 agent initialization implementation.
+  The new vendor/source attribution requirement below must be added before closing
+  issue #4 against the updated product contract.
 - GitHub issue titles use an `Order NN | Tasks X-Y` prefix because GitHub issue numbers cannot be changed after creation.
 
 Verified complete:
@@ -53,6 +54,11 @@ Verified complete:
 - Task 4.3: Deterministic mock intent parser with schema-shaped parsed constraints.
 - Task 4.4: Concurrent Food and Instamart mock workers with timeout degradation.
 - Task 4.5: Output guardrails and persistence node for budget warnings, dietary warnings, placeholder filtering, session status, degraded verticals, and cart items.
+
+Newly identified product requirement:
+
+- Cart items must preserve and display source attribution. Food items require restaurant id/name. Instamart items require a source/store label and should preserve product brand when available.
+- Food checkout cannot combine multiple restaurants in one Swiggy order. Checkout must split Food payloads by restaurant, then process Instamart separately.
 
 Verification completed on 2026-06-29:
 
@@ -77,7 +83,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 02 | [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) | Product validation slice before production session work | Closed |
 | 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2, 1.3, 1.4, 2.1 | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1, 3.2 | Closed |
-| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Implemented locally |
+| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Needs vendor/source follow-up |
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Open, ready next |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Open, blocked by #14 and #4 |
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Open, blocked by #6 |
@@ -95,15 +101,16 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 1 | Host adds EasyOrder to WhatsApp group | 3.1, 3.2, 8.2, 9.1 |
 | 2 | Host requests food for group under budget | 3.2, 4.2, 4.3, 4.4, 4.5 |
 | 3 | Group receives collaborative link | 4.5, 8.2, 9.1 |
-| 4 | Guest opens PWA and customizes order | 5.1, 5.2, 6.1, 6.2 |
+| 4 | Guest opens PWA and sees source-attributed cart | 5.1, 5.2, 6.1, 6.2 |
 | 5 | Members see realtime cart updates | 1.3, 1.4, 5.2, 6.2 |
 | 6 | Guests mark dietary preferences | 1.2, 4.5, 5.2, 6.3 |
 | 7 | Host performs final stock and price check | 7.1 |
 | 8 | Host logs in through Swiggy OAuth | 7.2, 8.1 |
-| 9 | Host checks out Food and Instamart sequentially | 7.2 |
-| 10 | Group receives delivery updates | Deferred unless Swiggy delivery-status hooks are available; scaffold provider in 8.2 |
-| 11 | Host opts into sports or tournament updates | Deferred for MVP; template-message placeholder in 8.2 |
-| 12 | Bot ignores untagged conversations | 3.2, 9.3 |
+| 9 | Host sees restaurant/brand source before payment | 1.2, 2.2, 4.5, 5.1, 6.1, 6.3 |
+| 10 | Host checks out one Swiggy order per Food restaurant plus Instamart | 7.1, 7.2 |
+| 11 | Group receives delivery updates | Deferred unless Swiggy delivery-status hooks are available; scaffold provider in 8.2 |
+| 12 | Host opts into sports or tournament updates | Deferred for MVP; template-message placeholder in 8.2 |
+| 13 | Bot ignores untagged conversations | 3.2, 9.3 |
 
 ## Dependency Map
 
@@ -235,11 +242,13 @@ Implementation:
 - Implement session init and checkout schemas.
 - Implement `ISwiggyMcpClient` and `IDBAdapter` protocols.
 - Add typed domain objects for session status, dietary tags, verticals, warnings, and cart items.
+- Add source attribution fields for cart items: Food restaurant id/name, Instamart brand/source label.
 
 Acceptance criteria:
 
 - API route code can depend on schemas without importing concrete infrastructure.
 - Invalid enum values are rejected.
+- Cart item schemas require displayable source names and preserve Food restaurant IDs for checkout grouping.
 - Defaults match the LLD: budget `3000`, headcount `4`, dietary preference `ANY`.
 
 Automated tests:
@@ -265,6 +274,7 @@ Implementation:
 
 - Add `sessions` table from the LLD.
 - Add `cart_items` table from the LLD.
+- Add source attribution columns to `cart_items` for restaurant/store/brand display and checkout grouping.
 - Add indexes for `session_id`, `whatsapp_group_id`, and cart lookup paths.
 - Enable Supabase Realtime publication for `cart_items`.
 - Add migration rollback or down migration where the migration tool supports it.
@@ -272,7 +282,7 @@ Implementation:
 Acceptance criteria:
 
 - Migrations run from an empty local database.
-- Constraints prevent invalid statuses, dietary tags, and verticals.
+- Constraints prevent invalid statuses, dietary tags, verticals, and missing source labels.
 - Cart items cascade-delete with their session.
 
 Automated tests:
@@ -337,6 +347,7 @@ Implementation:
 - Implement `get_session`, `create_session`, `update_cart_items`, and `update_session_status`.
 - Add atomic cart replacement or transaction-safe update behavior.
 - Normalize database rows into typed domain objects.
+- Preserve source attribution fields when reading and writing cart rows.
 
 Acceptance criteria:
 
@@ -368,6 +379,7 @@ Implementation:
 
 - Implement `MockSwiggyMcpClient`.
 - Return static Food and Instamart results.
+- Include restaurant metadata for Food results and brand/source metadata for Instamart results.
 - Add toggles for latency, timeout, out-of-stock, price-change, and empty-result cases.
 - Include representative dietary tags and verticals.
 
@@ -375,12 +387,13 @@ Acceptance criteria:
 
 - Mock client implements the same protocol as the real client.
 - Test cases can select deterministic scenarios.
-- Mock data cannot be mistaken for production data.
+- Mock data cannot be mistaken for production data, but it still includes realistic restaurant/brand source fields.
 
 Automated tests:
 
 - Protocol conformance tests.
 - Scenario tests for normal, timeout, unavailable item, and substitute item behavior.
+- Source attribution tests for Food restaurant and Instamart brand/source fields.
 
 Manual test:
 
@@ -608,6 +621,7 @@ Implementation:
 - Implement dietary warning detection.
 - Filter mock/placeholder items.
 - Persist session status, warnings, budget flag, degraded verticals, and cart items.
+- Persist vendor/source attribution on every cart item.
 
 Acceptance criteria:
 
@@ -615,6 +629,7 @@ Acceptance criteria:
 - VEG sessions with non-VEG items produce warnings.
 - Mock or placeholder items are not written as production recommendations.
 - Session status is `ACTIVE` or `DEGRADED` as appropriate.
+- Food items without restaurant identity and Instamart items without source labels are rejected or flagged before persistence.
 
 Automated tests:
 
@@ -622,6 +637,7 @@ Automated tests:
 - Dietary warning test.
 - Placeholder filter test.
 - Persistence integration test.
+- Source attribution persistence test.
 
 Manual test:
 
@@ -643,11 +659,13 @@ Implementation:
 - Add `GET /api/session/{session_id}`.
 - Validate token from request header or query bootstrap flow.
 - Return session metadata, cart items, role, warnings, degraded state, and checkout eligibility.
+- Return cart item source attribution for display.
 
 Acceptance criteria:
 
 - Guest receives cart data and guest role.
 - Host receives cart data and host role.
+- Cart item rows include restaurant/brand/source display fields.
 - Invalid token receives unauthorized response.
 - Guest response does not include host-only checkout secrets.
 
@@ -676,7 +694,7 @@ Implementation:
 
 - Add cart item create/update/delete endpoints.
 - Enforce session-scoped guest and host permissions.
-- Validate quantity, price, dietary tag, and vertical.
+- Validate quantity, price, dietary tag, vertical, and source attribution fields.
 - Emit database changes that Supabase Realtime can broadcast.
 
 Acceptance criteria:
@@ -684,6 +702,7 @@ Acceptance criteria:
 - Guest and host can mutate cart items for their session.
 - Cross-session mutation is rejected.
 - Invalid item payloads are rejected.
+- Food items cannot be created without restaurant id/name; Instamart items cannot be created without source label.
 
 Automated tests:
 
@@ -712,11 +731,13 @@ Implementation:
 - Add routing for `/session/:sessionId`.
 - Add token bootstrap handling.
 - Add layout for cart canvas, warnings, participant role, and checkout area.
+- Display restaurant name on Food cart rows and brand/source context on Instamart rows.
 - Add development API proxy config.
 
 Acceptance criteria:
 
 - Opening a session URL loads from the backend.
+- Cart rows expose source/vendor context without requiring checkout.
 - Loading, unauthorized, not found, and degraded states are visually distinct.
 - Mobile viewport is usable.
 
@@ -779,6 +800,7 @@ Implementation:
 
 - Display budget total and budget warning.
 - Display dietary tags on items.
+- Display vendor/source labels near affected items and in the session summary where useful.
 - Display degraded verticals and worker failure messages.
 - Allow manual item additions when a vertical is degraded.
 
@@ -786,6 +808,7 @@ Acceptance criteria:
 
 - Budget overage is visible but does not block editing.
 - Dietary warning is visible near affected items or session summary.
+- Source/vendor labels remain visible in warning states.
 - Degraded Food or Instamart state explains what users can still do.
 
 Automated tests:
@@ -814,11 +837,13 @@ Implementation:
 - Hide or disable checkout controls for guests.
 - Add pre-checkout validation flow entry state.
 - Add partial checkout state placeholders.
+- Show checkout preview grouped by Food restaurant and Instamart source, including number of required Swiggy orders.
 
 Acceptance criteria:
 
 - Host sees checkout button.
 - Guest does not see checkout button.
+- Host sees restaurant-grouped checkout steps before starting validation/OAuth.
 - Role is derived from backend authorization, not only query parameters.
 
 Automated tests:
@@ -847,6 +872,7 @@ Implementation:
 - Add `POST /api/session/checkout`.
 - Validate host token.
 - Check latest stock and price through Swiggy MCP.
+- Validate that Food items are grouped by restaurant and every checkout group has source attribution.
 - Return substitute suggestions for unavailable items.
 - Set session status to `CHECKOUT_READY` only when validation passes.
 
@@ -854,6 +880,7 @@ Acceptance criteria:
 
 - Guest cannot call checkout validation.
 - Available cart returns checkout-ready response.
+- Checkout-ready response includes planned checkout groups: one per Food restaurant plus Instamart when present.
 - Unavailable item returns `409 Conflict` with substitute suggestions.
 - Price changes are reported before checkout.
 
@@ -863,6 +890,7 @@ Automated tests:
 - Guest forbidden test.
 - Out-of-stock conflict test.
 - Price-change test.
+- Multi-restaurant checkout-group validation test.
 
 Manual test:
 
@@ -875,7 +903,7 @@ Debug strategy:
 
 ## Task 7.2: Implement Swiggy OAuth Confirmation And Sequential Cart Creation
 
-Objective: Exchange OAuth code and create separate Food and Instamart checkout carts.
+Objective: Exchange OAuth code and create separate Food restaurant and Instamart checkout carts.
 
 Dependencies: Task 7.1.
 
@@ -883,15 +911,15 @@ Implementation:
 
 - Add `POST /api/session/checkout/confirm`.
 - Exchange OAuth code through Swiggy integration.
-- Split cart by vertical.
-- Create Food cart and Instamart cart sequentially.
+- Split cart by Food restaurant and Instamart vertical.
+- Create one Food cart per restaurant and one Instamart cart sequentially.
 - Return checkout URLs and update session checkout state.
 - Handle partial success if one cart succeeds and the second fails.
 
 Acceptance criteria:
 
 - Host token is required.
-- Food and Instamart carts are created with separate payloads.
+- Food carts are created with separate payloads per restaurant, and Instamart remains separate.
 - Empty vertical is skipped cleanly.
 - Partial success is visible and recoverable.
 
@@ -899,19 +927,20 @@ Automated tests:
 
 - OAuth exchange success test.
 - Cart split test.
+- Multi-restaurant Food split test.
 - Food-only and Instamart-only tests.
 - Partial failure recovery test.
 
 Manual test:
 
 - Use mock OAuth code and mock MCP cart creation.
-- Confirm returned URLs include only the relevant verticals.
+- Confirm returned URLs include each relevant restaurant and Instamart checkout step.
 - Force Instamart cart creation failure and confirm partial checkout status.
 
 Debug strategy:
 
 - Log OAuth exchange success/failure without storing authorization code.
-- Log vertical cart creation status separately.
+- Log checkout group creation status separately without leaking OAuth codes.
 
 ## Task 8.1: Implement Real Swiggy MCP Client
 
@@ -924,6 +953,7 @@ Implementation:
 - Implement `SwiggyMcpClient`.
 - Add configuration for MCP server path and environment.
 - Add search, menu, instamart, substitute, and cart creation tool calls.
+- Normalize Food restaurant id/name and Instamart brand/source labels from real MCP responses.
 - Map MCP errors to application exceptions.
 
 Acceptance criteria:
@@ -931,12 +961,14 @@ Acceptance criteria:
 - Real client can be selected by environment variable.
 - Mock client remains default for tests.
 - Tool call responses are normalized into the same domain shape as mock responses.
+- Real responses include source attribution needed by the PWA and checkout grouping.
 
 Automated tests:
 
 - Unit tests for response normalization.
 - Error mapping tests.
 - Contract tests using recorded or fake MCP responses.
+- Source-attribution fixture tests for Food and Instamart responses.
 
 Manual test:
 

@@ -26,6 +26,8 @@ ADR 0001 supersedes older Firestore/Firebase references in the PRD or README. Th
 4. Prefer deterministic tests around orchestration, tokens, persistence, and checkout splitting.
 5. Keep the agent non-authoritative: it recommends and compiles carts, but only the host can authorize checkout.
 6. Make degraded behavior visible and testable whenever Food, Instamart, LLM, OAuth, or Realtime dependencies fail.
+7. Preserve source attribution for every cart item: Food items must show restaurant identity, and Instamart items must show brand/source context when available.
+8. Never assume a single Swiggy Food checkout can contain multiple restaurants; split Food checkout work by restaurant before creating Swiggy carts.
 
 ## Recommended Repository Standards
 
@@ -90,6 +92,7 @@ Implement shared schemas, database migrations, token generation, and storage ada
 Exit criteria:
 
 - Sessions and cart items can be created, read, updated, and deleted locally.
+- Cart items preserve Food restaurant identity and Instamart brand/source identity.
 - Host and guest tokens are generated and hashed according to the LLD.
 - RLS policies are implemented and testable.
 - Supabase Realtime is enabled for `cart_items`.
@@ -112,6 +115,7 @@ Implement LangGraph state, guardrails, intent parsing, Swiggy worker calls, budg
 Exit criteria:
 
 - A tagged WhatsApp-style prompt can create an `ACTIVE` or `DEGRADED` session.
+- Food recommendations retain restaurant grouping; Instamart recommendations retain brand/source context.
 - Prompt injection is blocked before LLM ingestion.
 - PII is sanitized before intent parsing.
 - Worker timeouts return partial results within the 2.5-second SLA.
@@ -124,19 +128,21 @@ Implement the mobile-first PWA session page, token bootstrap, cart display, item
 Exit criteria:
 
 - A guest link opens a session and displays the current cart.
+- Cart rows visibly show the restaurant for Food items and brand/source context for Instamart items.
 - Multiple local browser clients see cart changes in realtime.
 - Guests cannot see or trigger host-only checkout actions.
 - Budget and dietary warnings are visible without blocking collaboration.
 
 ### Phase 5: Checkout And OAuth Handoff
 
-Implement pre-checkout validation, substitute suggestions, Swiggy OAuth callback confirmation, Food/Instamart cart splitting, sequential checkout URLs, and partial checkout recovery.
+Implement pre-checkout validation, substitute suggestions, Swiggy OAuth callback confirmation, Food restaurant/Instamart cart splitting, sequential checkout URLs, and partial checkout recovery.
 
 Exit criteria:
 
 - Host can validate the cart before checkout.
 - Out-of-stock or price-changed items block checkout with useful recovery guidance.
-- Food and Instamart payloads are split according to ADR 0002.
+- Checkout preview shows each required Swiggy order grouped by Food restaurant and Instamart source.
+- Food payloads are split by restaurant, and Instamart payloads remain separate from Food according to ADR 0002.
 - Sequential checkout state is tracked against the EasyOrder session.
 
 ### Phase 6: External Integrations And Sandbox Readiness
@@ -173,7 +179,7 @@ Use unit tests for pure or interface-driven behavior:
 - PII sanitization.
 - Intent parser schema handling with mocked LLM responses.
 - Budget calculation, dietary validation, mock-item filtering.
-- Cart split logic.
+- Cart split logic by Food restaurant and Instamart source.
 
 ### Integration Tests
 
@@ -195,7 +201,7 @@ Use browser/API tests for complete user flows:
 - Two browser clients receive realtime cart updates.
 - Host sees checkout controls and guest does not.
 - Checkout validation detects unavailable items.
-- Host completes mocked sequential checkout for Food and Instamart.
+- Host completes mocked sequential checkout for one restaurant, multiple restaurants, and Instamart.
 
 ### Manual Testing
 
@@ -243,8 +249,8 @@ Manual testing should verify:
 - Agent cannot place orders or charge users.
 - Checkout requires explicit host action.
 - Food and Instamart checkout split is covered by tests.
+- Multi-restaurant Food checkout split is covered by tests.
 - Degraded state is visible in the PWA.
 - Local setup can be completed from a clean clone.
 - Secrets are documented but not committed.
 - Diagrams and docs reflect Supabase as the realtime source of truth.
-

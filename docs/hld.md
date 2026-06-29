@@ -96,7 +96,7 @@ FastAPI Application (main.py)
 1. PWA triggers a pre-checkout validation via `POST /api/session/checkout` — the backend verifies stock and pricing against Swiggy MCP.
 2. On success, the PWA redirects the host to Swiggy's OAuth portal.
 3. Swiggy redirects back with an authorization code.
-4. PWA sends the code to `POST /api/session/checkout/confirm` — the backend exchanges it for an access token, creates Food and Instamart carts sequentially, and returns checkout redirect URLs.
+4. PWA sends the code to `POST /api/session/checkout/confirm` — the backend exchanges it for an access token, creates one checkout payload per Food restaurant plus a separate Instamart payload when needed, and returns the ordered checkout redirect URLs.
 
 ### 2.4 Authentication & Token Separation
 * **Host Token:** SHA-256 derived, sent privately via WhatsApp DM. Grants full session control and checkout privileges.
@@ -183,7 +183,22 @@ stateDiagram-v2
 | **Output Guardrail** | Combined results + constraints | Validated cart + warnings | Budget soft-check, dietary tag validation, mock-item filtering |
 | **Write DB** | Validated state | Session status = ACTIVE | Persists session record and cart items to PostgreSQL via Supabase |
 
-### 3.3 Prompt Harness & LLM Strategy
+### 3.3 Cart Source Attribution And Checkout Grouping
+
+Every cart item persisted by the agent or added manually through the PWA must carry
+source attribution:
+
+* Food items include `restaurant_id` and `restaurant_name`.
+* Instamart items include `brand_name` when available and a store/source label when available.
+* The PWA renders this source on every cart row and in checkout previews.
+
+Food checkout payloads are grouped by `restaurant_id` because Swiggy Food does not
+support one order spanning multiple restaurants. A consolidated EasyOrder session can
+therefore produce multiple Food checkout steps plus one Instamart step. The agent should
+prefer single-restaurant Food recommendations when they satisfy the group's prompt,
+budget, and dietary constraints.
+
+### 3.4 Prompt Harness & LLM Strategy
 
 * **Intent Parser System Prompt:** Instructs the LLM to output a strict JSON schema with budget, headcount, food/grocery keywords, and dietary preference. Provides defaults (budget=3000, headcount=4) for missing fields.
 * **LLM Model Ladder:**
@@ -191,7 +206,7 @@ stateDiagram-v2
   - **Staging:** Google AI Studio free tier (Gemini 1.5 Flash) — free, massive context window for full menu dumps.
   - **Production:** GPT-4o mini — lowest latency, strongest JSON/tool-calling reliability.
 
-### 3.4 Safety Guardrails
+### 3.5 Safety Guardrails
 
 #### Input Guardrails (Pre-LLM)
 * **Prompt Injection Detection:** Regex-based pattern matching for override attempts like `"ignore previous instructions"`, `"system prompt bypass"`, etc. Blocks and returns HTTP 400.
@@ -202,7 +217,7 @@ stateDiagram-v2
 * **Dietary Integrity Check:** Validates that items in a VEG-tagged session are actually tagged VEG. Non-matching items trigger a warning.
 * **Mock/Placeholder Filter:** Strips items with names containing "mock" or "placeholder" to prevent test data from leaking into production sessions.
 
-### 3.5 Degradation & Timeout Policies
+### 3.6 Degradation & Timeout Policies
 
 * **2.5-Second Execution SLA:** All concurrent worker searches run inside `asyncio.wait_for(..., timeout=2.5)`. If any vertical times out, the agent proceeds with partial results.
 * **Degraded State Flag:** When a vertical fails, the session is initialized with `status: "DEGRADED"` and a human-readable warning (e.g., *"Cold drinks search timed out. You can add items manually on the canvas."*). The PWA renders the available results immediately without blocking.
