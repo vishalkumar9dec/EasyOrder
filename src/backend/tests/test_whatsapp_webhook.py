@@ -124,7 +124,7 @@ def test_tagged_message_creates_mock_session() -> None:
     assert body["status"] == "created"
     assert body["sessions"][0]["session_id"].startswith("session_")
     assert body["sessions"][0]["guest_link"].startswith("/session/session_")
-    assert body["sessions"][0]["status"] == "INITIALIZING"
+    assert body["sessions"][0]["status"] == "ACTIVE"
 
 
 def test_invalid_payload_returns_structured_error() -> None:

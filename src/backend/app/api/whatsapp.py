@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from app.config import Settings, get_settings
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
-from app.services.mock_agent import InMemorySessionStore, MockAgentService
+from app.services.mock_agent import MockAgentService
 from app.services.protocols import IAgentService
 
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
@@ -102,4 +102,4 @@ async def ingest_webhook(
 
 
 def create_mock_agent_service() -> MockAgentService:
-    return MockAgentService(InMemorySessionStore())
+    return MockAgentService()

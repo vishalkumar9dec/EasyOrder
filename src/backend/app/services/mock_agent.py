@@ -2,43 +2,17 @@
 
 from __future__ import annotations
 
-from app.models.session import Session, generate_session_tokens
-from app.models.whatsapp import IncomingMessage
-from app.services.protocols import IAgentService, ISessionStore
+from app.services.agent import EasyOrderAgentService
+from app.services.memory_db import InMemoryDBAdapter
+from app.services.mock_swiggy import MockSwiggyMcpClient
 
 
-class InMemorySessionStore(ISessionStore):
-    """Small in-memory store used until PostgreSQL session persistence lands."""
+class MockAgentService(EasyOrderAgentService):
+    """Local EasyOrder agent backed by in-memory persistence and mock Swiggy."""
 
-    def __init__(self) -> None:
-        self.sessions: dict[str, Session] = {}
-
-    async def create_session(self, session: Session) -> Session:
-        self.sessions[session.session_id] = session
-        return session
-
-    async def get_session(self, session_id: str) -> Session | None:
-        return self.sessions.get(session_id)
-
-    async def update_session_status(self, session_id: str, status: str) -> None:
-        if session := self.sessions.get(session_id):
-            session.status = status  # type: ignore[assignment]
-
-
-class MockAgentService(IAgentService):
-    """Creates a deterministic session without invoking LLMs or Swiggy."""
-
-    def __init__(self, store: ISessionStore) -> None:
-        self.store = store
-        self.handled_messages: list[IncomingMessage] = []
-
-    async def handle_tagged_message(self, message: IncomingMessage) -> Session:
-        self.handled_messages.append(message)
-        tokens = generate_session_tokens()
-        session = Session(
-            whatsapp_group_id=message.phone_number_id,
-            host_phone=message.sender_id,
-            host_token_hash=tokens.host_token_hash,
-            guest_token=tokens.guest_token,
+    def __init__(self, store: InMemoryDBAdapter | None = None) -> None:
+        self.store = store or InMemoryDBAdapter()
+        super().__init__(
+            db=self.store,
+            swiggy_client=MockSwiggyMcpClient(),
         )
-        return await self.store.create_session(session)
