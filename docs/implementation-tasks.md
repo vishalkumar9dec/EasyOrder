@@ -56,7 +56,7 @@ Verified complete:
 
 Verification completed on 2026-06-29:
 
-- `make backend-test`: 34 passed.
+- `make backend-test`: 35 passed.
 - `cd src/backend && .venv/bin/python -m ruff check app tests`: passed.
 - `make frontend-test`: 11 passed.
 - `make frontend-build`: passed.

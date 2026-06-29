@@ -1,0 +1,36 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "business-account-1",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15551234567",
+              "phone_number_id": "group_ipl_fans_1"
+            },
+            "contacts": [
+              {
+                "wa_id": "919988776655"
+              }
+            ],
+            "messages": [
+              {
+                "from": "919988776655",
+                "id": "wamid.untagged",
+                "timestamp": "1782489004",
+                "type": "text",
+                "text": {
+                  "body": "Can someone order biryani and drinks?"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
