@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from app.config import Settings, get_settings
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
+from app.services.agent import AgentRejectedPromptError
 from app.services.mock_agent import MockAgentService
 from app.services.protocols import IAgentService
 
@@ -86,7 +87,13 @@ async def ingest_webhook(
 
     created_sessions = []
     for message in tagged_messages:
-        session = await agent_service.handle_tagged_message(message)
+        try:
+            session = await agent_service.handle_tagged_message(message)
+        except AgentRejectedPromptError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tagged message was rejected by input guardrails",
+            ) from error
         created_sessions.append(
             {
                 "session_id": session.session_id,
