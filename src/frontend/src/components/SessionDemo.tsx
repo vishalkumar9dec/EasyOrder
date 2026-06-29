@@ -6,12 +6,14 @@ import {
   cloneCart,
   formatCurrency,
   formatVertical,
+  getCheckoutResult,
   getScenarioById,
   getWarnings,
   scenarios,
   updateItemQuantity,
   type CartItem,
   type CheckoutResult,
+  type DietaryTag,
   type Role,
   type Vertical,
 } from '../playgroundModel';
@@ -60,14 +62,18 @@ const statusTone: Record<string, string> = {
 export function SessionDemo() {
   const [scenarioId, setScenarioId] = useState(scenarios[0].id);
   const [role, setRole] = useState<Role>('host');
+  const [dietaryPreference, setDietaryPreference] = useState<DietaryTag>(scenarios[0].dietaryPreference);
   const [checkoutRan, setCheckoutRan] = useState(false);
   const scenario = getScenarioById(scenarioId);
   const [cart, setCart] = useState<CartItem[]>(() => cloneCart(scenario.cart));
 
   const total = useMemo(() => calculateCartTotal(cart), [cart]);
-  const warnings = useMemo(() => getWarnings(scenario, cart), [scenario, cart]);
+  const warnings = useMemo(
+    () => getWarnings(scenario, cart, dietaryPreference),
+    [scenario, cart, dietaryPreference],
+  );
   const isHost = role === 'host';
-  const checkoutResult = checkoutRan ? scenario.checkoutResult : undefined;
+  const checkoutResult = checkoutRan ? getCheckoutResult(scenario, cart, dietaryPreference) : undefined;
   const budgetDelta = scenario.budgetLimit - total;
   const budgetPercent = Math.min(100, Math.round((total / scenario.budgetLimit) * 100));
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -76,11 +82,17 @@ export function SessionDemo() {
     const next = getScenarioById(nextId);
     setScenarioId(next.id);
     setCart(cloneCart(next.cart));
+    setDietaryPreference(next.dietaryPreference);
     setCheckoutRan(false);
   }
 
   function setQuantity(itemId: string, quantity: number) {
     setCart((c) => updateItemQuantity(c, itemId, quantity));
+    setCheckoutRan(false);
+  }
+
+  function selectDietaryPreference(nextPreference: DietaryTag) {
+    setDietaryPreference(nextPreference);
     setCheckoutRan(false);
   }
 
@@ -180,7 +192,7 @@ export function SessionDemo() {
             <div className="session-info fade-up" style={{ marginTop: 12 }}>
               <div className="info-row">
                 <span className="info-label">Preference</span>
-                <span className="info-value">{scenario.dietaryPreference}</span>
+                <span className="info-value">{dietaryPreference}</span>
               </div>
               <div className="info-row">
                 <span className="info-label">Role</span>
@@ -191,6 +203,36 @@ export function SessionDemo() {
                 <span className={`info-value ${scenario.degradedVerticals.length ? 'warn' : 'good'}`}>
                   {scenario.degradedVerticals.length ? 'Degraded' : 'Healthy'}
                 </span>
+              </div>
+            </div>
+
+            <div className="preference-control fade-up" aria-label="Food preference" style={{ marginTop: 12 }}>
+              <p className="preference-title">Food preference</p>
+              <div className="preference-buttons">
+                <button
+                  className={`preference-btn ${dietaryPreference === 'ANY' ? 'active' : ''}`}
+                  onClick={() => selectDietaryPreference('ANY')}
+                  aria-pressed={dietaryPreference === 'ANY'}
+                  id="preference-any"
+                >
+                  Any
+                </button>
+                <button
+                  className={`preference-btn ${dietaryPreference === 'VEG' ? 'active' : ''}`}
+                  onClick={() => selectDietaryPreference('VEG')}
+                  aria-pressed={dietaryPreference === 'VEG'}
+                  id="preference-veg"
+                >
+                  Veg
+                </button>
+                <button
+                  className={`preference-btn ${dietaryPreference === 'NON-VEG' ? 'active' : ''}`}
+                  onClick={() => selectDietaryPreference('NON-VEG')}
+                  aria-pressed={dietaryPreference === 'NON-VEG'}
+                  id="preference-non-veg"
+                >
+                  Non-veg
+                </button>
               </div>
             </div>
           </div>
@@ -360,12 +402,25 @@ function CheckoutState({ result }: { result: CheckoutResult | undefined }) {
       <p className="checkout-result-detail">{result.detail}</p>
       <div className="checkout-links">
         {result.foodCheckoutUrl && (
-          <a href={result.foodCheckoutUrl}>🍽 Food checkout →</a>
+          <MockCheckoutLink href={result.foodCheckoutUrl} label="Food checkout" />
         )}
         {result.instamartCheckoutUrl && (
-          <a href={result.instamartCheckoutUrl}>🛒 Instamart checkout →</a>
+          <MockCheckoutLink href={result.instamartCheckoutUrl} label="Instamart checkout" />
         )}
       </div>
     </div>
+  );
+}
+
+function MockCheckoutLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      onClick={(event) => event.preventDefault()}
+      aria-label={`${label} mock link`}
+      title={href}
+    >
+      {label === 'Food checkout' ? '🍽' : '🛒'} {label} →
+    </a>
   );
 }
