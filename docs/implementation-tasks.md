@@ -27,11 +27,13 @@ Recommended GitHub issue shape:
 
 ## Implementation Status
 
-Last verified: 2026-06-28.
+Last verified: 2026-06-29.
 
 Branch state:
 
-- Local `main` and `origin/main` both contain Task 0 foundation work, the local frontend playground, and the verified WhatsApp intake slice.
+- Local `main` and `origin/main` contain Task 0 foundation work, the local frontend
+  playground, the verified WhatsApp intake slice, and the issue #4 agent
+  initialization implementation.
 - GitHub issue titles use an `Order NN | Tasks X-Y` prefix because GitHub issue numbers cannot be changed after creation.
 
 Verified complete:
@@ -43,22 +45,20 @@ Verified complete:
 - Task 1.3: PostgreSQL migrations for `sessions` and `cart_items`, constraints, indexes, cascade behavior, and Supabase Realtime publication hook.
 - Task 1.4: Host/guest token generation, SHA-256 host-token hashing, and RLS policies for session/cart access.
 - Task 2.1: Async PostgreSQL database adapter for creating sessions with carts, reading sessions, replacing carts, and updating session status.
+- Task 2.2: Deterministic backend `MockSwiggyMcpClient` with normal, empty, timeout, unavailable-item, price-change, and substitute scenarios.
 - Task 3.1: WhatsApp webhook challenge verification and HMAC signature helper.
 - Task 3.2: Mention-only WhatsApp ingestion in mock mode. Untagged messages are ignored without agent calls; tagged messages create in-memory mock sessions and return guest links.
+- Task 4.1: LangGraph-backed EasyOrder graph skeleton with explicit nodes and dependency injection.
+- Task 4.2: Input guardrails for prompt-injection blocking and PII masking.
+- Task 4.3: Deterministic mock intent parser with schema-shaped parsed constraints.
+- Task 4.4: Concurrent Food and Instamart mock workers with timeout degradation.
+- Task 4.5: Output guardrails and persistence node for budget warnings, dietary warnings, placeholder filtering, session status, degraded verticals, and cart items.
 
-Partially complete:
+Verification completed on 2026-06-29:
 
-- Task 2.2: Deterministic frontend playground scenarios cover mock ordering states, but the backend `MockSwiggyMcpClient` described by the task is not implemented yet.
-
-Not started:
-
-- Task 4.1 onward.
-
-Verification completed on 2026-06-28:
-
-- `make backend-test`: 23 passed.
+- `make backend-test`: 34 passed.
 - `cd src/backend && .venv/bin/python -m ruff check app tests`: passed.
-- `make frontend-test`: 6 passed.
+- `make frontend-test`: 11 passed.
 - `make frontend-build`: passed.
 - Browser smoke test against `http://localhost:5173`: hero render, scenario switching, host-only checkout, guest restriction, dietary blocked state, degraded vertical badge, manual add item, quantity editing, over-budget recovery, and mobile viewport render all passed.
 - `make db-up`: PostgreSQL container started.
@@ -77,8 +77,8 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 02 | [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) | Product validation slice before production session work | Closed |
 | 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2, 1.3, 1.4, 2.1 | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1, 3.2 | Closed |
-| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Open, ready next |
-| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Open, blocked by #4 |
+| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Implemented locally |
+| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Open, ready next |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Open, blocked by #14 and #4 |
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Open, blocked by #6 |
 | 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Open, blocked by #7 |
