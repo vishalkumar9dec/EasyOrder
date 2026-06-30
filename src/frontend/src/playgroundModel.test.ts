@@ -5,6 +5,7 @@ import {
   calculateCartTotal,
   getScenarioById,
   getCheckoutResult,
+  getCartItemSourceText,
   getWarnings,
   scenarios,
   updateItemQuantity,
@@ -34,6 +35,16 @@ describe('playground scenarios', () => {
     const scenario = getScenarioById('normal-group-order');
 
     expect(calculateCartTotal(scenario.cart)).toBe(2180);
+  });
+
+  it('exposes restaurant and brand source context for visible cart rows', () => {
+    const scenario = getScenarioById('normal-group-order');
+
+    expect(scenario.cart.map(getCartItemSourceText)).toEqual([
+      'Biryani House',
+      'Roll House',
+      'Thums Up · Instamart Mock Store',
+    ]);
   });
 
   it('adds budget and dietary warnings from current cart state', () => {

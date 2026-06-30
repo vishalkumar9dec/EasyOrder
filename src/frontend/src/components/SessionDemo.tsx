@@ -6,6 +6,7 @@ import {
   cloneCart,
   formatCurrency,
   formatVertical,
+  getCartItemSourceText,
   getCheckoutResult,
   getScenarioById,
   getWarnings,
@@ -338,6 +339,7 @@ function CartItemCard({
 
       <div className="cart-item-info">
         <p className="cart-item-name">{item.name}</p>
+        <p className="cart-item-source">{getCartItemSourceText(item)}</p>
         <div className="cart-item-tags">
           <span className={`tag ${item.vertical === 'food' ? 'tag-food' : 'tag-im'}`}>
             {formatVertical(item.vertical)}
