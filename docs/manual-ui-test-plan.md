@@ -126,6 +126,9 @@ Use `Ctrl+C` to stop the long-running dev servers.
 These tests verify the new initialized-session backend path before the production
 PWA session UI exists.
 
+The completed automated and smoke-test report for the issue #4 source-attribution
+follow-up is available at [issue-4-source-attribution.md](/Users/vishalkumar/projects/swiggy_builder_prog/docs/test-reports/issue-4-source-attribution.md).
+
 ### Start The Backend
 
 In terminal 1:
