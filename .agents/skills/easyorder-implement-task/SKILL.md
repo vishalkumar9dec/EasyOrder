@@ -22,6 +22,8 @@ implement the next task as per the [implementation-tasks.md](docs/implementation
    - Do not discard unrelated user changes.
 
 2. Identify the next EasyOrder task.
+   - Refer to the `/goal` skill or goal workflow before implementation so the objective and completion boundary are explicit.
+   - Refer to the `easyorder-daily-status` skill before selecting the task. Run or use its status workflow, then verify that its "next task" output aligns with `docs/implementation-tasks.md`.
    - Read `docs/implementation-tasks.md`.
    - Read nearby source-of-truth docs when needed: `docs/easyorder-prd.md`, `docs/implementation-plan.md`, and `docs/manual-ui-test-plan.md`.
    - If GitHub status matters, request network approval and run `gh issue list --state all --limit 30 --json number,title,state,labels,url`.
