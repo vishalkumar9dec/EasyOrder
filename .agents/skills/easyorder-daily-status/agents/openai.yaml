@@ -1,0 +1,4 @@
+interface:
+  display_name: "EasyOrder Daily Status"
+  short_description: "Run EasyOrder verification and summarize the next task."
+  default_prompt: "Run the EasyOrder daily status check, verify local tests, inspect issue order, and summarize the next implementation task."
