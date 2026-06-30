@@ -19,6 +19,11 @@ def test_session_persistence_migration_defines_required_tables_constraints_and_i
     assert "CHECK (dietary_preference IN ('VEG','NON-VEG','ANY'))" in sql
     assert "CHECK (dietary_tag IN ('VEG','NON-VEG','ANY'))" in sql
     assert "CHECK (vertical IN ('food','instamart'))" in sql
+    assert "restaurant_id TEXT" in sql
+    assert "restaurant_name TEXT" in sql
+    assert "brand_name TEXT" in sql
+    assert "source_label TEXT" in sql
+    assert "CONSTRAINT cart_items_source_attribution" in sql
     assert "idx_sessions_whatsapp_group_id" in sql
     assert "idx_cart_items_session_id" in sql
     assert "idx_cart_items_session_vertical" in sql

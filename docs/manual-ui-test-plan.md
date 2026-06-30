@@ -21,7 +21,7 @@ Current GitHub status:
 | 02 | [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) | Product validation slice: local app playground | Closed |
 | 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2-2.1: domain, persistence, tokens, RLS | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1-3.2: mention-only WhatsApp intake | Closed |
-| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Tasks 2.2, 4.1-4.5: agent initializes consolidated cart | Needs vendor/source follow-up |
+| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Tasks 2.2, 4.1-4.5: agent initializes consolidated cart | Source attribution implemented; manual verification pending |
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | WhatsApp group/host link handoff | Open, ready next |
 | 07-14 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Session PWA, realtime, warnings, checkout, integrations, E2E, hardening | Open, blocked |
 
@@ -59,18 +59,21 @@ No browser-visible UI changed in issue [#4](https://github.com/vishalkumar9dec/E
 The current web app is still the local playground with hard-coded scenarios. The new
 development is backend/API behavior: tagged WhatsApp webhook payloads now run through
 the mock-first agent initialization path and create initialized `ACTIVE` or `DEGRADED`
-sessions in the local in-memory mock store.
+sessions in the local in-memory mock store. The agent-generated backend cart now
+preserves source attribution: Food items include restaurant id/name, and Instamart
+items include a source label plus brand name when available.
 
 What this means for manual testing:
 
 - Use `UI-01` through `UI-10` to regression-test the current browser playground.
-- Use `API-01` through `API-07` below to test the new backend agent path.
+- Use `API-01` through `API-11` below to test the new backend agent path.
 - You cannot yet open the returned `/session/...` guest link in a real session UI; that
   comes with the PWA bootstrap work in issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6).
 
 ## Required UI Changes From Vendor/Restaurant Discovery
 
-These are new requirements discovered after the issue #4 backend slice:
+These requirements are now enforced in the backend cart contract and remain pending
+for browser display in the later PWA/session UI issues:
 
 - Food cart rows must display the restaurant name for every item.
 - Instamart cart rows must display brand/source context when available.
@@ -180,14 +183,28 @@ async def main():
     )
     session = await agent.handle_tagged_message(msg)
     print("status:", session.status)
-    print("cart:", [(item.name, item.vertical, item.quantity) for item in session.cart_items])
+    print(
+        "cart:",
+        [
+            (
+                item.name,
+                item.vertical,
+                item.quantity,
+                item.restaurant_name,
+                item.brand_name,
+                item.source_label,
+            )
+            for item in session.cart_items
+        ],
+    )
     print("warnings:", [warning.code for warning in session.warnings])
 
 asyncio.run(main())
 PY
 ```
 
-Expected output: `ACTIVE`, one Food item, one Instamart item, and no warnings for the
+Expected output: `ACTIVE`, one Food item with restaurant name `Biryani House`, one
+Instamart item with source label `Instamart Mock Store`, and no warnings for the
 normal prompt.
 
 ### Automated Backend Coverage
@@ -201,6 +218,7 @@ The cases that require internal state inspection are covered by automated tests:
 | API-08 | Instamart timeout degrades gracefully | `tests/test_agent_service.py` asserts `DEGRADED` session with `VERTICAL_TIMEOUT` for Instamart. |
 | API-09 | Full worker timeout still creates traceable session | `tests/test_agent_service.py` asserts both verticals are degraded and no cart items are persisted. |
 | API-10 | Mock Swiggy scenario coverage | `tests/test_mock_swiggy.py` covers normal search, empty results, substitute lookup, unavailable item, and price-change item. |
+| API-11 | Source attribution is preserved and malformed source-less results are skipped | `tests/test_session_domain.py`, `tests/test_agent_service.py`, `tests/test_db_adapter.py`, `tests/test_mock_swiggy.py`, and `tests/test_migrations.py` assert Food restaurant metadata, Instamart source labels, DB persistence, migration constraints, and `SOURCE_ATTRIBUTION_MISSING` warnings. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 
@@ -227,6 +245,6 @@ make frontend-build
 ```
 
 Then manually retest `UI-01` through `UI-07` in the playground and `API-01` through
-`API-07` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
+`API-11` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
 agent now produces session/cart states that future PWA work can load in place of the
 hard-coded playground fixtures.

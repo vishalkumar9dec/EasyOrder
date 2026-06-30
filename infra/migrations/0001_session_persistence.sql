@@ -32,6 +32,21 @@ CREATE TABLE IF NOT EXISTS cart_items (
         CHECK (dietary_tag IN ('VEG','NON-VEG','ANY')),
     vertical TEXT NOT NULL
         CHECK (vertical IN ('food','instamart')),
+    restaurant_id TEXT,
+    restaurant_name TEXT,
+    brand_name TEXT,
+    source_label TEXT,
+    CONSTRAINT cart_items_source_attribution CHECK (
+        (
+            vertical = 'food'
+            AND restaurant_id IS NOT NULL
+            AND restaurant_name IS NOT NULL
+        )
+        OR (
+            vertical = 'instamart'
+            AND source_label IS NOT NULL
+        )
+    ),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

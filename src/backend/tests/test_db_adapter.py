@@ -82,6 +82,10 @@ class FakeConnection:
                 "added_by": args[5],
                 "dietary_tag": args[6],
                 "vertical": args[7],
+                "restaurant_id": args[8],
+                "restaurant_name": args[9],
+                "brand_name": args[10],
+                "source_label": args[11],
                 "created_at": datetime.now(UTC),
             }
             self.next_cart_id += 1
@@ -124,6 +128,8 @@ def test_adapter_creates_session_with_initial_cart_in_transaction() -> None:
                     added_by="919988776655",
                     dietary_tag=DietaryTag.VEG,
                     vertical=Vertical.FOOD,
+                    restaurant_id="rest-roll-house",
+                    restaurant_name="Roll House",
                 )
             ],
         )
@@ -159,6 +165,8 @@ def test_adapter_get_session_returns_session_with_cart_items() -> None:
                     added_by="guest",
                     dietary_tag=DietaryTag.VEG,
                     vertical=Vertical.INSTAMART,
+                    brand_name="Thums Up",
+                    source_label="Instamart Mock Store",
                 )
             ],
         )
@@ -169,6 +177,8 @@ def test_adapter_get_session_returns_session_with_cart_items() -> None:
     assert loaded is not None
     assert loaded.session_id == created.session_id
     assert loaded.cart_items[0].item_id == "im-cola"
+    assert loaded.cart_items[0].brand_name == "Thums Up"
+    assert loaded.cart_items[0].source_label == "Instamart Mock Store"
 
 
 def test_adapter_raises_for_missing_session_cart_or_status_updates() -> None:

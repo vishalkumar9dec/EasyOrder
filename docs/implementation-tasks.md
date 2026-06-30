@@ -27,14 +27,16 @@ Recommended GitHub issue shape:
 
 ## Implementation Status
 
-Last verified: 2026-06-29.
+Last verified: 2026-06-30.
 
 Branch state:
 
-- Local `main` contains Task 0 foundation work, the local frontend playground, the
-  verified WhatsApp intake slice, and the issue #4 agent initialization implementation.
-  The new vendor/source attribution requirement below must be added before closing
-  issue #4 against the updated product contract.
+- Local `main` contains Task 0 foundation work, the local frontend playground, and
+  the verified WhatsApp intake slice.
+- Branch `codex/issue-4-source-attribution` completes the issue #4 source-attribution
+  follow-up against the updated product contract. Food cart items now require
+  restaurant id/name, Instamart cart items now require source labels, and mock
+  Swiggy results preserve brand/source metadata for persistence.
 - GitHub issue titles use an `Order NN | Tasks X-Y` prefix because GitHub issue numbers cannot be changed after creation.
 
 Verified complete:
@@ -83,7 +85,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 02 | [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) | Product validation slice before production session work | Closed |
 | 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2, 1.3, 1.4, 2.1 | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1, 3.2 | Closed |
-| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Needs vendor/source follow-up |
+| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Source attribution implemented; PR/manual verification pending |
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Open, ready next |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Open, blocked by #14 and #4 |
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Open, blocked by #6 |

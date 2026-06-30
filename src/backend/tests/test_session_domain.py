@@ -35,6 +35,8 @@ def test_cart_item_rejects_invalid_enum_values() -> None:
             added_by="guest_1",
             dietary_tag="EGG",
             vertical="food",
+            restaurant_id="rest-1",
+            restaurant_name="Roll House",
         )
 
     with pytest.raises(ValidationError):
@@ -45,6 +47,28 @@ def test_cart_item_rejects_invalid_enum_values() -> None:
             added_by="guest_1",
             dietary_tag="VEG",
             vertical="pharmacy",
+        )
+
+
+def test_cart_item_requires_source_attribution_for_supported_verticals() -> None:
+    with pytest.raises(ValidationError):
+        CartItem(
+            item_id="food-paneer-roll",
+            name="Paneer tikka rolls",
+            price=180,
+            added_by="guest_1",
+            dietary_tag=DietaryTag.VEG,
+            vertical=Vertical.FOOD,
+        )
+
+    with pytest.raises(ValidationError):
+        CartItem(
+            item_id="im-cola",
+            name="Cola 2L bottle",
+            price=110,
+            added_by="guest_1",
+            dietary_tag=DietaryTag.VEG,
+            vertical=Vertical.INSTAMART,
         )
 
 
@@ -69,7 +93,10 @@ def test_cart_item_normalizes_price_and_accepts_supported_values() -> None:
         added_by="919988776655",
         dietary_tag=DietaryTag.VEG,
         vertical=Vertical.FOOD,
+        restaurant_id="rest-roll-house",
+        restaurant_name="Roll House",
     )
 
     assert item.price == Decimal("180.00")
     assert item.quantity == 4
+    assert item.restaurant_name == "Roll House"

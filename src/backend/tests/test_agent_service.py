@@ -54,6 +54,16 @@ def test_graph_compiles_and_invokes_end_to_end_with_mock_dependencies() -> None:
     assert created.head_count == 4
     assert {item.vertical for item in created.cart_items} == {Vertical.FOOD, Vertical.INSTAMART}
     assert created.cart_items[0].session_id == created.session_id
+    assert all(
+        item.restaurant_id and item.restaurant_name
+        for item in created.cart_items
+        if item.vertical == Vertical.FOOD
+    )
+    assert all(
+        item.source_label
+        for item in created.cart_items
+        if item.vertical == Vertical.INSTAMART
+    )
     assert created.budget_warning is False
 
 
@@ -126,6 +136,8 @@ def test_output_guardrails_add_budget_and_dietary_warnings_and_filter_placeholde
             "price": "620.00",
             "dietary_tag": DietaryTag.NON_VEG,
             "vertical": Vertical.FOOD,
+            "restaurant_id": "rest-biryani-house",
+            "restaurant_name": "Biryani House",
         },
         {
             "item_id": "food-placeholder",
@@ -133,6 +145,8 @@ def test_output_guardrails_add_budget_and_dietary_warnings_and_filter_placeholde
             "price": "1.00",
             "dietary_tag": DietaryTag.VEG,
             "vertical": Vertical.FOOD,
+            "restaurant_id": "rest-placeholder",
+            "restaurant_name": "Placeholder Cafe",
         },
     ]
 
@@ -141,6 +155,39 @@ def test_output_guardrails_add_budget_and_dietary_warnings_and_filter_placeholde
     assert state.budget_warning is True
     assert {warning.code for warning in state.warnings} == {"BUDGET_EXCEEDED", "DIETARY_MISMATCH"}
     assert [item.item_id for item in state.cart_items] == ["food-chicken-biryani"]
+
+
+def test_output_guardrails_skip_items_missing_source_attribution() -> None:
+    agent = service()
+    state = EasyOrderState(message=message("@EasyOrder get biryani and drinks for 4 under 3000"))
+    state.intent = run(agent.parser.parse(state.message.message_text))
+    state.food_results = [
+        {
+            "item_id": "food-no-restaurant",
+            "name": "Mystery biryani",
+            "price": "620.00",
+            "dietary_tag": DietaryTag.NON_VEG,
+            "vertical": Vertical.FOOD,
+        }
+    ]
+    state.instamart_results = [
+        {
+            "item_id": "im-no-source",
+            "name": "Mystery soda",
+            "price": "110.00",
+            "dietary_tag": DietaryTag.VEG,
+            "vertical": Vertical.INSTAMART,
+            "brand_name": "Unknown",
+        }
+    ]
+
+    state = run(agent.apply_output_guardrails(state))
+
+    assert state.cart_items == []
+    assert [warning.code for warning in state.warnings] == [
+        "SOURCE_ATTRIBUTION_MISSING",
+        "SOURCE_ATTRIBUTION_MISSING",
+    ]
 
 
 def test_persistence_node_writes_session_metadata_and_cart_items() -> None:
@@ -155,6 +202,7 @@ def test_persistence_node_writes_session_metadata_and_cart_items() -> None:
     assert loaded.session_id == created.session_id
     assert loaded.budget_warning is True
     assert loaded.cart_items
+    assert loaded.cart_items[0].restaurant_name == "Pizza Yard"
 
 
 def test_graph_node_error_is_captured_as_degraded_session() -> None:
