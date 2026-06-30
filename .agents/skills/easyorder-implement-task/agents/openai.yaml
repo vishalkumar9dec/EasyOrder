@@ -1,0 +1,4 @@
+interface:
+  display_name: "EasyOrder Implement Task"
+  short_description: "Implement next EasyOrder task."
+  default_prompt: "Use easyorder-implement-task to implement the next task from docs/implementation-tasks.md, verify it, update manual UI tests, prepare a test report, and open a PR."
