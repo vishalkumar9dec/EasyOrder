@@ -193,9 +193,13 @@ class AsyncPostgresDBAdapter:
                     price,
                     added_by,
                     dietary_tag,
-                    vertical
+                    vertical,
+                    restaurant_id,
+                    restaurant_name,
+                    brand_name,
+                    source_label
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 """,
                 session_id,
                 item.item_id,
@@ -205,6 +209,10 @@ class AsyncPostgresDBAdapter:
                 item.added_by,
                 item.dietary_tag,
                 item.vertical,
+                item.restaurant_id,
+                item.restaurant_name,
+                item.brand_name,
+                item.source_label,
             )
 
     async def _fetch_cart_items(self, connection: Any, session_id: str) -> list[CartItem]:

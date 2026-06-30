@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 DEFAULT_BUDGET_LIMIT = Decimal("3000.00")
 DEFAULT_HEAD_COUNT = 4
@@ -63,6 +63,10 @@ class CartItem(BaseModel):
     added_by: str
     dietary_tag: DietaryTag = DietaryTag.ANY
     vertical: Vertical
+    restaurant_id: str | None = None
+    restaurant_name: str | None = None
+    brand_name: str | None = None
+    source_label: str | None = None
     created_at: datetime | None = None
 
     model_config = ConfigDict(use_enum_values=True)
@@ -71,6 +75,15 @@ class CartItem(BaseModel):
     @classmethod
     def normalize_price(cls, value: Decimal | float | int | str) -> Decimal:
         return Decimal(str(value)).quantize(Decimal("0.01"))
+
+    @model_validator(mode="after")
+    def require_source_attribution(self) -> CartItem:
+        if self.vertical == Vertical.FOOD:
+            if not self.restaurant_id or not self.restaurant_name:
+                raise ValueError("Food cart items require restaurant_id and restaurant_name")
+        if self.vertical == Vertical.INSTAMART and not self.source_label:
+            raise ValueError("Instamart cart items require source_label")
+        return self
 
 
 class SessionCreate(BaseModel):
