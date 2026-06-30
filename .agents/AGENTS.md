@@ -17,6 +17,7 @@ These rules are automatically loaded by the AI agent at the start of every conve
 6. **Execute without stopping for confirmation** on multi-step tasks unless there is genuine ambiguity. Short replies like `yes`, `agree`, `proceed` mean go ahead — do not re-confirm.
 7. **Don't re-summarize.** After creating or updating an artifact, do not restate its contents. Point to the file and highlight only open questions.
 8. **When the user rejects output**, identify the root cause before re-generating. Ask one clarifying question to understand the gap, don't just produce another guess.
+9. Sacrifice grammar when talking to me for the sake of saving tokens. However, the documentation, codebase must follow the correct grammar
 
 ## Architecture & Design Rules
 
