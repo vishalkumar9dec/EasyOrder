@@ -55,13 +55,17 @@ Browser checks covered:
 
 ## UI Changes From Issue #4
 
-No browser-visible UI changed in issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4).
-The current web app is still the local playground with hard-coded scenarios. The new
-development is backend/API behavior: tagged WhatsApp webhook payloads now run through
-the mock-first agent initialization path and create initialized `ACTIVE` or `DEGRADED`
-sessions in the local in-memory mock store. The agent-generated backend cart now
-preserves source attribution: Food items include restaurant id/name, and Instamart
-items include a source label plus brand name when available.
+Issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) now includes a
+small browser-visible playground update for source attribution. Cart rows display
+a source line under the item name: Food rows show the restaurant name, and
+Instamart rows show brand plus source/store context when available.
+
+The current web app is still the local playground with hard-coded scenarios. The
+backend/API behavior is also updated: tagged WhatsApp webhook payloads run through
+the mock-first agent initialization path and create initialized `ACTIVE` or
+`DEGRADED` sessions in the local in-memory mock store. The agent-generated
+backend cart preserves source attribution: Food items include restaurant id/name,
+and Instamart items include a source label plus brand name when available.
 
 What this means for manual testing:
 
@@ -110,7 +114,7 @@ Use `Ctrl+C` to stop the long-running dev servers.
 
 | ID | Use case | Steps | Validate | Current coverage | Next related issue |
 |---|---|---|---|---|---|
-| UI-01 | Normal group order | Open the app, go to the interactive demo, select `Normal`, keep role as `Host`, click `Validate Checkout`, then click both mock checkout actions. | Prompt mentions biryani, paneer rolls, cold drinks, 6 people, and budget 3000. Cart has Food and Instamart items. Checkout shows `Ready for mock checkout`. Food and Instamart mock checkout actions are visible and clicking them keeps you on the EasyOrder playground. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). | Real agent-generated cart in [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4), persisted session loading in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6), local E2E demo in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
+| UI-01 | Normal group order | Open the app, go to the interactive demo, select `Normal`, keep role as `Host`, click `Validate Checkout`, then click both mock checkout actions. | Prompt mentions biryani, paneer rolls, cold drinks, 6 people, and budget 3000. Cart has Food and Instamart items. Food rows show source lines `Biryani House` and `Roll House`; the Instamart row shows `Thums Up · Instamart Mock Store`. Checkout shows `Ready for mock checkout`. Food and Instamart mock checkout actions are visible and clicking them keeps you on the EasyOrder playground. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2), source display from issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4). | Persisted session loading in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6), local E2E demo in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
 | UI-02 | Over-budget cart | Select `Budget`, click `Validate Checkout`. Try reducing item quantities with the quantity controls. | Total is above budget at first, budget section says over budget, warnings mention the overage, and checkout remains allowed with `Budget warning only`. Reducing quantities updates the total and can recover the budget state. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). | Backend output guardrails in [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4); real warning UI in [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
 | UI-03 | Dietary mismatch | Select `Dietary`, choose `Veg` in `Food preference`, click `Validate Checkout`, then switch to `Non-veg` and validate again. | With `Veg`, a non-veg item appears, warnings include vegetarian mismatch, and checkout shows `Dietary review needed`. With `Non-veg`, the dietary warning clears and checkout changes to `Ready for mock checkout`. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). | Backend dietary warning persistence in [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4); actionable PWA warning UI in [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
 | UI-04 | Degraded Food availability | Select `Food down`, add a Food item manually, then click `Validate Checkout`. | Food degraded badge appears. Existing cart contains Instamart items. Manual Food addition appears in the cart. Checkout shows `Partial mock checkout`. The Instamart mock checkout action stays inside the playground when clicked. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). | Worker degradation from the agent in [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4); manual degraded-state UX in [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
@@ -118,7 +122,7 @@ Use `Ctrl+C` to stop the long-running dev servers.
 | UI-06 | Stock change at validation | Select `Stock`, inspect the affected item, click `Validate Checkout`. | The item has an unavailable tag, substitute copy mentions `Butterscotch ice cream tub`, and checkout is `Blocked` with `Unavailable item`. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). | Real pre-checkout validation API in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9); sequential checkout flow in [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). |
 | UI-07 | Price change at validation | Select `Price`, inspect the affected item, click `Validate Checkout`. | The item has a price-changed tag, warning mentions price change before payment, and checkout is `Blocked` with `Price changed`. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). | Real pre-checkout validation API in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
 | UI-08 | Host-only checkout affordance | In any scenario, select `Host`, then select `Guest`. | Host sees `Validate Checkout`. Guest does not see the button and sees `Guests can edit the cart. Only the host can validate and checkout.` | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2), but role is local UI state only. | Backend-derived host/guest role in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6); host-only checkout entry in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9); security hardening in [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13). |
-| UI-09 | Guest cart editing | Select `Guest`, use `+ Food`, `+ Instamart`, and quantity controls. | Guest can add manual items and edit quantities. Checkout remains unavailable to guest. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2), local-only state. | Session mutation API and realtime collaboration in [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7). |
+| UI-09 | Guest cart editing | Select `Guest`, use `+ Food`, `+ Instamart`, and quantity controls. | Guest can add manual items and edit quantities. Manual Food rows show `Manual restaurant`; manual Instamart rows show `Manual brand · Manual Instamart source`. Checkout remains unavailable to guest. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2), source display from issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4), local-only state. | Session mutation API and realtime collaboration in [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7). |
 | UI-10 | Mobile usability smoke | Open the app in a narrow mobile viewport, go to the demo, switch scenarios and role. | Scenario tabs, cart, warnings, and guest restriction remain usable without blocking the main flow. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). | Real PWA mobile session route in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). |
 
 ## Backend/API Tests Available After Issue #4

@@ -10,6 +10,9 @@ export interface CartItem {
   quantity: number;
   unitPrice: number;
   dietaryTag: DietaryTag;
+  restaurantName?: string;
+  brandName?: string;
+  sourceLabel?: string;
   issue?: 'unavailable' | 'price-change';
   substitute?: string;
 }
@@ -55,6 +58,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 2,
         unitPrice: 620,
         dietaryTag: 'NON-VEG',
+        restaurantName: 'Biryani House',
       },
       {
         id: 'food-paneer-roll',
@@ -63,6 +67,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 4,
         unitPrice: 180,
         dietaryTag: 'VEG',
+        restaurantName: 'Roll House',
       },
       {
         id: 'im-cola',
@@ -71,6 +76,8 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 2,
         unitPrice: 110,
         dietaryTag: 'VEG',
+        brandName: 'Thums Up',
+        sourceLabel: 'Instamart Mock Store',
       },
     ],
     checkoutResult: {
@@ -99,6 +106,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 4,
         unitPrice: 560,
         dietaryTag: 'VEG',
+        restaurantName: 'Pizza Yard',
       },
       {
         id: 'food-brownie',
@@ -107,6 +115,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 2,
         unitPrice: 320,
         dietaryTag: 'VEG',
+        restaurantName: 'Pizza Yard',
       },
       {
         id: 'im-juice',
@@ -115,6 +124,8 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 3,
         unitPrice: 145,
         dietaryTag: 'VEG',
+        brandName: 'Real',
+        sourceLabel: 'Instamart Mock Store',
       },
     ],
     checkoutResult: {
@@ -143,6 +154,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 5,
         unitPrice: 210,
         dietaryTag: 'VEG',
+        restaurantName: 'Paneer Palace',
       },
       {
         id: 'food-kebab',
@@ -151,6 +163,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 1,
         unitPrice: 340,
         dietaryTag: 'NON-VEG',
+        restaurantName: 'Kebab Junction',
       },
       {
         id: 'im-lassi',
@@ -159,6 +172,8 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 5,
         unitPrice: 65,
         dietaryTag: 'VEG',
+        brandName: 'Amul',
+        sourceLabel: 'Instamart Mock Store',
       },
     ],
     checkoutResult: {
@@ -185,6 +200,8 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 1,
         unitPrice: 140,
         dietaryTag: 'ANY',
+        brandName: 'PartyPro',
+        sourceLabel: 'Instamart Mock Store',
       },
       {
         id: 'im-soda',
@@ -193,6 +210,8 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 2,
         unitPrice: 240,
         dietaryTag: 'VEG',
+        brandName: 'Bisleri Pop',
+        sourceLabel: 'Instamart Mock Store',
       },
     ],
     checkoutResult: {
@@ -220,6 +239,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 6,
         unitPrice: 140,
         dietaryTag: 'VEG',
+        restaurantName: 'Dosa Corner',
       },
       {
         id: 'food-idli',
@@ -228,6 +248,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 3,
         unitPrice: 120,
         dietaryTag: 'VEG',
+        restaurantName: 'Dosa Corner',
       },
     ],
     checkoutResult: {
@@ -255,6 +276,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 2,
         unitPrice: 380,
         dietaryTag: 'VEG',
+        restaurantName: 'Wok Street',
       },
       {
         id: 'food-momos',
@@ -263,6 +285,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 3,
         unitPrice: 160,
         dietaryTag: 'NON-VEG',
+        restaurantName: 'Momo House',
       },
       {
         id: 'im-icecream',
@@ -271,6 +294,8 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 2,
         unitPrice: 220,
         dietaryTag: 'VEG',
+        brandName: 'Cream Bell',
+        sourceLabel: 'Instamart Mock Store',
         issue: 'unavailable',
         substitute: 'Butterscotch ice cream tub',
       },
@@ -299,6 +324,7 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 1,
         unitPrice: 1850,
         dietaryTag: 'NON-VEG',
+        restaurantName: 'Sushi Station',
         issue: 'price-change',
       },
       {
@@ -308,6 +334,8 @@ export const scenarios: PlaygroundScenario[] = [
         quantity: 2,
         unitPrice: 180,
         dietaryTag: 'VEG',
+        brandName: 'Kinley',
+        sourceLabel: 'Instamart Mock Store',
       },
     ],
     checkoutResult: {
@@ -344,6 +372,9 @@ export function addManualItem(cart: CartItem[], vertical: Vertical): CartItem[] 
       quantity: 1,
       unitPrice: vertical === 'food' ? 220 : 120,
       dietaryTag: 'ANY',
+      restaurantName: vertical === 'food' ? 'Manual restaurant' : undefined,
+      brandName: vertical === 'instamart' ? 'Manual brand' : undefined,
+      sourceLabel: vertical === 'instamart' ? 'Manual Instamart source' : undefined,
     },
   ];
 }
@@ -461,4 +492,14 @@ export function formatCurrency(amount: number): string {
 
 export function formatVertical(vertical: Vertical): string {
   return vertical === 'food' ? 'Food' : 'Instamart';
+}
+
+export function getCartItemSourceText(item: CartItem): string {
+  if (item.vertical === 'food') {
+    return item.restaurantName ?? 'Restaurant pending';
+  }
+  if (item.brandName && item.sourceLabel) {
+    return `${item.brandName} · ${item.sourceLabel}`;
+  }
+  return item.sourceLabel ?? item.brandName ?? 'Instamart source pending';
 }
