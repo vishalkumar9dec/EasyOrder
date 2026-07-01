@@ -75,6 +75,7 @@ export function adaptSessionBootstrap(payload: ApiSessionBootstrap): SessionBoot
 export function adaptCartItem(item: ApiCartItem): CartItem {
   return {
     id: item.item_id || `cart-${item.id ?? item.name}`,
+    apiId: item.id ?? undefined,
     name: item.name,
     vertical: item.vertical,
     quantity: item.quantity,

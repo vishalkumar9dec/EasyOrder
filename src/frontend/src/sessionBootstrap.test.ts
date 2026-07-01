@@ -7,6 +7,7 @@ import {
   getSessionHealthLabel,
   type ApiSessionBootstrap,
 } from './sessionBootstrap';
+import { reconcileCartItems } from './sessionCartApi';
 
 const payload: ApiSessionBootstrap = {
   session_id: 'session_123',
@@ -64,6 +65,7 @@ describe('session bootstrap route and adapter', () => {
     expect(viewModel.total).toBe(2700);
     expect(viewModel.cart[0]).toMatchObject({
       id: 'food-biryani',
+      apiId: 1,
       restaurantName: 'Biryani House',
       dietaryTag: 'NON-VEG',
     });
@@ -81,5 +83,30 @@ describe('session bootstrap route and adapter', () => {
     expect(getRoleLabel('host')).toBe('Host');
     expect(getSessionHealthLabel('DEGRADED')).toBe('Degraded');
     expect(getSessionHealthLabel('ACTIVE')).toBe('Healthy');
+  });
+
+  it('reconciles realtime cart snapshots without duplicates', () => {
+    const current = payload.cart_items;
+    const incoming = [
+      { ...payload.cart_items[0], quantity: 3 },
+      {
+        id: 3,
+        item_id: 'im-napkins',
+        name: 'Paper napkins',
+        quantity: 2,
+        price: '45.00',
+        added_by: 'guest',
+        dietary_tag: 'ANY',
+        vertical: 'instamart',
+        source_label: 'Instamart Mock Store',
+      },
+    ] satisfies ApiSessionBootstrap['cart_items'];
+
+    const reconciled = reconcileCartItems(current, incoming);
+
+    expect(reconciled).toHaveLength(2);
+    expect(reconciled[0]).toMatchObject({ id: 1, quantity: 3 });
+    expect(reconciled[1]).toMatchObject({ id: 3, item_id: 'im-napkins' });
+    expect(reconciled.some((item) => item.id === 2)).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ export type CheckoutStatus = 'idle' | 'ready' | 'blocked' | 'partial';
 
 export interface CartItem {
   id: string;
+  apiId?: number;
   name: string;
   vertical: Vertical;
   quantity: number;

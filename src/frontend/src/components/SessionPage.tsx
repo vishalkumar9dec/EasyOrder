@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   formatCurrency,
@@ -13,6 +13,8 @@ import {
   type ApiSessionBootstrap,
   type SessionBootstrapViewModel,
 } from '../sessionBootstrap';
+import { createCartItem, deleteCartItem, updateCartItem } from '../sessionCartApi';
+import { useSupabaseCartRealtime } from '../useSupabaseCartRealtime';
 
 type LoadState =
   | { status: 'loading' }
@@ -23,6 +25,9 @@ type LoadState =
 
 export function SessionPage({ sessionId, token }: { sessionId: string; token: string | null }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const handleSessionChange = useCallback((session: SessionBootstrapViewModel) => {
+    setState({ status: 'ready', session });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,7 +89,13 @@ export function SessionPage({ sessionId, token }: { sessionId: string; token: st
         {state.status === 'error' && (
           <SessionState title="Could not load session" detail={state.message} tone="danger" />
         )}
-        {state.status === 'ready' && <SessionCanvas session={state.session} />}
+        {state.status === 'ready' && (
+          <SessionCanvas
+            session={state.session}
+            token={token}
+            onSessionChange={handleSessionChange}
+          />
+        )}
       </div>
     </main>
   );
@@ -108,12 +119,77 @@ function SessionState({
   );
 }
 
-function SessionCanvas({ session }: { session: SessionBootstrapViewModel }) {
+function SessionCanvas({
+  session,
+  token,
+  onSessionChange,
+}: {
+  session: SessionBootstrapViewModel;
+  token: string | null;
+  onSessionChange: (session: SessionBootstrapViewModel) => void;
+}) {
   const cartCount = session.cart.reduce((sum, item) => sum + item.quantity, 0);
   const budgetDelta = session.budgetLimit - session.total;
   const budgetPercent = Math.min(100, Math.round((session.total / session.budgetLimit) * 100));
   const isHost = session.role === 'host';
   const warnings = useMemo(() => session.warnings, [session.warnings]);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
+  const { connectionState } = useSupabaseCartRealtime({
+    sessionId: session.sessionId,
+    token,
+    onSnapshot: onSessionChange,
+  });
+
+  async function applyMutation(action: () => Promise<SessionBootstrapViewModel>) {
+    if (!token) {
+      setMutationError('Session token is missing.');
+      return;
+    }
+    setIsMutating(true);
+    setMutationError(null);
+    try {
+      onSessionChange(await action());
+    } catch {
+      setMutationError('Cart update failed. Refresh the session and try again.');
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  function addFoodItem() {
+    if (!token) {
+      return;
+    }
+    void applyMutation(() =>
+      createCartItem(session.sessionId, token, {
+        name: 'Manual paneer rolls',
+        quantity: 1,
+        price: 180,
+        dietary_tag: 'VEG',
+        vertical: 'food',
+        restaurant_id: 'rest-manual-restaurant',
+        restaurant_name: 'Manual restaurant',
+      }),
+    );
+  }
+
+  function addInstamartItem() {
+    if (!token) {
+      return;
+    }
+    void applyMutation(() =>
+      createCartItem(session.sessionId, token, {
+        name: 'Manual cola bottle',
+        quantity: 1,
+        price: 110,
+        dietary_tag: 'VEG',
+        vertical: 'instamart',
+        brand_name: 'Manual brand',
+        source_label: 'Manual Instamart source',
+      }),
+    );
+  }
 
   return (
     <section className="session-canvas" aria-label="EasyOrder session planning canvas">
@@ -126,6 +202,10 @@ function SessionCanvas({ session }: { session: SessionBootstrapViewModel }) {
           </p>
         </div>
         <div className="session-role-pill">{getRoleLabel(session.role)}</div>
+      </div>
+      <div className={`realtime-strip ${connectionState}`}>
+        <span>Realtime {connectionState}</span>
+        <span>Cart edits sync through the session API.</span>
       </div>
 
       <div className="score-strip session-score-strip">
@@ -166,10 +246,31 @@ function SessionCanvas({ session }: { session: SessionBootstrapViewModel }) {
         <div className="cart-area">
           <div className="cart-header">
             <h2 className="cart-title">Consolidated Cart</h2>
+            <div className="session-cart-actions">
+              <button type="button" onClick={addFoodItem} disabled={isMutating}>+ Food</button>
+              <button type="button" onClick={addInstamartItem} disabled={isMutating}>+ Instamart</button>
+            </div>
           </div>
+          {mutationError && <p className="session-error">{mutationError}</p>}
           <div className="cart-list">
             {session.cart.map((item) => (
-              <SessionCartItem key={item.id} item={item} />
+              <SessionCartItem
+                key={`${item.id}-${item.apiId ?? 'local'}`}
+                item={item}
+                isMutating={isMutating}
+                onQuantityChange={(quantity) => {
+                  if (item.apiId === undefined || !token) {
+                    return;
+                  }
+                  void applyMutation(() => updateCartItem(session.sessionId, token, item.apiId as number, { quantity }));
+                }}
+                onDelete={() => {
+                  if (item.apiId === undefined || !token) {
+                    return;
+                  }
+                  void applyMutation(() => deleteCartItem(session.sessionId, token, item.apiId as number));
+                }}
+              />
             ))}
             {session.cart.length === 0 && <p className="session-empty">No recommended items yet.</p>}
           </div>
@@ -235,7 +336,17 @@ function InfoRow({ label, value, tone }: { label: string; value: string; tone?: 
   );
 }
 
-function SessionCartItem({ item }: { item: CartItem }) {
+function SessionCartItem({
+  item,
+  isMutating,
+  onQuantityChange,
+  onDelete,
+}: {
+  item: CartItem;
+  isMutating: boolean;
+  onQuantityChange: (quantity: number) => void;
+  onDelete: () => void;
+}) {
   return (
     <article className="cart-item session-cart-item" id={`cart-${item.id}`}>
       <div className="session-item-image" aria-hidden="true">
@@ -254,7 +365,31 @@ function SessionCartItem({ item }: { item: CartItem }) {
         </div>
         <div className="cart-item-bottom">
           <span className="cart-item-price">{formatCurrency(item.quantity * item.unitPrice)}</span>
-          <span className="session-qty">Qty {item.quantity}</span>
+          <div className="session-qty-controls" aria-label={`${item.name} quantity controls`}>
+            <button
+              type="button"
+              onClick={() => onQuantityChange(item.quantity - 1)}
+              disabled={isMutating || item.apiId === undefined}
+            >
+              -
+            </button>
+            <span className="session-qty">Qty {item.quantity}</span>
+            <button
+              type="button"
+              onClick={() => onQuantityChange(item.quantity + 1)}
+              disabled={isMutating || item.apiId === undefined || item.quantity >= 99}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="session-delete-button"
+              onClick={onDelete}
+              disabled={isMutating || item.apiId === undefined}
+            >
+              Remove
+            </button>
+          </div>
         </div>
       </div>
     </article>
