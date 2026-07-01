@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.session import router as session_router
 from app.api.whatsapp import create_mock_agent_service
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
@@ -11,6 +12,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name)
     app.state.agent_service = create_mock_agent_service()
+    app.state.db_adapter = app.state.agent_service.db
     app.state.whatsapp_sender = create_whatsapp_sender(
         provider_mode=settings.whatsapp_provider_mode,
         access_token=settings.whatsapp_access_token,
@@ -44,6 +46,7 @@ def create_app() -> FastAPI:
             "llm": settings.llm_mode,
         }
 
+    app.include_router(session_router)
     app.include_router(whatsapp_router)
 
     return app

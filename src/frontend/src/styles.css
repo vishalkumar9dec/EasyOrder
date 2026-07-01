@@ -240,6 +240,155 @@ ul, ol {
   pointer-events: auto;
 }
 
+/* =============================================
+   SESSION ROUTE
+   ============================================= */
+.session-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(232, 93, 44, 0.18), transparent 32%),
+    var(--bg);
+  padding: 24px;
+}
+
+.session-shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.session-brand {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 24px;
+}
+
+.session-brand span {
+  color: var(--accent);
+}
+
+.session-state {
+  min-height: calc(100vh - 120px);
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  max-width: 620px;
+}
+
+.session-state h1,
+.session-hero-panel h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 1.05;
+}
+
+.session-state p,
+.session-subtitle {
+  color: var(--text-muted);
+  max-width: 620px;
+}
+
+.session-state.warn h1 {
+  color: var(--warning);
+}
+
+.session-state.danger h1 {
+  color: var(--danger);
+}
+
+.session-canvas {
+  display: grid;
+  gap: 16px;
+}
+
+.session-hero-panel {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0 6px;
+}
+
+.session-role-pill {
+  flex: 0 0 auto;
+  min-width: 92px;
+  text-align: center;
+  border: 1px solid rgba(245, 200, 66, 0.35);
+  color: var(--accent-gold);
+  border-radius: var(--radius-pill);
+  padding: 9px 14px;
+  font-size: var(--text-caption);
+  font-weight: 800;
+}
+
+.session-score-strip {
+  margin-top: 0;
+}
+
+.session-route-layout {
+  margin-top: 0;
+}
+
+.session-side-panel {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.session-cart-item {
+  grid-template-columns: 64px 1fr;
+}
+
+.session-item-image {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  background: rgba(232, 93, 44, 0.16);
+  border: 1px solid rgba(232, 93, 44, 0.24);
+  display: grid;
+  place-items: center;
+  color: var(--accent-gold);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.session-qty {
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+
+.session-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 32px 0;
+}
+
+@media (max-width: 767px) {
+  .session-page {
+    padding: 18px;
+  }
+
+  .session-hero-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .session-role-pill {
+    align-self: flex-start;
+  }
+
+  .session-cart-item {
+    grid-template-columns: 52px 1fr;
+  }
+
+  .session-item-image {
+    width: 52px;
+    height: 52px;
+  }
+}
+
 @media (min-width: 768px) {
   .navbar-links {
     display: flex;
