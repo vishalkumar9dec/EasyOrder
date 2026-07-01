@@ -86,7 +86,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2, 1.3, 1.4, 2.1 | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1, 3.2 | Closed |
 | 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Source attribution implemented; PR/manual verification pending |
-| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Open, ready next |
+| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | WhatsApp handoff implemented; PR/manual verification pending |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Open, blocked by #14 and #4 |
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Open, blocked by #6 |
 | 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Open, blocked by #7 |
