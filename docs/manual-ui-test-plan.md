@@ -14,7 +14,9 @@ and the issue [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7)
 API-backed cart editing slice. The session route can load backend-created mock
 sessions by token, render a mobile-first planning canvas, add/update/delete cart
 items through the session API, and keep multiple local clients refreshed through a
-polling realtime fallback. Swiggy checkout APIs are not implemented yet.
+polling realtime fallback. The issue [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8)
+branch adds budget, dietary, and degraded-state review UI on the real session
+route. Swiggy checkout APIs are not implemented yet.
 
 Current GitHub status:
 
@@ -27,8 +29,9 @@ Current GitHub status:
 | 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Tasks 2.2, 4.1-4.5: agent initializes consolidated cart | Closed |
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | WhatsApp group/host link handoff | Closed |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Session bootstrap planning canvas | Closed |
-| 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Cart mutation API and realtime fallback collaboration | Implemented in PR branch; manual verification pending |
-| 09-14 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Warnings, checkout, integrations, E2E, hardening | Open, blocked |
+| 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Cart mutation API and realtime fallback collaboration | Closed |
+| 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Budget, dietary, and degraded-state session UI | Implemented in PR branch; manual verification pending |
+| 10-14 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Checkout, integrations, E2E, hardening | Open, blocked |
 
 ## Verification I Performed
 
@@ -43,12 +46,13 @@ python3 .agents/skills/easyorder-daily-status/scripts/daily_status.py --repo-roo
 
 Results:
 
-- `make test`: backend tests passed with 45 tests; frontend tests passed with 2 test files and 16 tests.
+- `make test`: backend tests passed with 45 tests; frontend tests passed with 2 test files and 17 tests.
 - `make frontend-build`: production build passed.
 - Backend Ruff check passed.
 - Local API smoke passed for session bootstrap guest access, invalid-token `401`, and missing-session `404`.
 - Local API route coverage passed for session-scoped cart create/update/delete, cross-session rejection, source-attribution validation, and missing cart-item `404`.
 - Frontend reducer coverage passed for API cart id mapping and repeated realtime snapshot reconciliation without duplicate rows.
+- Frontend adapter coverage passed for budget warning, dietary row warning, and structured signal-title derivation.
 - Browser UI verification on `http://localhost:5174/`: 93 scripted checks passed.
 - Browser console errors during scripted UI verification: none.
 
@@ -123,6 +127,22 @@ connection strip. Local collaboration currently uses a polling fallback over the
 session API; the Supabase event-channel integration remains a future wiring detail
 once browser Supabase credentials/client dependency are introduced.
 
+## UI Changes From Issue #8
+
+Issue [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) keeps the same
+session API contract but makes warning states clearer on the React session page.
+The frontend now preserves structured warning objects instead of flattening them
+to strings, then derives:
+
+- A budget review strip and highlighted budget panel when `budget_warning=true` or
+  the cart total exceeds the budget.
+- Dietary review chips on affected cart rows, including vegetarian sessions that
+  contain non-veg Food items.
+- Structured signal cards for budget, dietary, degraded availability, and source
+  review warnings.
+- Degraded vertical badges remain visible while Food and Instamart manual add
+  controls stay available.
+
 ## Required UI Changes From Vendor/Restaurant Discovery
 
 These requirements are now enforced in the backend cart contract and remain pending
@@ -179,6 +199,8 @@ Use `Ctrl+C` to stop the long-running dev servers.
 | UI-14 | Missing session link | Open `/session/session_missing?token=guest_any`. | The page shows `Session not found` and does not render cart data. | Issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). | E2E demo and runbook coverage in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
 | UI-15 | Guest mutates real session cart | Open a valid guest session link. Click `+ Food`, click `+ Instamart`, use `+` and `-` on the new rows, then click `Remove`. | New Food rows show `Manual restaurant`; new Instamart rows show `Manual brand · Manual Instamart source`. Totals and item count update after each API-backed action. Reducing quantity to `0` removes the row. Checkout remains unavailable to guest. | Issue [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7). | Dietary preference editing and warnings in [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
 | UI-16 | Two-window cart refresh | Open the same guest session link in two browser windows. Add or remove an item in one window, then wait for the realtime strip to report `connected` in the other window. | The second window reflects the changed cart within the polling interval without duplicate rows. Both windows keep source-attributed cart rows. | Issue [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) polling realtime fallback. | Supabase event-channel wiring can replace polling when browser credentials/client dependency are introduced. |
+| UI-17 | Budget and dietary review session | Start backend and frontend, create a session with `API-04` or `API-05`, copy the returned guest link, and open it in a mobile viewport. | If the session is over budget, the page shows a budget review strip, highlighted budget panel, over-budget amount, and `Budget review` signal. If the session is vegetarian with a non-veg Food item, the affected cart row shows `Dietary review` while preserving its restaurant name. Editing controls remain available. | Issue [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). | Checkout validation in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
+| UI-18 | Degraded availability review session | Start backend and frontend, create or load a session whose `degraded_verticals` includes Food or Instamart. Open the guest link in a mobile viewport. | The page shows a degraded alert strip, structured degraded availability signal, degraded vertical badge, and still exposes `+ Food` and `+ Instamart` controls for manual recovery. Existing cart rows keep source labels. | Issue [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). | Real checkout validation and recovery in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
 
 ## Backend/API Tests Available After Issue #4
 
@@ -289,6 +311,7 @@ The cases that require internal state inspection are covered by automated tests:
 | API-17 | Session cart mutation CRUD | `tests/test_session_api.py::test_guest_can_create_update_and_delete_cart_item_for_session` | Guest token can add an Instamart item with source label, update quantity/price, and delete it from the same session. |
 | API-18 | Cross-session mutation is rejected | `tests/test_session_api.py::test_cart_mutation_rejects_cross_session_token` | A token from another session receives `401` when attempting to mutate this session's cart. |
 | API-19 | Mutation payload validation | `tests/test_session_api.py::test_cart_mutation_validates_source_attribution_and_missing_items` | Food item creation without restaurant id/name returns `422`; missing cart item update returns `404`. |
+| API-20 | Warning UI adapter derivation | `src/frontend/src/sessionBootstrap.test.ts` | Frontend preserves structured warnings and derives budget overage, dietary item flags, and human-readable signal titles. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 

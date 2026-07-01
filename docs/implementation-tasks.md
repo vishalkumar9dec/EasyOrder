@@ -58,7 +58,9 @@ Verified complete:
 - Task 4.4: Concurrent Food and Instamart mock workers with timeout degradation.
 - Task 4.5: Output guardrails and persistence node for budget warnings, dietary warnings, placeholder filtering, session status, degraded verticals, and cart items.
 - Task 5.1: Token-authorized session bootstrap API.
+- Task 5.2: Session-scoped cart mutation API.
 - Task 6.1: PWA session route with source-attributed planning canvas.
+- Task 6.2: Realtime fallback collaboration for session cart updates.
 
 Newly identified product requirement:
 
@@ -91,8 +93,8 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Closed |
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Closed |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Closed |
-| 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Cart mutation and realtime fallback implemented; PR/manual verification pending |
-| 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Open, blocked by #7 |
+| 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Closed |
+| 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Warning, dietary, and degraded-state UI implemented; PR/manual verification pending |
 | 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Task 6.4, Task 7.1 | Open, blocked by #8 |
 | 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Open, blocked by #9 |
 | 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Open, blocked by #5 and #10 |
