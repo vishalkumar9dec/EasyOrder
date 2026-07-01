@@ -1,6 +1,6 @@
 # EasyOrder Manual UI Test Plan
 
-Last verified: 2026-06-29.
+Last verified: 2026-07-01.
 
 This document reflects the current project state from `docs/easyorder-prd.md`,
 `docs/implementation-tasks.md`, the local worktree, and live GitHub issue status.
@@ -22,7 +22,7 @@ Current GitHub status:
 | 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2-2.1: domain, persistence, tokens, RLS | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1-3.2: mention-only WhatsApp intake | Closed |
 | 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Tasks 2.2, 4.1-4.5: agent initializes consolidated cart | Source attribution implemented; manual verification pending |
-| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | WhatsApp group/host link handoff | Open, ready next |
+| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | WhatsApp group/host link handoff | Implemented in PR branch; manual verification pending |
 | 07-14 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Session PWA, realtime, warnings, checkout, integrations, E2E, hardening | Open, blocked |
 
 ## Verification I Performed
@@ -32,12 +32,16 @@ Commands run locally:
 ```bash
 make test
 make frontend-build
+src/backend/.venv/bin/python -m ruff check src/backend/app src/backend/tests
+python3 .agents/skills/easyorder-daily-status/scripts/daily_status.py --repo-root .
 ```
 
 Results:
 
-- `make test`: backend tests passed with 35 tests; frontend tests passed with 1 test file and 11 tests.
+- `make test`: backend tests passed with 38 tests; frontend tests passed with 1 test file and 12 tests.
 - `make frontend-build`: production build passed.
+- Backend Ruff check passed.
+- Daily status workflow passed, including WhatsApp payload fixtures.
 - Browser UI verification on `http://localhost:5174/`: 93 scripted checks passed.
 - Browser console errors during scripted UI verification: none.
 
@@ -70,9 +74,19 @@ and Instamart items include a source label plus brand name when available.
 What this means for manual testing:
 
 - Use `UI-01` through `UI-10` to regression-test the current browser playground.
-- Use `API-01` through `API-11` below to test the new backend agent path.
+- Use `API-01` through `API-13` below to test the new backend agent and WhatsApp handoff path.
 - You cannot yet open the returned `/session/...` guest link in a real session UI; that
   comes with the PWA bootstrap work in issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6).
+
+## Backend/API Changes From Issue #5
+
+Issue [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) adds the
+outbound WhatsApp sender boundary. In mock mode, tagged webhook handling captures
+two outbound messages: a group message with only the guest planning link, and a
+private host message with the host-only link. The webhook response remains
+group-safe and does not include the host token. A Meta Cloud API sender is
+available behind the same interface for sandbox configuration, and proactive
+template-message placeholders remain disabled for the MVP.
 
 ## Required UI Changes From Vendor/Restaurant Discovery
 
@@ -161,7 +175,7 @@ Run these from the repository root in terminal 2.
 
 | ID | Use case | Command | Expected response |
 |---|---|---|---|
-| API-01 | Tagged prompt creates initialized session | `curl -s -X POST http://localhost:8000/api/whatsapp/webhook -H 'Content-Type: application/json' --data @docs/api-test-data/whatsapp-tagged-normal.json` | JSON has `"status":"created"` and first session has `"status":"ACTIVE"` plus a `/session/...` guest link. |
+| API-01 | Tagged prompt creates initialized session | `curl -s -X POST http://localhost:8000/api/whatsapp/webhook -H 'Content-Type: application/json' --data @docs/api-test-data/whatsapp-tagged-normal.json` | JSON has `"status":"created"` and first session has `"status":"ACTIVE"` plus an absolute guest link containing a `guest_` token. The response must not include a `host_` token. |
 | API-02 | Untagged prompt is ignored | `curl -s -X POST http://localhost:8000/api/whatsapp/webhook -H 'Content-Type: application/json' --data @docs/api-test-data/whatsapp-untagged.json` | JSON is `"status":"ignored"` with reason `"no_easyorder_mention"`. |
 | API-03 | Injection is blocked before parsing | `curl -i -s -X POST http://localhost:8000/api/whatsapp/webhook -H 'Content-Type: application/json' --data @docs/api-test-data/whatsapp-injection.json` | HTTP status is `400`; body detail is `Tagged message was rejected by input guardrails`. |
 | API-04 | Low-budget prompt creates a session | `curl -s -X POST http://localhost:8000/api/whatsapp/webhook -H 'Content-Type: application/json' --data @docs/api-test-data/whatsapp-low-budget.json` | JSON has `"status":"created"` and first session has `"status":"ACTIVE"`. Budget-warning internals are covered by `make backend-test` until the session-read API exists. |
@@ -226,13 +240,15 @@ The cases that require internal state inspection are covered by automated tests:
 | API-09 | Full worker timeout still creates traceable session | `tests/test_agent_service.py` asserts both verticals are degraded and no cart items are persisted. |
 | API-10 | Mock Swiggy scenario coverage | `tests/test_mock_swiggy.py` covers normal search, empty results, substitute lookup, unavailable item, and price-change item. |
 | API-11 | Source attribution is preserved and malformed source-less results are skipped | `tests/test_session_domain.py`, `tests/test_agent_service.py`, `tests/test_db_adapter.py`, `tests/test_mock_swiggy.py`, and `tests/test_migrations.py` assert Food restaurant metadata, Instamart source labels, DB persistence, migration constraints, and `SOURCE_ATTRIBUTION_MISSING` warnings. |
+| API-12 | Group link handoff excludes host token | `tests/test_whatsapp_webhook.py::test_tagged_message_creates_mock_session` | The mock WhatsApp sender captures a group message to `group_ipl_fans_1` with the guest planning link only; the group text does not contain `host_`. |
+| API-13 | Private host link handoff includes host token | `tests/test_whatsapp_webhook.py::test_tagged_message_creates_mock_session` | The mock WhatsApp sender captures a private message to the sender WhatsApp id with the host link containing the one-time `host_` token. Template-message placeholders remain disabled until proactive updates are implemented. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 
 | PRD story | Desired manual test | Why not complete today | Planned issue |
 |---|---|---|---|
-| 1, 12 | Send WhatsApp messages with and without `@EasyOrder`; verify only tagged messages create sessions. | Backend webhook exists, but the current UI is not yet connected to created sessions. | Closed backend slice [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3); UI/session handoff continues in [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4), [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5), and [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). |
-| 2, 3 | Send a natural-language order request and open the generated session link. | Backend agent initialization is now testable in mock mode, but the generated session link does not yet open a production PWA session page backed by persisted session APIs. | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) for WhatsApp link handoff, then [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) for PWA bootstrap. |
+| 1, 12 | Send WhatsApp messages with and without `@EasyOrder`; verify only tagged messages create sessions. | Backend webhook and mock outbound handoff are testable locally, but live Meta sandbox sending still needs configured provider credentials. | Closed backend slice [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3); handoff in [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5); PWA bootstrap continues in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). |
+| 2, 3 | Send a natural-language order request and open the generated session link. | Backend agent initialization and mock WhatsApp handoff are testable in mock mode, but the generated session link does not yet open a production PWA session page backed by persisted session APIs. | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) for PWA bootstrap. |
 | 4 | Open guest link and customize the real session cart. | Current cart edits are local React state, not API-backed. | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) and [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7). |
 | 5 | Open the same session in two browser windows and confirm realtime cart updates. | Realtime subscription and cart mutation API are not implemented yet. | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7). |
 | 6 | Persist guest dietary additions and verify host-visible warnings. | Current dietary state is scenario fixture data only. | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
@@ -241,7 +257,7 @@ The cases that require internal state inspection are covered by automated tests:
 | 10 | Delivery updates are posted back to WhatsApp group. | Deferred unless delivery-status hooks are available. | Scaffold/provider placeholder in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11), broader demo/runbook coverage in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
 | 11 | Host opts into sports/tournament nudges during setup. | Deferred for MVP; only template-message placeholder is planned. | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
 
-## Suggested Regression Pass Before Starting Issue #5
+## Suggested Regression Pass Before Starting Issue #6
 
 Run these before changing WhatsApp link handoff or PWA bootstrap behavior:
 
@@ -252,6 +268,6 @@ make frontend-build
 ```
 
 Then manually retest `UI-01` through `UI-07` in the playground and `API-01` through
-`API-11` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
-agent now produces session/cart states that future PWA work can load in place of the
-hard-coded playground fixtures.
+`API-13` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
+agent now produces session/cart states, and issue [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5)
+hands guest and host links to separate WhatsApp sender channels for future PWA work.

@@ -8,11 +8,15 @@ class Settings(BaseSettings):
     app_env: str = "local"
     backend_cors_origins: str = "http://localhost:5173"
     database_url: str = "postgresql://easyorder:easyorder@localhost:5432/easyorder"
+    public_app_base_url: str = "http://localhost:5173"
 
     # WhatsApp
     whatsapp_verify_token: str = "local-verify-token"
     whatsapp_app_secret: str = ""
     whatsapp_provider_mode: str = "mock"
+    whatsapp_access_token: str = ""
+    whatsapp_phone_number_id: str = ""
+    whatsapp_api_version: str = "v20.0"
 
     # External integrations
     swiggy_client_mode: str = "mock"

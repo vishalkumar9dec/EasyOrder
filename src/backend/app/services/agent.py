@@ -15,6 +15,7 @@ from app.models.session import (
     DietaryTag,
     Session,
     SessionCreate,
+    SessionInitResult,
     SessionStatus,
     SessionWarning,
     Vertical,
@@ -57,6 +58,7 @@ class EasyOrderState:
     cart_items: list[CartItem] = field(default_factory=list)
     budget_warning: bool = False
     session: Session | None = None
+    host_token: str | None = None
     status: SessionStatus = SessionStatus.INITIALIZING
     errors: list[str] = field(default_factory=list)
 
@@ -213,13 +215,18 @@ class EasyOrderAgentService(IAgentService):
         )
 
     async def handle_tagged_message(self, message: IncomingMessage) -> Session:
+        return (await self.initialize_tagged_message(message)).session
+
+    async def initialize_tagged_message(self, message: IncomingMessage) -> SessionInitResult:
         self.handled_messages.append(message)
         final_state = await self.graph.invoke(EasyOrderState(message=message))
         if final_state.session is None and final_state.errors:
             final_state.session = await self.persist_error_session(final_state)
         if final_state.session is None:
             raise RuntimeError("Agent graph finished without a persisted session")
-        return final_state.session
+        if final_state.host_token is None:
+            raise RuntimeError("Agent graph finished without host token material")
+        return SessionInitResult(session=final_state.session, host_token=final_state.host_token)
 
     async def apply_input_guardrails(self, state: EasyOrderState) -> EasyOrderState:
         state.sanitized_prompt = self.guardrails.sanitize(state.message.message_text)
@@ -338,6 +345,7 @@ class EasyOrderAgentService(IAgentService):
             guest_token=tokens.guest_token,
             cart_items=state.cart_items,
         )
+        state.host_token = tokens.host_token
         return state
 
     async def persist_error_session(self, state: EasyOrderState) -> Session:
@@ -354,6 +362,7 @@ class EasyOrderAgentService(IAgentService):
                 ),
             ],
         )
+        state.host_token = tokens.host_token
         return await self.db.create_session(
             session,
             host_token_hash=tokens.host_token_hash,

@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Protocol
 
-from app.models.session import CartItem, Session, SessionCreate, SessionStatus
+from app.models.session import CartItem, Session, SessionCreate, SessionInitResult, SessionStatus
 from app.models.whatsapp import IncomingMessage
 
 
@@ -26,6 +26,22 @@ class IAgentService(Protocol):
 
     async def handle_tagged_message(self, message: IncomingMessage) -> Session:
         """Process a tagged @EasyOrder message and return the initialized session."""
+        ...
+
+    async def initialize_tagged_message(self, message: IncomingMessage) -> SessionInitResult:
+        """Process a tagged message and return session plus private host token material."""
+        ...
+
+
+class IWhatsAppSender(Protocol):
+    """Interface for outbound WhatsApp communication."""
+
+    async def send_group_message(self, group_id: str, text: str) -> None:
+        """Send a message to the WhatsApp group."""
+        ...
+
+    async def send_private_message(self, recipient_id: str, text: str) -> None:
+        """Send a private message to one WhatsApp user."""
         ...
 
 
