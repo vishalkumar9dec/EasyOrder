@@ -141,6 +141,13 @@ class SessionInitResponse(BaseModel):
     guest_link: str
 
 
+class SessionInitResult(BaseModel):
+    """Initialized session plus one-time token material for private handoff."""
+
+    session: Session
+    host_token: str
+
+
 class CheckoutRequest(BaseModel):
     """Host checkout confirmation request."""
 

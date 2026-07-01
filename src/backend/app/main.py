@@ -4,12 +4,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.whatsapp import create_mock_agent_service
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
+from app.services.whatsapp_sender import create_whatsapp_sender
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name)
     app.state.agent_service = create_mock_agent_service()
+    app.state.whatsapp_sender = create_whatsapp_sender(
+        provider_mode=settings.whatsapp_provider_mode,
+        access_token=settings.whatsapp_access_token,
+        phone_number_id=settings.whatsapp_phone_number_id,
+        api_version=settings.whatsapp_api_version,
+    )
 
     app.add_middleware(
         CORSMiddleware,
