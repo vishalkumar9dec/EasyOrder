@@ -31,8 +31,9 @@ Last verified: 2026-07-01.
 
 Branch state:
 
-- Local `main` contains Task 0 foundation work, the local frontend playground, and
-  the verified WhatsApp intake slice.
+- Local `main` contains Task 0 foundation work, the local frontend playground,
+  the verified WhatsApp intake slice, source-attributed agent cart creation,
+  WhatsApp session link handoff, and the session bootstrap planning canvas.
 - Branch `codex/issue-4-source-attribution` completes the issue #4 source-attribution
   follow-up against the updated product contract. Food cart items now require
   restaurant id/name, Instamart cart items now require source labels, and mock
@@ -56,6 +57,8 @@ Verified complete:
 - Task 4.3: Deterministic mock intent parser with schema-shaped parsed constraints.
 - Task 4.4: Concurrent Food and Instamart mock workers with timeout degradation.
 - Task 4.5: Output guardrails and persistence node for budget warnings, dietary warnings, placeholder filtering, session status, degraded verticals, and cart items.
+- Task 5.1: Token-authorized session bootstrap API.
+- Task 6.1: PWA session route with source-attributed planning canvas.
 
 Newly identified product requirement:
 
@@ -87,8 +90,8 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1, 3.2 | Closed |
 | 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Task 2.2, Tasks 4.1-4.5 | Closed |
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Closed |
-| 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Session bootstrap implemented; PR/manual verification pending |
-| 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Open, blocked by #6 |
+| 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Closed |
+| 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Cart mutation and realtime fallback implemented; PR/manual verification pending |
 | 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Open, blocked by #7 |
 | 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Task 6.4, Task 7.1 | Open, blocked by #8 |
 | 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Open, blocked by #9 |

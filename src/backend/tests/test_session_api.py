@@ -98,3 +98,98 @@ def test_missing_session_returns_not_found_before_authorization() -> None:
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Session not found"
+
+
+def test_guest_can_create_update_and_delete_cart_item_for_session() -> None:
+    app, result = create_initialized_session()
+    client = TestClient(app)
+
+    create_response = client.post(
+        f"/api/session/{result.session.session_id}/cart-items",
+        params={"token": result.session.guest_token},
+        json={
+            "name": "Paper napkins",
+            "quantity": 3,
+            "price": "45.00",
+            "dietary_tag": "ANY",
+            "vertical": "instamart",
+            "brand_name": "PartyPro",
+            "source_label": "Instamart Mock Store",
+        },
+    )
+
+    assert create_response.status_code == 201
+    created_body = create_response.json()
+    created = created_body["cart_items"][-1]
+    assert created["name"] == "Paper napkins"
+    assert created["added_by"] == "guest"
+    assert created["source_label"] == "Instamart Mock Store"
+
+    update_response = client.patch(
+        f"/api/session/{result.session.session_id}/cart-items/{created['id']}",
+        params={"token": result.session.guest_token},
+        json={"quantity": 5, "price": "42.00"},
+    )
+
+    assert update_response.status_code == 200
+    updated = update_response.json()["cart_items"][-1]
+    assert updated["id"] == created["id"]
+    assert updated["quantity"] == 5
+    assert updated["price"] == "42.00"
+
+    delete_response = client.delete(
+        f"/api/session/{result.session.session_id}/cart-items/{created['id']}",
+        params={"token": result.session.guest_token},
+    )
+
+    assert delete_response.status_code == 200
+    assert all(item["id"] != created["id"] for item in delete_response.json()["cart_items"])
+
+
+def test_cart_mutation_rejects_cross_session_token() -> None:
+    app, first = create_initialized_session()
+    agent = app.state.agent_service
+    second = run(agent.initialize_tagged_message(message("@EasyOrder get pizza for 3 under 1200")))
+
+    response = TestClient(app).post(
+        f"/api/session/{first.session.session_id}/cart-items",
+        params={"token": second.session.guest_token},
+        json={
+            "name": "Plain dosa",
+            "quantity": 1,
+            "price": "120.00",
+            "dietary_tag": "VEG",
+            "vertical": "food",
+            "restaurant_id": "rest-dosa-corner",
+            "restaurant_name": "Dosa Corner",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid session token"
+
+
+def test_cart_mutation_validates_source_attribution_and_missing_items() -> None:
+    app, result = create_initialized_session()
+    client = TestClient(app)
+
+    missing_restaurant = client.post(
+        f"/api/session/{result.session.session_id}/cart-items",
+        params={"token": result.session.guest_token},
+        json={
+            "name": "Plain dosa",
+            "quantity": 1,
+            "price": "120.00",
+            "dietary_tag": "VEG",
+            "vertical": "food",
+        },
+    )
+    missing_cart_item = client.patch(
+        f"/api/session/{result.session.session_id}/cart-items/999999",
+        params={"token": result.session.guest_token},
+        json={"quantity": 2},
+    )
+
+    assert missing_restaurant.status_code == 422
+    assert missing_cart_item.status_code == 404
+    assert missing_cart_item.json()["detail"] == "Cart item not found"
