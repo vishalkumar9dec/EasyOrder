@@ -148,6 +148,50 @@ class SessionInitResult(BaseModel):
     host_token: str
 
 
+class SessionRole(StrEnum):
+    """Role derived from the bootstrap token."""
+
+    HOST = "host"
+    GUEST = "guest"
+
+
+class CartItemResponse(BaseModel):
+    """Redacted cart item payload returned to PWA clients."""
+
+    id: int | None = None
+    item_id: str
+    name: str
+    quantity: int
+    price: Decimal
+    added_by: str
+    dietary_tag: DietaryTag
+    vertical: Vertical
+    restaurant_id: str | None = None
+    restaurant_name: str | None = None
+    brand_name: str | None = None
+    source_label: str | None = None
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
+class SessionBootstrapResponse(BaseModel):
+    """Token-authorized session state for the production PWA bootstrap."""
+
+    session_id: str
+    role: SessionRole
+    status: SessionStatus
+    budget_limit: Decimal
+    head_count: int
+    dietary_preference: DietaryTag
+    budget_warning: bool
+    degraded_verticals: list[Vertical]
+    warnings: list[SessionWarning]
+    cart_items: list[CartItemResponse]
+    checkout_eligible: bool
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
 class CheckoutRequest(BaseModel):
     """Host checkout confirmation request."""
 
