@@ -322,6 +322,29 @@ ul, ol {
   font-weight: 800;
 }
 
+.realtime-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+
+.realtime-strip.connected {
+  border-color: rgba(75, 181, 120, 0.35);
+  color: #8ce0ad;
+}
+
+.realtime-strip.reconnecting,
+.realtime-strip.offline {
+  border-color: rgba(245, 200, 66, 0.35);
+  color: var(--accent-gold);
+}
+
 .session-score-strip {
   margin-top: 0;
 }
@@ -338,6 +361,36 @@ ul, ol {
 
 .session-cart-item {
   grid-template-columns: 64px 1fr;
+}
+
+.session-cart-actions,
+.session-qty-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.session-cart-actions button,
+.session-qty-controls button {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  font-size: var(--text-caption);
+  font-weight: 800;
+}
+
+.session-cart-actions button:disabled,
+.session-qty-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.session-delete-button {
+  color: #ffb3a1 !important;
 }
 
 .session-item-image {
@@ -365,6 +418,13 @@ ul, ol {
   padding: 32px 0;
 }
 
+.session-error {
+  color: #ffb3a1;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  margin: -8px 0 12px;
+}
+
 @media (max-width: 767px) {
   .session-page {
     padding: 18px;
@@ -377,6 +437,10 @@ ul, ol {
 
   .session-role-pill {
     align-self: flex-start;
+  }
+
+  .realtime-strip {
+    flex-direction: column;
   }
 
   .session-cart-item {
