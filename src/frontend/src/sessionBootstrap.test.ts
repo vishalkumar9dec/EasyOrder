@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { getSessionRoute } from './App';
 import {
   adaptSessionBootstrap,
+  getBudgetStatus,
+  getItemWarnings,
   getRoleLabel,
   getSessionHealthLabel,
+  getWarningTitle,
   type ApiSessionBootstrap,
 } from './sessionBootstrap';
 import { reconcileCartItems } from './sessionCartApi';
@@ -83,6 +86,7 @@ describe('session bootstrap route and adapter', () => {
     expect(getRoleLabel('host')).toBe('Host');
     expect(getSessionHealthLabel('DEGRADED')).toBe('Degraded');
     expect(getSessionHealthLabel('ACTIVE')).toBe('Healthy');
+    expect(getWarningTitle({ code: 'DIETARY_MISMATCH', message: 'x' })).toBe('Dietary review');
   });
 
   it('reconciles realtime cart snapshots without duplicates', () => {
@@ -108,5 +112,36 @@ describe('session bootstrap route and adapter', () => {
     expect(reconciled[0]).toMatchObject({ id: 1, quantity: 3 });
     expect(reconciled[1]).toMatchObject({ id: 3, item_id: 'im-napkins' });
     expect(reconciled.some((item) => item.id === 2)).toBe(false);
+  });
+
+  it('derives budget and item-level warning state for session UI', () => {
+    const warningPayload: ApiSessionBootstrap = {
+      ...payload,
+      budget_limit: '2000.00',
+      dietary_preference: 'VEG',
+      budget_warning: true,
+      warnings: [
+        { code: 'BUDGET_EXCEEDED', message: 'Cart total exceeds budget by INR 700.00.' },
+        {
+          code: 'DIETARY_MISMATCH',
+          message: "Non-veg item 'Chicken dum biryani family pack' appears in a vegetarian session.",
+          vertical: 'food',
+          item_id: 'food-biryani',
+        },
+      ],
+    };
+
+    const viewModel = adaptSessionBootstrap(warningPayload);
+    const budget = getBudgetStatus(viewModel);
+    const itemWarnings = getItemWarnings(viewModel.cart[0], viewModel);
+
+    expect(budget).toMatchObject({
+      percent: 100,
+      delta: -700,
+      isOverBudget: true,
+      hasWarning: true,
+    });
+    expect(itemWarnings).toHaveLength(1);
+    expect(itemWarnings[0].code).toBe('DIETARY_MISMATCH');
   });
 });

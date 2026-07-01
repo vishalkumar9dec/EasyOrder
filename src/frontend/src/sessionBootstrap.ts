@@ -48,10 +48,17 @@ export interface SessionBootstrapViewModel {
   dietaryPreference: DietaryTag;
   budgetWarning: boolean;
   degradedVerticals: Vertical[];
-  warnings: string[];
+  warnings: ApiSessionWarning[];
   cart: CartItem[];
   checkoutEligible: boolean;
   total: number;
+}
+
+export interface BudgetStatusViewModel {
+  percent: number;
+  delta: number;
+  isOverBudget: boolean;
+  hasWarning: boolean;
 }
 
 export function adaptSessionBootstrap(payload: ApiSessionBootstrap): SessionBootstrapViewModel {
@@ -65,11 +72,65 @@ export function adaptSessionBootstrap(payload: ApiSessionBootstrap): SessionBoot
     dietaryPreference: payload.dietary_preference,
     budgetWarning: payload.budget_warning,
     degradedVerticals: payload.degraded_verticals,
-    warnings: payload.warnings.map((warning) => warning.message),
+    warnings: payload.warnings,
     cart,
     checkoutEligible: payload.checkout_eligible,
     total: calculateCartTotal(cart),
   };
+}
+
+export function getBudgetStatus(session: SessionBootstrapViewModel): BudgetStatusViewModel {
+  const percent = session.budgetLimit > 0
+    ? Math.min(100, Math.round((session.total / session.budgetLimit) * 100))
+    : 100;
+  const delta = session.budgetLimit - session.total;
+  return {
+    percent,
+    delta,
+    isOverBudget: delta < 0,
+    hasWarning: session.budgetWarning || delta < 0,
+  };
+}
+
+export function getWarningTitle(warning: ApiSessionWarning): string {
+  if (warning.code === 'BUDGET_EXCEEDED') {
+    return 'Budget review';
+  }
+  if (warning.code === 'DIETARY_MISMATCH') {
+    return 'Dietary review';
+  }
+  if (warning.code === 'VERTICAL_TIMEOUT') {
+    return 'Degraded availability';
+  }
+  if (warning.code === 'SOURCE_ATTRIBUTION_MISSING') {
+    return 'Source review';
+  }
+  return warning.code.replaceAll('_', ' ').toLowerCase();
+}
+
+export function getItemWarnings(
+  item: CartItem,
+  session: SessionBootstrapViewModel,
+): ApiSessionWarning[] {
+  const warningMap = new Map<string, ApiSessionWarning>();
+  for (const warning of session.warnings) {
+    if (warning.item_id === item.id) {
+      warningMap.set(warning.code, warning);
+    }
+  }
+  if (
+    session.dietaryPreference === 'VEG'
+    && item.vertical === 'food'
+    && item.dietaryTag === 'NON-VEG'
+  ) {
+    warningMap.set('DIETARY_MISMATCH', {
+      code: 'DIETARY_MISMATCH',
+      message: `Non-veg item '${item.name}' appears in a vegetarian session.`,
+      vertical: item.vertical,
+      item_id: item.id,
+    });
+  }
+  return Array.from(warningMap.values());
 }
 
 export function adaptCartItem(item: ApiCartItem): CartItem {

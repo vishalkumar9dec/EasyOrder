@@ -345,6 +345,23 @@ ul, ol {
   color: var(--accent-gold);
 }
 
+.session-alert-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.session-alert-strip span {
+  border: 1px solid rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fde68a;
+  border-radius: var(--radius-pill);
+  padding: 7px 12px;
+  font-size: var(--text-caption);
+  font-weight: 800;
+}
+
 .session-score-strip {
   margin-top: 0;
 }
@@ -361,6 +378,11 @@ ul, ol {
 
 .session-cart-item {
   grid-template-columns: 64px 1fr;
+}
+
+.session-cart-item.attention {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: rgba(245, 158, 11, 0.05);
 }
 
 .session-cart-actions,
@@ -393,6 +415,23 @@ ul, ol {
   color: #ffb3a1 !important;
 }
 
+.item-warning-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.item-warning-list span {
+  border: 1px solid rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fde68a;
+  border-radius: var(--radius-pill);
+  padding: 4px 9px;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
 .session-item-image {
   width: 64px;
   height: 64px;
@@ -416,6 +455,18 @@ ul, ol {
   color: var(--text-muted);
   text-align: center;
   padding: 32px 0;
+}
+
+.budget-section.attention {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.budget-note {
+  color: #fde68a;
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  margin-top: 8px;
 }
 
 .session-error {
@@ -1232,6 +1283,32 @@ ul, ol {
   font-size: var(--text-caption);
   line-height: 1.45;
   margin-bottom: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.warning-item.calm {
+  background: rgba(75, 181, 120, 0.08);
+  border-color: rgba(75, 181, 120, 0.22);
+  color: #8ce0ad;
+}
+
+.warning-item.dietary_mismatch {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fecaca;
+}
+
+.warning-heading {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.warning-meta {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .warning-item:last-child {

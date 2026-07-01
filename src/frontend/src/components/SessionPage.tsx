@@ -8,8 +8,12 @@ import {
 } from '../playgroundModel';
 import {
   adaptSessionBootstrap,
+  getBudgetStatus,
+  getItemWarnings,
   getRoleLabel,
   getSessionHealthLabel,
+  getWarningTitle,
+  type ApiSessionWarning,
   type ApiSessionBootstrap,
   type SessionBootstrapViewModel,
 } from '../sessionBootstrap';
@@ -129,8 +133,7 @@ function SessionCanvas({
   onSessionChange: (session: SessionBootstrapViewModel) => void;
 }) {
   const cartCount = session.cart.reduce((sum, item) => sum + item.quantity, 0);
-  const budgetDelta = session.budgetLimit - session.total;
-  const budgetPercent = Math.min(100, Math.round((session.total / session.budgetLimit) * 100));
+  const budget = getBudgetStatus(session);
   const isHost = session.role === 'host';
   const warnings = useMemo(() => session.warnings, [session.warnings]);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -215,21 +218,28 @@ function SessionCanvas({
         <ScoreCard label="People" value={String(session.headcount)} tone="muted" />
       </div>
 
+      <SessionAlertStrip session={session} />
+
       <div className="session-layout session-route-layout">
         <aside className="session-side-panel">
-          <div className="budget-section">
+          <div className={`budget-section ${budget.hasWarning ? 'attention' : ''}`}>
             <div className="budget-header">
               <span className="budget-label">Budget used</span>
-              <span className="budget-percent">{budgetPercent}%</span>
+              <span className="budget-percent">{budget.percent}%</span>
             </div>
             <div className="meter-track">
-              <div className="meter-fill" style={{ width: `${budgetPercent}%` }} />
+              <div className="meter-fill" style={{ width: `${budget.percent}%` }} />
             </div>
-            <p className={`budget-remaining ${budgetDelta < 0 ? 'over' : ''}`}>
-              {budgetDelta < 0
-                ? `${formatCurrency(Math.abs(budgetDelta))} over budget`
-                : `${formatCurrency(budgetDelta)} remaining`}
+            <p className={`budget-remaining ${budget.isOverBudget ? 'over' : ''}`}>
+              {budget.isOverBudget
+                ? `${formatCurrency(Math.abs(budget.delta))} over budget`
+                : `${formatCurrency(budget.delta)} remaining`}
             </p>
+            {budget.hasWarning && (
+              <p className="budget-note">
+                Budget warning only. Cart editing remains open for guests and host.
+              </p>
+            )}
           </div>
 
           <div className="session-info">
@@ -257,6 +267,7 @@ function SessionCanvas({
               <SessionCartItem
                 key={`${item.id}-${item.apiId ?? 'local'}`}
                 item={item}
+                session={session}
                 isMutating={isMutating}
                 onQuantityChange={(quantity) => {
                   if (item.apiId === undefined || !token) {
@@ -279,12 +290,22 @@ function SessionCanvas({
         <aside className="session-side-panel">
           <div className="warnings-panel">
             <p className="warnings-title">Signals</p>
-            {warnings.length === 0 && <div className="warning-item">No blocking warnings.</div>}
+            {warnings.length === 0 && !budget.hasWarning && session.degradedVerticals.length === 0 && (
+              <div className="warning-item calm">No blocking warnings.</div>
+            )}
+            {budget.hasWarning && !warnings.some((warning) => warning.code === 'BUDGET_EXCEEDED') && (
+              <WarningCard
+                warning={{
+                  code: 'BUDGET_EXCEEDED',
+                  message: `${formatCurrency(Math.abs(budget.delta))} over budget.`,
+                }}
+              />
+            )}
             {warnings.map((warning) => (
-              <div key={warning} className="warning-item">{warning}</div>
+              <WarningCard key={`${warning.code}-${warning.item_id ?? warning.message}`} warning={warning} />
             ))}
             {session.degradedVerticals.length > 0 && (
-              <div className="degraded-badges">
+              <div className="degraded-badges" aria-label="Degraded verticals">
                 {session.degradedVerticals.map((vertical) => (
                   <span key={vertical} className="degraded-badge">
                     {formatVertical(vertical)} degraded
@@ -318,6 +339,30 @@ function SessionCanvas({
   );
 }
 
+function SessionAlertStrip({ session }: { session: SessionBootstrapViewModel }) {
+  const budget = getBudgetStatus(session);
+  const dietaryWarnings = session.cart.filter((item) => getItemWarnings(item, session).length > 0);
+  const alerts = [
+    budget.hasWarning ? `${formatCurrency(Math.abs(budget.delta))} budget review` : null,
+    dietaryWarnings.length > 0 ? `${dietaryWarnings.length} dietary flag${dietaryWarnings.length > 1 ? 's' : ''}` : null,
+    session.degradedVerticals.length > 0
+      ? `${session.degradedVerticals.map(formatVertical).join(', ')} degraded`
+      : null,
+  ].filter(Boolean);
+
+  if (alerts.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="session-alert-strip" aria-label="Session warnings">
+      {alerts.map((alert) => (
+        <span key={alert}>{alert}</span>
+      ))}
+    </div>
+  );
+}
+
 function ScoreCard({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div className="score-card">
@@ -338,23 +383,33 @@ function InfoRow({ label, value, tone }: { label: string; value: string; tone?: 
 
 function SessionCartItem({
   item,
+  session,
   isMutating,
   onQuantityChange,
   onDelete,
 }: {
   item: CartItem;
+  session: SessionBootstrapViewModel;
   isMutating: boolean;
   onQuantityChange: (quantity: number) => void;
   onDelete: () => void;
 }) {
+  const itemWarnings = getItemWarnings(item, session);
   return (
-    <article className="cart-item session-cart-item" id={`cart-${item.id}`}>
+    <article className={`cart-item session-cart-item ${itemWarnings.length > 0 ? 'attention' : ''}`} id={`cart-${item.id}`}>
       <div className="session-item-image" aria-hidden="true">
         {item.vertical === 'food' ? 'Food' : 'IM'}
       </div>
       <div className="cart-item-info">
         <p className="cart-item-name">{item.name}</p>
         <p className="cart-item-source">{getCartItemSourceText(item)}</p>
+        {itemWarnings.length > 0 && (
+          <div className="item-warning-list">
+            {itemWarnings.map((warning) => (
+              <span key={`${item.id}-${warning.code}`}>{getWarningTitle(warning)}</span>
+            ))}
+          </div>
+        )}
         <div className="cart-item-tags">
           <span className={`tag ${item.vertical === 'food' ? 'tag-food' : 'tag-im'}`}>
             {formatVertical(item.vertical)}
@@ -393,5 +448,15 @@ function SessionCartItem({
         </div>
       </div>
     </article>
+  );
+}
+
+function WarningCard({ warning }: { warning: ApiSessionWarning }) {
+  return (
+    <div className={`warning-item ${warning.code.toLowerCase()}`}>
+      <span className="warning-heading">{getWarningTitle(warning)}</span>
+      <span>{warning.message}</span>
+      {warning.vertical && <span className="warning-meta">{formatVertical(warning.vertical)}</span>}
+    </div>
   );
 }
