@@ -51,8 +51,22 @@ class MockSwiggyMcpClient:
         query_lower = query.lower()
         if "veg" in query_lower or "paneer" in query_lower:
             return [
-                self._food_item("food-paneer-roll", "Paneer tikka rolls", "180.00", DietaryTag.VEG),
-                self._food_item("food-masala-dosa", "Masala dosa", "140.00", DietaryTag.VEG),
+                self._food_item(
+                    "food-paneer-roll",
+                    "Paneer tikka rolls",
+                    "180.00",
+                    DietaryTag.VEG,
+                    restaurant_id="rest-roll-house",
+                    restaurant_name="Roll House",
+                ),
+                self._food_item(
+                    "food-masala-dosa",
+                    "Masala dosa",
+                    "140.00",
+                    DietaryTag.VEG,
+                    restaurant_id="rest-dosa-corner",
+                    restaurant_name="Dosa Corner",
+                ),
             ]
         if "pizza" in query_lower:
             return [
@@ -61,12 +75,16 @@ class MockSwiggyMcpClient:
                     "Large farmhouse pizza",
                     "560.00",
                     DietaryTag.VEG,
+                    restaurant_id="rest-pizza-yard",
+                    restaurant_name="Pizza Yard",
                 ),
                 self._food_item(
                     "food-brownie-box",
                     "Chocolate brownie box",
                     "320.00",
                     DietaryTag.VEG,
+                    restaurant_id="rest-pizza-yard",
+                    restaurant_name="Pizza Yard",
                 ),
             ]
         return [
@@ -75,8 +93,17 @@ class MockSwiggyMcpClient:
                 "Chicken dum biryani family pack",
                 "620.00",
                 DietaryTag.NON_VEG,
+                restaurant_id="rest-biryani-house",
+                restaurant_name="Biryani House",
             ),
-            self._food_item("food-paneer-roll", "Paneer tikka rolls", "180.00", DietaryTag.VEG),
+            self._food_item(
+                "food-paneer-roll",
+                "Paneer tikka rolls",
+                "180.00",
+                DietaryTag.VEG,
+                restaurant_id="rest-roll-house",
+                restaurant_name="Roll House",
+            ),
         ]
 
     async def get_restaurant_menu(self, restaurant_id: str) -> list[dict[str, Any]]:
@@ -86,6 +113,8 @@ class MockSwiggyMcpClient:
                 "Family meal combo",
                 "720.00",
                 DietaryTag.ANY,
+                restaurant_id=restaurant_id,
+                restaurant_name=f"Mock Restaurant {restaurant_id}",
             ),
         ]
 
@@ -103,17 +132,42 @@ class MockSwiggyMcpClient:
         query_lower = query.lower()
         if "ice" in query_lower or "dessert" in query_lower:
             return [
-                self._instamart_item("im-icecream", "Vanilla ice cream tub", "220.00"),
-                self._instamart_item("im-spoons", "Disposable dessert spoons", "80.00"),
+                self._instamart_item(
+                    "im-icecream",
+                    "Vanilla ice cream tub",
+                    "220.00",
+                    brand_name="Cream Bell",
+                ),
+                self._instamart_item(
+                    "im-spoons",
+                    "Disposable dessert spoons",
+                    "80.00",
+                    brand_name="PartyPro",
+                ),
             ]
         if "plate" in query_lower:
             return [
-                self._instamart_item("im-plates", "Disposable plates pack", "140.00"),
-                self._instamart_item("im-napkins", "Party napkins", "90.00"),
+                self._instamart_item(
+                    "im-plates",
+                    "Disposable plates pack",
+                    "140.00",
+                    brand_name="PartyPro",
+                ),
+                self._instamart_item(
+                    "im-napkins",
+                    "Party napkins",
+                    "90.00",
+                    brand_name="SoftFold",
+                ),
             ]
         return [
-            self._instamart_item("im-cola", "Cola 2L bottle", "110.00"),
-            self._instamart_item("im-water", "Sparkling water cans", "180.00"),
+            self._instamart_item("im-cola", "Cola 2L bottle", "110.00", brand_name="Thums Up"),
+            self._instamart_item(
+                "im-water",
+                "Sparkling water cans",
+                "180.00",
+                brand_name="Kinley",
+            ),
         ]
 
     async def create_cart(
@@ -143,8 +197,22 @@ class MockSwiggyMcpClient:
 
     async def get_substitute_items(self, item_id: str) -> list[dict[str, Any]]:
         if item_id == "im-icecream":
-            return [self._instamart_item("im-butterscotch", "Butterscotch ice cream tub", "230.00")]
-        return [self._instamart_item("im-substitute", "Suggested substitute item", "120.00")]
+            return [
+                self._instamart_item(
+                    "im-butterscotch",
+                    "Butterscotch ice cream tub",
+                    "230.00",
+                    brand_name="Cream Bell",
+                )
+            ]
+        return [
+            self._instamart_item(
+                "im-substitute",
+                "Suggested substitute item",
+                "120.00",
+                brand_name="Mock Brand",
+            )
+        ]
 
     async def _sleep_or_timeout(self, latency_seconds: float) -> None:
         if latency_seconds <= 0:
@@ -157,6 +225,8 @@ class MockSwiggyMcpClient:
         name: str,
         price: str,
         dietary_tag: DietaryTag,
+        restaurant_id: str,
+        restaurant_name: str,
     ) -> dict[str, Any]:
         return {
             "item_id": item_id,
@@ -165,10 +235,18 @@ class MockSwiggyMcpClient:
             "dietary_tag": dietary_tag,
             "vertical": Vertical.FOOD,
             "source": "mock_swiggy",
+            "restaurant_id": restaurant_id,
+            "restaurant_name": restaurant_name,
         }
 
     @staticmethod
-    def _instamart_item(item_id: str, name: str, price: str) -> dict[str, Any]:
+    def _instamart_item(
+        item_id: str,
+        name: str,
+        price: str,
+        brand_name: str,
+        source_label: str = "Instamart Mock Store",
+    ) -> dict[str, Any]:
         return {
             "item_id": item_id,
             "name": name,
@@ -176,4 +254,6 @@ class MockSwiggyMcpClient:
             "dietary_tag": DietaryTag.VEG,
             "vertical": Vertical.INSTAMART,
             "source": "mock_swiggy",
+            "brand_name": brand_name,
+            "source_label": source_label,
         }

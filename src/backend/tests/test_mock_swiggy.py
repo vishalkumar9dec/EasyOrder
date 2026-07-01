@@ -23,7 +23,11 @@ def test_mock_swiggy_client_conforms_to_protocol_shape() -> None:
     instamart = run(client.search_instamart(12.9, 77.5, "drinks"))
 
     assert food[0]["vertical"] == Vertical.FOOD
+    assert food[0]["restaurant_id"]
+    assert food[0]["restaurant_name"]
     assert instamart[0]["vertical"] == Vertical.INSTAMART
+    assert instamart[0]["brand_name"]
+    assert instamart[0]["source_label"]
 
 
 def test_mock_swiggy_scenarios_cover_empty_and_substitute_behavior() -> None:
