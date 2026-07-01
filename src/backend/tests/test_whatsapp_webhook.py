@@ -7,6 +7,7 @@ from app.api.whatsapp import verify_signature
 from app.config import Settings
 from app.main import app
 from app.services.mock_agent import MockAgentService
+from app.services.whatsapp_sender import MockWhatsAppSender
 
 
 def whatsapp_payload(message_text: str = "@EasyOrder get biryani for 4") -> dict:
@@ -114,6 +115,10 @@ def test_untagged_message_is_ignored_without_agent_call() -> None:
 
 
 def test_tagged_message_creates_mock_session() -> None:
+    sender = app.state.whatsapp_sender
+    assert isinstance(sender, MockWhatsAppSender)
+    messages_before = len(sender.sent_messages)
+
     response = TestClient(app).post(
         "/api/whatsapp/webhook",
         json=whatsapp_payload("@EasyOrder get biryani for 4 under 2000"),
@@ -123,8 +128,33 @@ def test_tagged_message_creates_mock_session() -> None:
     body = response.json()
     assert body["status"] == "created"
     assert body["sessions"][0]["session_id"].startswith("session_")
-    assert body["sessions"][0]["guest_link"].startswith("/session/session_")
+    assert body["sessions"][0]["guest_link"].startswith("http://localhost:5173/session/session_")
     assert body["sessions"][0]["status"] == "ACTIVE"
+
+    sent_messages = sender.sent_messages[messages_before:]
+    assert len(sent_messages) == 2
+    group_message, private_message = sent_messages
+    assert group_message.channel == "group"
+    assert group_message.recipient_id == "group_ipl_fans_1"
+    assert "guest_" in group_message.text
+    assert "host_" not in group_message.text
+    assert private_message.channel == "private"
+    assert private_message.recipient_id == "919988776655"
+    assert "host_" in private_message.text
+    assert "host_" not in str(body)
+
+
+def test_mock_sender_keeps_template_placeholders_disabled() -> None:
+    sender = MockWhatsAppSender()
+
+    placeholder = sender.create_template_placeholder(
+        "match_day_food_nudge",
+        "group_ipl_fans_1",
+        {"team": "India"},
+    )
+
+    assert placeholder.enabled is False
+    assert sender.template_placeholders == [placeholder]
 
 
 def test_injection_prompt_returns_structured_rejection() -> None:

@@ -11,13 +11,30 @@ from app.config import Settings, get_settings
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
 from app.services.agent import AgentRejectedPromptError
 from app.services.mock_agent import MockAgentService
-from app.services.protocols import IAgentService
+from app.services.protocols import IAgentService, IWhatsAppSender
+from app.services.whatsapp_sender import WhatsAppSendError
 
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
 
 
 def get_agent_service(request: Request) -> IAgentService:
     return request.app.state.agent_service
+
+
+def get_whatsapp_sender(request: Request) -> IWhatsAppSender:
+    return request.app.state.whatsapp_sender
+
+
+def build_session_link(base_url: str, session_id: str, token: str) -> str:
+    return f"{base_url.rstrip('/')}/session/{session_id}?token={token}"
+
+
+def build_group_session_message(guest_link: str) -> str:
+    return f"EasyOrder is ready. Open the planning canvas: {guest_link}"
+
+
+def build_private_host_message(host_link: str) -> str:
+    return f"Your EasyOrder host link is ready. Keep this private: {host_link}"
 
 
 def verify_signature(raw_body: bytes, signature_header: str | None, settings: Settings) -> None:
@@ -63,6 +80,7 @@ async def ingest_webhook(
     x_hub_signature_256: str | None = Header(default=None),
     settings: Settings = Depends(get_settings),
     agent_service: IAgentService = Depends(get_agent_service),
+    whatsapp_sender: IWhatsAppSender = Depends(get_whatsapp_sender),
 ) -> dict[str, object]:
     raw_body = await request.body()
     verify_signature(raw_body, x_hub_signature_256, settings)
@@ -88,16 +106,41 @@ async def ingest_webhook(
     created_sessions = []
     for message in tagged_messages:
         try:
-            session = await agent_service.handle_tagged_message(message)
+            result = await agent_service.initialize_tagged_message(message)
         except AgentRejectedPromptError as error:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Tagged message was rejected by input guardrails",
             ) from error
+        session = result.session
+        guest_link = build_session_link(
+            settings.public_app_base_url,
+            session.session_id,
+            session.guest_token,
+        )
+        host_link = build_session_link(
+            settings.public_app_base_url,
+            session.session_id,
+            result.host_token,
+        )
+        try:
+            await whatsapp_sender.send_group_message(
+                message.phone_number_id,
+                build_group_session_message(guest_link),
+            )
+            await whatsapp_sender.send_private_message(
+                message.sender_id,
+                build_private_host_message(host_link),
+            )
+        except WhatsAppSendError as error:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Session was created but WhatsApp handoff failed",
+            ) from error
         created_sessions.append(
             {
                 "session_id": session.session_id,
-                "guest_link": f"/session/{session.session_id}?token={session.guest_token}",
+                "guest_link": guest_link,
                 "status": session.status,
             }
         )
