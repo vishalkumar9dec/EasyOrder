@@ -306,7 +306,7 @@ class EasyOrderAgentService(IAgentService):
         state.cart_items = [
             self._cart_item_from_result(result, state.message.sender_id)
             for result in recommendations
-            if not self._is_placeholder_result(result)
+            if self._has_required_source_attribution(result, state)
         ]
         self._apply_quantity_budget(state)
         self._apply_dietary_warning(state)
@@ -420,7 +420,38 @@ class EasyOrderAgentService(IAgentService):
             added_by=added_by,
             dietary_tag=DietaryTag(str(result.get("dietary_tag", DietaryTag.ANY))),
             vertical=Vertical(str(result["vertical"])),
+            restaurant_id=result.get("restaurant_id"),
+            restaurant_name=result.get("restaurant_name"),
+            brand_name=result.get("brand_name"),
+            source_label=result.get("source_label"),
         )
+
+    @staticmethod
+    def _has_required_source_attribution(
+        result: dict[str, Any],
+        state: EasyOrderState,
+    ) -> bool:
+        vertical = Vertical(str(result["vertical"]))
+        if vertical == Vertical.FOOD:
+            has_source = bool(result.get("restaurant_id") and result.get("restaurant_name"))
+        else:
+            has_source = bool(result.get("source_label"))
+        if has_source:
+            return True
+
+        state.warnings.append(
+            SessionWarning(
+                code="SOURCE_ATTRIBUTION_MISSING",
+                message=(
+                    f"{EasyOrderAgentService._vertical_label(vertical)} item "
+                    f"'{result.get('name', result.get('item_id', 'unknown'))}' "
+                    "was skipped because source attribution was missing."
+                ),
+                vertical=vertical,
+                item_id=str(result.get("item_id", "")) or None,
+            )
+        )
+        return False
 
     @staticmethod
     def _is_placeholder_result(result: dict[str, Any]) -> bool:
