@@ -7,11 +7,12 @@ This document reflects the current project state from `docs/easyorder-prd.md`,
 
 ## Current Scope
 
-The current UI is the local product-validation playground from GitHub issue
-[#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). The backend now has
-the issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) mock agent
-initialization path, but the browser UI is not yet the production PWA session route
-backed by persisted sessions, realtime cart updates, or Swiggy checkout APIs.
+The current UI includes the local product-validation playground from GitHub issue
+[#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) and the issue
+[#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) session bootstrap route.
+The session route can load backend-created mock sessions by token and render a
+mobile-first planning canvas, but realtime cart updates, cart mutation APIs, and
+Swiggy checkout APIs are not implemented yet.
 
 Current GitHub status:
 
@@ -21,9 +22,10 @@ Current GitHub status:
 | 02 | [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2) | Product validation slice: local app playground | Closed |
 | 03 | [#14](https://github.com/vishalkumar9dec/EasyOrder/issues/14) | Tasks 1.2-2.1: domain, persistence, tokens, RLS | Closed |
 | 04 | [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3) | Tasks 3.1-3.2: mention-only WhatsApp intake | Closed |
-| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Tasks 2.2, 4.1-4.5: agent initializes consolidated cart | Source attribution implemented; manual verification pending |
-| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | WhatsApp group/host link handoff | Implemented in PR branch; manual verification pending |
-| 07-14 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Session PWA, realtime, warnings, checkout, integrations, E2E, hardening | Open, blocked |
+| 05 | [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4) | Tasks 2.2, 4.1-4.5: agent initializes consolidated cart | Closed |
+| 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | WhatsApp group/host link handoff | Closed |
+| 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Session bootstrap planning canvas | Implemented in PR branch; manual verification pending |
+| 08-14 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Realtime, warnings, checkout, integrations, E2E, hardening | Open, blocked |
 
 ## Verification I Performed
 
@@ -38,10 +40,10 @@ python3 .agents/skills/easyorder-daily-status/scripts/daily_status.py --repo-roo
 
 Results:
 
-- `make test`: backend tests passed with 38 tests; frontend tests passed with 1 test file and 12 tests.
+- `make test`: backend tests passed with 42 tests; frontend tests passed with 2 test files and 15 tests.
 - `make frontend-build`: production build passed.
 - Backend Ruff check passed.
-- Daily status workflow passed, including WhatsApp payload fixtures.
+- Local API smoke passed for session bootstrap guest access, invalid-token `401`, and missing-session `404`.
 - Browser UI verification on `http://localhost:5174/`: 93 scripted checks passed.
 - Browser console errors during scripted UI verification: none.
 
@@ -74,9 +76,10 @@ and Instamart items include a source label plus brand name when available.
 What this means for manual testing:
 
 - Use `UI-01` through `UI-10` to regression-test the current browser playground.
-- Use `API-01` through `API-13` below to test the new backend agent and WhatsApp handoff path.
-- You cannot yet open the returned `/session/...` guest link in a real session UI; that
-  comes with the PWA bootstrap work in issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6).
+- Use `API-01` through `API-16` below to test the backend agent, WhatsApp handoff,
+  and tokenized session bootstrap path.
+- Use `UI-11` through `UI-14` below to verify the real session route after creating
+  a mock session through the webhook.
 
 ## Backend/API Changes From Issue #5
 
@@ -87,6 +90,15 @@ private host message with the host-only link. The webhook response remains
 group-safe and does not include the host token. A Meta Cloud API sender is
 available behind the same interface for sandbox configuration, and proactive
 template-message placeholders remain disabled for the MVP.
+
+## UI/API Changes From Issue #6
+
+Issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) adds
+`GET /api/session/{session_id}?token=...` and a React `/session/:sessionId` route.
+Guest tokens return a redacted planning-canvas payload with guest role, cart,
+warnings, degraded verticals, and source-attributed rows. Host tokens return host
+role and checkout eligibility without exposing token material. Invalid or
+cross-session tokens return `401`; unknown sessions return `404`.
 
 ## Required UI Changes From Vendor/Restaurant Discovery
 
@@ -138,6 +150,10 @@ Use `Ctrl+C` to stop the long-running dev servers.
 | UI-08 | Host-only checkout affordance | In any scenario, select `Host`, then select `Guest`. | Host sees `Validate Checkout`. Guest does not see the button and sees `Guests can edit the cart. Only the host can validate and checkout.` | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2), but role is local UI state only. | Backend-derived host/guest role in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6); host-only checkout entry in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9); security hardening in [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13). |
 | UI-09 | Guest cart editing | Select `Guest`, use `+ Food`, `+ Instamart`, and quantity controls. | Guest can add manual items and edit quantities. Manual Food rows show `Manual restaurant`; manual Instamart rows show `Manual brand · Manual Instamart source`. Checkout remains unavailable to guest. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2), source display from issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4), local-only state. | Session mutation API and realtime collaboration in [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7). |
 | UI-10 | Mobile usability smoke | Open the app in a narrow mobile viewport, go to the demo, switch scenarios and role. | Scenario tabs, cart, warnings, and guest restriction remain usable without blocking the main flow. | Current playground, issue [#2](https://github.com/vishalkumar9dec/EasyOrder/issues/2). | Real PWA mobile session route in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). |
+| UI-11 | Guest opens session link | Start backend and frontend, create a session with `API-01`, copy the returned guest link, and open it in a mobile viewport. | The page shows `Planning canvas`, role `Guest`, source-attributed cart rows such as `Biryani House` and `Thums Up · Instamart Mock Store`, and the guest checkout note. It must not show any `host_` token text. | Issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). | Cart mutation and realtime collaboration in [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7). |
+| UI-12 | Host opens private session link | Use the host link from the mock sender or backend tests, then open `/session/<session_id>?token=<host_token>`. | The page shows role `Host`, cart rows with source attribution, and host checkout eligibility copy. It must not display raw token or token hash values. | Issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). | Checkout validation in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
+| UI-13 | Unauthorized session link | Open `/session/<valid_session_id>` without a token or with `?token=guest_wrong`. | The page shows `Link not authorized` and does not render cart data. | Issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). | Security hardening in [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13). |
+| UI-14 | Missing session link | Open `/session/session_missing?token=guest_any`. | The page shows `Session not found` and does not render cart data. | Issue [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). | E2E demo and runbook coverage in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
 
 ## Backend/API Tests Available After Issue #4
 
@@ -242,6 +258,9 @@ The cases that require internal state inspection are covered by automated tests:
 | API-11 | Source attribution is preserved and malformed source-less results are skipped | `tests/test_session_domain.py`, `tests/test_agent_service.py`, `tests/test_db_adapter.py`, `tests/test_mock_swiggy.py`, and `tests/test_migrations.py` assert Food restaurant metadata, Instamart source labels, DB persistence, migration constraints, and `SOURCE_ATTRIBUTION_MISSING` warnings. |
 | API-12 | Group link handoff excludes host token | `tests/test_whatsapp_webhook.py::test_tagged_message_creates_mock_session` | The mock WhatsApp sender captures a group message to `group_ipl_fans_1` with the guest planning link only; the group text does not contain `host_`. |
 | API-13 | Private host link handoff includes host token | `tests/test_whatsapp_webhook.py::test_tagged_message_creates_mock_session` | The mock WhatsApp sender captures a private message to the sender WhatsApp id with the host link containing the one-time `host_` token. Template-message placeholders remain disabled until proactive updates are implemented. |
+| API-14 | Guest token bootstraps session state | `tests/test_session_api.py::test_guest_token_bootstraps_redacted_session_state` | Guest token returns role `guest`, cart, warnings, degraded state, source attribution, and no host token/hash/phone fields. |
+| API-15 | Host token bootstraps host state | `tests/test_session_api.py::test_host_token_bootstraps_host_role_without_exposing_token_material` | Host token returns role `host` and checkout eligibility while keeping raw token and host-token hash out of the response. |
+| API-16 | Invalid, cross-session, and missing links fail safely | `tests/test_session_api.py` | Invalid or cross-session token returns `401`; missing session returns `404`. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 
