@@ -18,6 +18,14 @@ class MockSwiggyItemUnavailableError(RuntimeError):
     """Raised when a mock checkout item is unavailable."""
 
 
+class MockSwiggyOAuthError(RuntimeError):
+    """Raised when mock OAuth exchange fails."""
+
+
+class MockSwiggyCartCreationError(RuntimeError):
+    """Raised when mock cart creation fails after OAuth."""
+
+
 @dataclass(frozen=True)
 class MockSwiggyScenario:
     """Configures deterministic mock client behavior."""
@@ -29,6 +37,8 @@ class MockSwiggyScenario:
     empty_instamart: bool = False
     unavailable_item_id: str | None = None
     price_change_item_id: str | None = None
+    oauth_failure: bool = False
+    cart_failure_vertical: str | None = None
 
 
 class MockSwiggyMcpClient:
@@ -170,13 +180,21 @@ class MockSwiggyMcpClient:
             ),
         ]
 
+    async def exchange_oauth_code(self, oauth_code: str) -> str:
+        if self.scenario.oauth_failure or oauth_code == "mock-oauth-fail":
+            raise MockSwiggyOAuthError("Mock OAuth exchange failed")
+        return f"Bearer mock-swiggy-token-{self.scenario.name}"
+
     async def create_cart(
         self,
         auth_header: str,
         vertical: str,
         items: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        del auth_header
+        if not auth_header.startswith("Bearer "):
+            raise MockSwiggyOAuthError("Missing Swiggy authorization")
+        if self.scenario.cart_failure_vertical == vertical:
+            raise MockSwiggyCartCreationError(f"{vertical} cart creation failed")
         for item in items:
             if item.get("item_id") == self.scenario.unavailable_item_id:
                 raise MockSwiggyItemUnavailableError(f"{item['item_id']} is unavailable")
@@ -192,8 +210,15 @@ class MockSwiggyMcpClient:
         return {
             "status": "created",
             "vertical": vertical,
-            "checkout_url": f"https://mock.swiggy.local/checkout/{vertical}/{self.scenario.name}",
+            "checkout_url": self._checkout_url(vertical, items),
         }
+
+    def _checkout_url(self, vertical: str, items: list[dict[str, Any]]) -> str:
+        if vertical == Vertical.FOOD:
+            source = items[0].get("restaurant_id") or "restaurant"
+        else:
+            source = "instamart"
+        return f"https://mock.swiggy.local/checkout/{vertical}/{source}/{self.scenario.name}"
 
     async def get_substitute_items(self, item_id: str) -> list[dict[str, Any]]:
         if item_id == "im-icecream":

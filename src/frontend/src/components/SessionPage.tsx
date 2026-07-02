@@ -19,10 +19,12 @@ import {
   type SessionBootstrapViewModel,
 } from '../sessionBootstrap';
 import {
+  confirmCheckout,
   createCartItem,
   deleteCartItem,
   updateCartItem,
   validateCheckout,
+  type CheckoutConfirmViewModel,
   type CheckoutValidationViewModel,
 } from '../sessionCartApi';
 import { useSupabaseCartRealtime } from '../useSupabaseCartRealtime';
@@ -33,6 +35,13 @@ type LoadState =
   | { status: 'unauthorized' }
   | { status: 'not-found' }
   | { status: 'error'; message: string };
+
+type CheckoutPanelState = {
+  status: 'idle' | 'validating' | 'ready' | 'blocked' | 'creating' | 'created' | 'partial' | 'error';
+  result?: CheckoutValidationViewModel;
+  confirmation?: CheckoutConfirmViewModel;
+  message?: string;
+};
 
 export function SessionPage({ sessionId, token }: { sessionId: string; token: string | null }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
@@ -145,11 +154,7 @@ function SessionCanvas({
   const warnings = useMemo(() => session.warnings, [session.warnings]);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [isMutating, setIsMutating] = useState(false);
-  const [checkoutState, setCheckoutState] = useState<{
-    status: 'idle' | 'validating' | 'ready' | 'blocked' | 'error';
-    result?: CheckoutValidationViewModel;
-    message?: string;
-  }>({ status: 'idle' });
+  const [checkoutState, setCheckoutState] = useState<CheckoutPanelState>({ status: 'idle' });
   const checkoutPreviewGroups = useMemo(() => buildCheckoutPreviewGroups(session.cart), [session.cart]);
   const { connectionState } = useSupabaseCartRealtime({
     sessionId: session.sessionId,
@@ -224,6 +229,28 @@ function SessionCanvas({
         status: 'error',
         message: 'Checkout validation failed. Refresh the session and try again.',
       });
+    }
+  }
+
+  async function handleCheckoutConfirmation() {
+    if (!token) {
+      setCheckoutState({ status: 'error', message: 'Session token is missing.' });
+      return;
+    }
+    setCheckoutState((current) => ({ ...current, status: 'creating' }));
+    try {
+      const confirmation = await confirmCheckout(session.sessionId, token);
+      setCheckoutState((current) => ({
+        ...current,
+        status: confirmation.partialSuccess ? 'partial' : 'created',
+        confirmation,
+      }));
+    } catch {
+      setCheckoutState((current) => ({
+        ...current,
+        status: 'error',
+        message: 'Checkout cart creation failed. Validate again and retry.',
+      }));
     }
   }
 
@@ -356,6 +383,7 @@ function SessionCanvas({
                 previewGroups={checkoutPreviewGroups}
                 checkoutState={checkoutState}
                 onValidate={handleCheckoutValidation}
+                onConfirm={handleCheckoutConfirmation}
               />
             ) : (
               <p className="guest-note">
@@ -374,24 +402,25 @@ function HostCheckoutPanel({
   previewGroups,
   checkoutState,
   onValidate,
+  onConfirm,
 }: {
   session: SessionBootstrapViewModel;
   previewGroups: ReturnType<typeof buildCheckoutPreviewGroups>;
-  checkoutState: {
-    status: 'idle' | 'validating' | 'ready' | 'blocked' | 'error';
-    result?: CheckoutValidationViewModel;
-    message?: string;
-  };
+  checkoutState: CheckoutPanelState;
   onValidate: () => void;
+  onConfirm: () => void;
 }) {
   const shownGroups = checkoutState.result?.groups ?? previewGroups;
-  const tone = checkoutState.status === 'ready'
+  const tone = checkoutState.status === 'ready' || checkoutState.status === 'created'
     ? 'good'
-    : checkoutState.status === 'blocked' || !session.checkoutEligible
+    : checkoutState.status === 'blocked' || checkoutState.status === 'partial' || !session.checkoutEligible
       ? 'warn'
       : checkoutState.status === 'error'
         ? 'danger'
         : 'good';
+  const statusLabel = getCheckoutStatusLabel(checkoutState, session);
+  const resultTitle = getCheckoutResultTitle(checkoutState, session, shownGroups.length);
+  const resultDetail = getCheckoutResultDetail(checkoutState);
 
   return (
     <>
@@ -417,30 +446,20 @@ function HostCheckoutPanel({
       >
         {checkoutState.status === 'validating' ? 'Validating...' : 'Validate checkout'}
       </button>
+      {checkoutState.status === 'ready' && (
+        <button type="button" className="checkout-btn secondary" onClick={onConfirm}>
+          Create Swiggy carts
+        </button>
+      )}
+      {checkoutState.status === 'creating' && (
+        <button type="button" className="checkout-btn secondary" disabled>
+          Creating carts...
+        </button>
+      )}
       <div className={`checkout-result ${tone}`}>
-        <span className="checkout-status">
-          {checkoutState.status === 'ready'
-            ? 'Ready'
-            : checkoutState.status === 'blocked'
-              ? 'Blocked'
-              : session.checkoutEligible ? 'Preview' : 'Not ready'}
-        </span>
-        <p className="checkout-result-title">
-          {checkoutState.status === 'ready'
-            ? 'Stock and prices validated'
-            : checkoutState.status === 'blocked'
-              ? 'Review checkout issues'
-              : session.checkoutEligible
-                ? `${shownGroups.length} Swiggy order${shownGroups.length === 1 ? '' : 's'} planned`
-                : 'Checkout unavailable'}
-        </p>
-        <p className="checkout-result-detail">
-          {checkoutState.status === 'ready'
-            ? 'OAuth confirmation and cart creation come next.'
-            : checkoutState.status === 'blocked'
-              ? 'Resolve unavailable items or price changes before continuing.'
-              : checkoutState.message ?? 'Food is split by restaurant. Instamart stays separate.'}
-        </p>
+        <span className="checkout-status">{statusLabel}</span>
+        <p className="checkout-result-title">{resultTitle}</p>
+        <p className="checkout-result-detail">{resultDetail}</p>
         {checkoutState.result?.issues.length ? (
           <div className="checkout-issues">
             {checkoutState.result.issues.map((issue) => (
@@ -455,9 +474,82 @@ function HostCheckoutPanel({
             ))}
           </div>
         ) : null}
+        {checkoutState.confirmation && (
+          <div className="checkout-links">
+            {checkoutState.confirmation.steps.map((step) => (
+              step.checkoutUrl ? (
+                <a key={step.groupId} href={step.checkoutUrl} target="_blank" rel="noreferrer">
+                  {step.sourceLabel} checkout
+                </a>
+              ) : (
+                <span className="checkout-link-error" key={step.groupId}>
+                  {step.sourceLabel}: {step.errorMessage ?? 'Checkout cart failed'}
+                </span>
+              )
+            ))}
+          </div>
+        )}
       </div>
     </>
   );
+}
+
+function getCheckoutStatusLabel(
+  checkoutState: CheckoutPanelState,
+  session: SessionBootstrapViewModel,
+): string {
+  if (checkoutState.status === 'created') {
+    return 'Created';
+  }
+  if (checkoutState.status === 'partial') {
+    return 'Partial';
+  }
+  if (checkoutState.status === 'ready') {
+    return 'Ready';
+  }
+  if (checkoutState.status === 'blocked') {
+    return 'Blocked';
+  }
+  return session.checkoutEligible ? 'Preview' : 'Not ready';
+}
+
+function getCheckoutResultTitle(
+  checkoutState: CheckoutPanelState,
+  session: SessionBootstrapViewModel,
+  groupCount: number,
+): string {
+  if (checkoutState.status === 'created') {
+    return 'Swiggy carts created';
+  }
+  if (checkoutState.status === 'partial') {
+    return 'Partial checkout created';
+  }
+  if (checkoutState.status === 'ready') {
+    return 'Stock and prices validated';
+  }
+  if (checkoutState.status === 'blocked') {
+    return 'Review checkout issues';
+  }
+  if (!session.checkoutEligible) {
+    return 'Checkout unavailable';
+  }
+  return `${groupCount} Swiggy order${groupCount === 1 ? '' : 's'} planned`;
+}
+
+function getCheckoutResultDetail(checkoutState: CheckoutPanelState): string {
+  if (checkoutState.status === 'created') {
+    return 'Open each Swiggy checkout step to complete payment.';
+  }
+  if (checkoutState.status === 'partial') {
+    return 'Some checkout carts were created. Retry failed steps after review.';
+  }
+  if (checkoutState.status === 'ready') {
+    return 'OAuth confirmation and cart creation come next.';
+  }
+  if (checkoutState.status === 'blocked') {
+    return 'Resolve unavailable items or price changes before continuing.';
+  }
+  return checkoutState.message ?? 'Food is split by restaurant. Instamart stays separate.';
 }
 
 function SessionAlertStrip({ session }: { session: SessionBootstrapViewModel }) {

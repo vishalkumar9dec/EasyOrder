@@ -17,7 +17,9 @@ items through the session API, and keep multiple local clients refreshed through
 polling realtime fallback. The issue [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8)
 branch adds budget, dietary, and degraded-state review UI on the real session
 route. The issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9)
-branch adds host-only checkout entry UI and the pre-checkout validation API.
+branch adds host-only checkout entry UI and the pre-checkout validation API. The
+issue [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) branch adds
+mock Swiggy OAuth confirmation and sequential cart creation.
 
 Current GitHub status:
 
@@ -31,9 +33,10 @@ Current GitHub status:
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | WhatsApp group/host link handoff | Closed |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Session bootstrap planning canvas | Closed |
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Cart mutation API and realtime fallback collaboration | Closed |
-| 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Budget, dietary, and degraded-state session UI | Implemented in PR branch; manual verification pending |
-| 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Host-only checkout entry UI and pre-checkout validation | Implemented in PR branch; manual verification pending |
-| 11-14 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | OAuth confirmation, integrations, E2E, hardening | Open, blocked |
+| 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Budget, dietary, and degraded-state session UI | Closed |
+| 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Host-only checkout entry UI and pre-checkout validation | Closed |
+| 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Mock OAuth confirmation and sequential checkout cart creation | Implemented in PR branch; manual verification pending |
+| 12-14 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Real integrations, E2E, hardening | Open, blocked |
 
 ## Verification I Performed
 
@@ -161,6 +164,25 @@ host-only checkout validation for real sessions:
 - The React session page shows host-only checkout steps and a `Validate checkout`
   action. Guests see guidance but no validation button.
 
+## UI/API Changes From Issue #10
+
+Issue [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) adds mock
+Swiggy OAuth confirmation and sequential cart creation:
+
+- `POST /api/session/{session_id}/checkout/confirm?token=...` requires a host
+  token and an OAuth code body.
+- Mock OAuth code `mock-oauth-code` creates checkout carts; `mock-oauth-fail`
+  returns `400`.
+- Food carts are created one restaurant at a time, followed by Instamart when
+  present.
+- Food-only and Instamart-only sessions skip empty verticals cleanly.
+- Successful confirmation returns checkout URLs and updates session status to
+  `ORDERED`.
+- Partial creation failure returns `partial_success=true`, successful checkout
+  URLs, failed-step details, and updates session status to `CHECKOUT_PARTIAL`.
+- The host session page can create mock Swiggy carts after validation and show
+  each checkout link or failed step.
+
 ## Required UI Changes From Vendor/Restaurant Discovery
 
 These requirements are now enforced in the backend cart contract and remain pending
@@ -222,6 +244,8 @@ Use `Ctrl+C` to stop the long-running dev servers.
 | UI-19 | Host validates real session checkout | Start backend and frontend, create a session with `API-01`, open the private host link from the mock sender or backend test helper, then click `Validate checkout`. | Host sees grouped checkout steps before clicking. A normal biryani session shows one Food restaurant step and one Instamart step. After validation, the panel says `Stock and prices validated` and the session remains token-redacted. | Issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). | OAuth confirmation and sequential cart creation in [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). |
 | UI-20 | Guest cannot validate real session checkout | Open the same session with the guest link. | The checkout panel shows guest guidance only. There is no `Validate checkout` button. Cart editing controls remain available. | Issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). | Checkout security hardening in [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13). |
 | UI-21 | Multi-restaurant checkout preview | Open a host session, add a manual Food item with a different restaurant through the session UI or `API-18`, then refresh and inspect checkout. | Checkout preview shows one step per Food restaurant, followed by Instamart when present. For two restaurants plus Instamart, the host sees three planned Swiggy orders before validation. | Issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). | Sequential checkout URLs in [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). |
+| UI-22 | Host creates mock Swiggy checkout carts | Open a real host session, click `Validate checkout`, then click `Create Swiggy carts`. | The panel changes to `Swiggy carts created`, shows one checkout link per planned group, and the links include the relevant Food restaurant id or Instamart step. | Issue [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). | Real Swiggy MCP integration in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
+| UI-23 | Partial checkout creation is visible | Configure the mock client or run the automated `API-30` path with Instamart cart failure. Reopen the host session after confirmation. | Successful Food checkout links remain visible, failed Instamart step shows a recovery warning, and the session status is `CHECKOUT_PARTIAL`. | Issue [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). | Partial recovery hardening in [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13). |
 
 ## Backend/API Tests Available After Issue #4
 
@@ -338,6 +362,12 @@ The cases that require internal state inspection are covered by automated tests:
 | API-23 | Unavailable item validation conflict | `tests/test_session_api.py::test_checkout_validation_returns_unavailable_item_conflict` | Mock unavailable item returns `409` with `ITEM_UNAVAILABLE`, source label, and substitute suggestions. |
 | API-24 | Price-change validation conflict | `tests/test_session_api.py::test_checkout_validation_returns_price_change_conflict` | Mock price change returns `409` with `PRICE_CHANGED`, affected item id, source label, and new price. |
 | API-25 | Multi-restaurant checkout grouping | `tests/test_session_api.py::test_checkout_validation_groups_multiple_food_restaurants` and `src/frontend/src/sessionBootstrap.test.ts` | Food items from two restaurants produce two Food checkout groups; Instamart remains a separate group after Food. |
+| API-26 | Host checkout confirmation success | `tests/test_session_api.py::test_host_can_confirm_checkout_with_sequential_urls` | Host token and mock OAuth code create checkout URLs for each planned group and update session status to `ORDERED`. |
+| API-27 | Guest checkout confirmation is forbidden | `tests/test_session_api.py::test_guest_cannot_confirm_checkout` | Guest token receives `403` from checkout confirmation. |
+| API-28 | Multi-restaurant confirmation split | `tests/test_session_api.py::test_checkout_confirm_groups_multiple_food_restaurants_sequentially` | Two Food restaurants create two Food checkout URLs, followed by the Instamart checkout URL. |
+| API-29 | Empty verticals are skipped | `tests/test_session_api.py::test_checkout_confirm_skips_empty_verticals` | Food-only sessions create Food checkout steps only; Instamart-only sessions create Instamart checkout steps only. |
+| API-30 | Partial checkout failure recovery | `tests/test_session_api.py::test_checkout_confirm_reports_partial_failure` | Mock Instamart cart creation failure returns `partial_success=true`, preserves successful Food URL, and updates session status to `CHECKOUT_PARTIAL`. |
+| API-31 | OAuth exchange failure | `tests/test_session_api.py::test_checkout_confirm_reports_oauth_failure` | Mock OAuth failure returns `400` without creating checkout carts. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 
@@ -349,11 +379,11 @@ The cases that require internal state inspection are covered by automated tests:
 | 5 | Open the same session in two browser windows and confirm realtime cart updates. | Testable with the local polling fallback. Native Supabase browser event-channel wiring is pending credentials/client setup. | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) fallback; future Supabase wiring when configured. |
 | 6 | Persist guest dietary additions and verify host-visible warnings. | Current dietary state is scenario fixture data only. | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
 | 7 | Run final stock and price validation against mock Swiggy state. | Current stock/price changes are pre-modeled UI states, not API responses. | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
-| 8, 9, 10 | Host completes mock Swiggy OAuth and sees one checkout step per Food restaurant plus Instamart when needed. | Current links are static mock URLs. OAuth confirmation, restaurant-grouped Food checkout creation, and sequential cart creation are not implemented yet. | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10), then real MCP and WhatsApp work in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
+| 8, 9, 10 | Host completes mock Swiggy OAuth and sees one checkout step per Food restaurant plus Instamart when needed. | Testable locally with mock OAuth and mock checkout URLs. Real Swiggy OAuth/MCP credentials and live cart creation remain pending. | Mock path in [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10), then real MCP and WhatsApp work in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
 | 10 | Delivery updates are posted back to WhatsApp group. | Deferred unless delivery-status hooks are available. | Scaffold/provider placeholder in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11), broader demo/runbook coverage in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
 | 11 | Host opts into sports/tournament nudges during setup. | Deferred for MVP; only template-message placeholder is planned. | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
 
-## Suggested Regression Pass Before Starting Issue #8
+## Suggested Regression Pass Before Checkout Or Integration Changes
 
 Run these before changing warning, dietary, or checkout-readiness behavior:
 

@@ -9,8 +9,11 @@ from pydantic import BaseModel, Field, ValidationError
 from app.models.session import (
     CartItem,
     CartItemResponse,
+    CheckoutConfirmRequest,
+    CheckoutConfirmResponse,
     CheckoutGroup,
     CheckoutIssue,
+    CheckoutStepResult,
     CheckoutValidationResponse,
     DietaryTag,
     Session,
@@ -128,6 +131,63 @@ async def validate_checkout(
         status="checkout_ready",
         checkout_ready=True,
         groups=groups,
+    )
+
+
+@router.post("/{session_id}/checkout/confirm")
+async def confirm_checkout(
+    session_id: str,
+    payload: CheckoutConfirmRequest,
+    token: str = Query(min_length=1),
+    db: IDBAdapter = Depends(get_db_adapter),
+    swiggy: ISwiggyMcpClient = Depends(get_swiggy_client),
+) -> CheckoutConfirmResponse:
+    session, role = await get_authorized_session(session_id, token, db)
+    if role != SessionRole.HOST:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the host can confirm checkout",
+        )
+    if not session.cart_items:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cart is empty")
+
+    try:
+        auth_header = await swiggy.exchange_oauth_code(payload.oauth_code)
+    except Exception as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Swiggy OAuth exchange failed",
+        ) from error
+
+    steps: list[CheckoutStepResult] = []
+    for group in build_checkout_groups(session.cart_items):
+        steps.append(await create_checkout_step(group, auth_header, swiggy))
+
+    created_steps = [step for step in steps if step.status == "created"]
+    failed_steps = [step for step in steps if step.status != "created"]
+    if failed_steps and created_steps:
+        await db.update_session_status(session.session_id, SessionStatus.CHECKOUT_PARTIAL)
+        return CheckoutConfirmResponse(
+            status="partial",
+            checkout_complete=False,
+            partial_success=True,
+            steps=steps,
+        )
+    if failed_steps:
+        await db.update_session_status(session.session_id, SessionStatus.CHECKOUT_READY)
+        return CheckoutConfirmResponse(
+            status="blocked",
+            checkout_complete=False,
+            partial_success=False,
+            steps=steps,
+        )
+
+    await db.update_session_status(session.session_id, SessionStatus.ORDERED)
+    return CheckoutConfirmResponse(
+        status="created",
+        checkout_complete=True,
+        partial_success=False,
+        steps=steps,
     )
 
 
@@ -318,7 +378,7 @@ async def validate_checkout_group(
 ) -> list[CheckoutIssue]:
     try:
         result = await swiggy.create_cart(
-            auth_header="mock-precheckout-validation",
+            auth_header="Bearer mock-precheckout-validation",
             vertical=group.vertical,
             items=[checkout_payload_item(item) for item in group.items],
         )
@@ -351,6 +411,44 @@ async def validate_checkout_group(
             )
         ]
     return []
+
+
+async def create_checkout_step(
+    group: CheckoutGroup,
+    auth_header: str,
+    swiggy: ISwiggyMcpClient,
+) -> CheckoutStepResult:
+    try:
+        result = await swiggy.create_cart(
+            auth_header=auth_header,
+            vertical=group.vertical,
+            items=[checkout_payload_item(item) for item in group.items],
+        )
+    except Exception as error:
+        return CheckoutStepResult(
+            group_id=group.group_id,
+            vertical=group.vertical,
+            source_label=group.source_label,
+            status="failed",
+            error_message=f"{error.__class__.__name__}: checkout cart creation failed",
+        )
+
+    if result.get("status") != "created":
+        return CheckoutStepResult(
+            group_id=group.group_id,
+            vertical=group.vertical,
+            source_label=group.source_label,
+            status=str(result.get("status", "failed")),
+            error_message="Checkout cart creation did not complete.",
+        )
+
+    return CheckoutStepResult(
+        group_id=group.group_id,
+        vertical=group.vertical,
+        source_label=group.source_label,
+        status="created",
+        checkout_url=str(result["checkout_url"]),
+    )
 
 
 def substitute_item_payload(item: dict[str, object]) -> dict[str, object]:

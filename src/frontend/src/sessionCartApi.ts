@@ -59,6 +59,38 @@ export interface CheckoutValidationViewModel {
   issues: ApiCheckoutIssue[];
 }
 
+export interface ApiCheckoutStepResult {
+  group_id: string;
+  vertical: Vertical;
+  source_label: string;
+  status: string;
+  checkout_url?: string | null;
+  error_message?: string | null;
+}
+
+export interface ApiCheckoutConfirmResponse {
+  status: string;
+  checkout_complete: boolean;
+  partial_success: boolean;
+  steps: ApiCheckoutStepResult[];
+}
+
+export interface CheckoutStepViewModel {
+  groupId: string;
+  vertical: Vertical;
+  sourceLabel: string;
+  status: string;
+  checkoutUrl?: string;
+  errorMessage?: string;
+}
+
+export interface CheckoutConfirmViewModel {
+  status: string;
+  checkoutComplete: boolean;
+  partialSuccess: boolean;
+  steps: CheckoutStepViewModel[];
+}
+
 export function reconcileCartItems(
   current: ApiCartItem[],
   incoming: ApiCartItem[],
@@ -141,6 +173,22 @@ export async function validateCheckout(
   return adaptCheckoutValidation(payload as ApiCheckoutValidationResponse);
 }
 
+export async function confirmCheckout(
+  sessionId: string,
+  token: string,
+  oauthCode = 'mock-oauth-code',
+): Promise<CheckoutConfirmViewModel> {
+  const response = await fetch(`/api/session/${sessionId}/checkout/confirm?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ oauth_code: oauthCode }),
+  });
+  if (!response.ok) {
+    throw new Error(`Checkout confirmation failed with ${response.status}`);
+  }
+  return adaptCheckoutConfirm((await response.json()) as ApiCheckoutConfirmResponse);
+}
+
 export function adaptCheckoutValidation(
   payload: ApiCheckoutValidationResponse,
 ): CheckoutValidationViewModel {
@@ -155,6 +203,24 @@ export function adaptCheckoutValidation(
       subtotal: Number(group.subtotal),
     })),
     issues: payload.issues,
+  };
+}
+
+export function adaptCheckoutConfirm(
+  payload: ApiCheckoutConfirmResponse,
+): CheckoutConfirmViewModel {
+  return {
+    status: payload.status,
+    checkoutComplete: payload.checkout_complete,
+    partialSuccess: payload.partial_success,
+    steps: payload.steps.map((step) => ({
+      groupId: step.group_id,
+      vertical: step.vertical,
+      sourceLabel: step.source_label,
+      status: step.status,
+      checkoutUrl: step.checkout_url ?? undefined,
+      errorMessage: step.error_message ?? undefined,
+    })),
   };
 }
 

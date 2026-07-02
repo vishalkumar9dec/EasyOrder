@@ -22,6 +22,7 @@ class SessionStatus(StrEnum):
     ACTIVE = "ACTIVE"
     DEGRADED = "DEGRADED"
     CHECKOUT_READY = "CHECKOUT_READY"
+    CHECKOUT_PARTIAL = "CHECKOUT_PARTIAL"
     ORDERED = "ORDERED"
 
 
@@ -227,6 +228,36 @@ class CheckoutValidationResponse(BaseModel):
     checkout_ready: bool
     groups: list[CheckoutGroup]
     issues: list[CheckoutIssue] = Field(default_factory=list)
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
+class CheckoutConfirmRequest(BaseModel):
+    """Host OAuth confirmation request used to create Swiggy carts."""
+
+    oauth_code: str = Field(min_length=1)
+
+
+class CheckoutStepResult(BaseModel):
+    """Result of creating one Swiggy checkout cart."""
+
+    group_id: str
+    vertical: Vertical
+    source_label: str
+    status: str
+    checkout_url: str | None = None
+    error_message: str | None = None
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
+class CheckoutConfirmResponse(BaseModel):
+    """Sequential checkout cart creation result."""
+
+    status: str
+    checkout_complete: bool
+    partial_success: bool
+    steps: list[CheckoutStepResult]
 
     model_config = ConfigDict(use_enum_values=True)
 

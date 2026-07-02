@@ -3,7 +3,7 @@ import asyncio
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.models.session import hash_host_token
+from app.models.session import CartItem, DietaryTag, Vertical, hash_host_token
 from app.models.whatsapp import IncomingMessage
 from app.services.mock_agent import MockAgentService
 from app.services.mock_swiggy import MockSwiggyMcpClient, MockSwiggyScenario
@@ -298,3 +298,158 @@ def test_checkout_validation_groups_multiple_food_restaurants() -> None:
     food_groups = [group for group in groups if group["vertical"] == "food"]
     assert [group["source_label"] for group in food_groups] == ["Dosa Corner", "Pizza Yard"]
     assert validation.json()["groups"][-1]["vertical"] == "instamart"
+
+
+def test_host_can_confirm_checkout_with_sequential_urls() -> None:
+    app, result = create_initialized_session()
+    client = TestClient(app)
+
+    response = client.post(
+        f"/api/session/{result.session.session_id}/checkout/confirm",
+        params={"token": result.host_token},
+        json={"oauth_code": "mock-oauth-code"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "created"
+    assert body["checkout_complete"] is True
+    assert body["partial_success"] is False
+    assert [step["status"] for step in body["steps"]] == ["created", "created"]
+    assert body["steps"][0]["checkout_url"].endswith("/food/rest-biryani-house/normal")
+    assert body["steps"][1]["checkout_url"].endswith("/instamart/instamart/normal")
+
+    refreshed = client.get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.host_token},
+    )
+    assert refreshed.json()["status"] == "ORDERED"
+
+
+def test_guest_cannot_confirm_checkout() -> None:
+    app, result = create_initialized_session()
+
+    response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/checkout/confirm",
+        params={"token": result.session.guest_token},
+        json={"oauth_code": "mock-oauth-code"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Only the host can confirm checkout"
+
+
+def test_checkout_confirm_groups_multiple_food_restaurants_sequentially() -> None:
+    app, result = create_initialized_session("@EasyOrder get pizza for 3 under 3000")
+    client = TestClient(app)
+    add_response = client.post(
+        f"/api/session/{result.session.session_id}/cart-items",
+        params={"token": result.host_token},
+        json={
+            "name": "Masala dosa",
+            "quantity": 2,
+            "price": "140.00",
+            "dietary_tag": "VEG",
+            "vertical": "food",
+            "restaurant_id": "rest-dosa-corner",
+            "restaurant_name": "Dosa Corner",
+        },
+    )
+    assert add_response.status_code == 201
+
+    response = client.post(
+        f"/api/session/{result.session.session_id}/checkout/confirm",
+        params={"token": result.host_token},
+        json={"oauth_code": "mock-oauth-code"},
+    )
+
+    assert response.status_code == 200
+    steps = response.json()["steps"]
+    assert [step["source_label"] for step in steps] == [
+        "Dosa Corner",
+        "Pizza Yard",
+        "Instamart Mock Store",
+    ]
+    assert steps[0]["checkout_url"].endswith("/food/rest-dosa-corner/normal")
+    assert steps[1]["checkout_url"].endswith("/food/rest-pizza-yard/normal")
+
+
+def test_checkout_confirm_skips_empty_verticals() -> None:
+    app, result = create_initialized_session()
+    food_only = [
+        item for item in result.session.cart_items if item.vertical == Vertical.FOOD
+    ]
+    run(app.state.db_adapter.update_cart_items(result.session.session_id, food_only))
+
+    food_response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/checkout/confirm",
+        params={"token": result.host_token},
+        json={"oauth_code": "mock-oauth-code"},
+    )
+
+    assert food_response.status_code == 200
+    assert [step["vertical"] for step in food_response.json()["steps"]] == ["food"]
+
+    instamart_only = [
+        CartItem(
+            item_id="im-cola",
+            name="Cola 2L bottle",
+            quantity=2,
+            price="110.00",
+            added_by="host",
+            dietary_tag=DietaryTag.VEG,
+            vertical=Vertical.INSTAMART,
+            brand_name="Thums Up",
+            source_label="Instamart Mock Store",
+        )
+    ]
+    run(app.state.db_adapter.update_cart_items(result.session.session_id, instamart_only))
+    run(app.state.db_adapter.update_session_status(result.session.session_id, "CHECKOUT_READY"))
+
+    instamart_response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/checkout/confirm",
+        params={"token": result.host_token},
+        json={"oauth_code": "mock-oauth-code"},
+    )
+
+    assert instamart_response.status_code == 200
+    assert [step["vertical"] for step in instamart_response.json()["steps"]] == ["instamart"]
+
+
+def test_checkout_confirm_reports_oauth_failure() -> None:
+    app, result = create_initialized_session()
+
+    response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/checkout/confirm",
+        params={"token": result.host_token},
+        json={"oauth_code": "mock-oauth-fail"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Swiggy OAuth exchange failed"
+
+
+def test_checkout_confirm_reports_partial_failure() -> None:
+    app, result = create_initialized_session()
+    app.state.swiggy_client = MockSwiggyMcpClient(
+        MockSwiggyScenario(cart_failure_vertical="instamart")
+    )
+
+    response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/checkout/confirm",
+        params={"token": result.host_token},
+        json={"oauth_code": "mock-oauth-code"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "partial"
+    assert body["checkout_complete"] is False
+    assert body["partial_success"] is True
+    assert [step["status"] for step in body["steps"]] == ["created", "failed"]
+
+    refreshed = TestClient(app).get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.host_token},
+    )
+    assert refreshed.json()["status"] == "CHECKOUT_PARTIAL"
