@@ -1,3 +1,8 @@
+import logging
+import re
+import time
+from uuid import uuid4
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,6 +11,9 @@ from app.api.whatsapp import create_agent_service
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
 from app.services.whatsapp_sender import create_whatsapp_sender
+
+logger = logging.getLogger("easyorder.api")
+SESSION_PATH_RE = re.compile(r"/session/(?P<session_id>[^/?]+)")
 
 
 def create_app() -> FastAPI:
@@ -28,6 +36,27 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def request_logging(request, call_next):
+        request_id = request.headers.get("x-request-id") or f"req_{uuid4().hex[:12]}"
+        started = time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+        session_match = SESSION_PATH_RE.search(request.url.path)
+        logger.info(
+            "request_complete",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "latency_ms": elapsed_ms,
+                "session_id": session_match.group("session_id") if session_match else None,
+            },
+        )
+        response.headers["x-request-id"] = request_id
+        return response
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

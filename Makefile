@@ -4,7 +4,7 @@ BACKEND_PYTHON := src/backend/.venv/bin/python
 BACKEND_PORT ?= 8000
 FRONTEND_PORT ?= 5173
 
-.PHONY: setup up test backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-migrate db-rollback db-down smoke
+.PHONY: setup up test backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-migrate db-rollback db-down smoke demo-smoke
 
 setup: backend-install frontend-install
 
@@ -76,3 +76,6 @@ db-down:
 	docker compose -f infra/docker-compose.yml down
 
 smoke: backend-smoke frontend-build
+
+demo-smoke:
+	$(BACKEND_PYTHON) scripts/easyorder_demo_smoke.py
