@@ -61,24 +61,30 @@ Verified complete:
 - Task 5.2: Session-scoped cart mutation API.
 - Task 6.1: PWA session route with source-attributed planning canvas.
 - Task 6.2: Realtime fallback collaboration for session cart updates.
+- Task 6.3: Budget, dietary, and degraded-state UI.
+- Task 6.4: Host-only checkout entry UI.
+- Task 7.1: Pre-checkout validation.
+- Task 7.2: Swiggy OAuth confirmation and sequential cart creation.
+- Task 8.1: Real Swiggy MCP client integration boundaries.
+- Task 8.2: WhatsApp message sending.
+- Task 9.1: End-to-end local demo flow.
+- Task 9.2: Observability and operational runbooks.
+- Task 9.3: Security and privacy hardening pass.
+- Task 9.4: Documentation consistency pass.
 
 Newly identified product requirement:
 
 - Cart items must preserve and display source attribution. Food items require restaurant id/name. Instamart items require a source/store label and should preserve product brand when available.
 - Food checkout cannot combine multiple restaurants in one Swiggy order. Checkout must split Food payloads by restaurant, then process Instamart separately.
 
-Verification completed on 2026-06-29:
+Verification completed on 2026-07-02:
 
-- `make backend-test`: 35 passed.
-- `cd src/backend && .venv/bin/python -m ruff check app tests`: passed.
-- `make frontend-test`: 11 passed.
+- `make test`: 68 backend passed, 20 frontend passed.
+- `src/backend/.venv/bin/python -m ruff check src/backend/app src/backend/tests`: passed.
 - `make frontend-build`: passed.
-- Browser smoke test against `http://localhost:5173`: hero render, scenario switching, host-only checkout, guest restriction, dietary blocked state, degraded vertical badge, manual add item, quantity editing, over-budget recovery, and mobile viewport render all passed.
-- `make db-up`: PostgreSQL container started.
-- Migration apply smoke: `infra/migrations/0001_session_persistence.sql` applied successfully.
-- RLS smoke: guest token read/write stayed session-scoped, guest session update was blocked, host session update succeeded, invalid tokens saw no rows, and cross-session cart update was blocked.
-- Constraint/cascade smoke: invalid status and dietary tag were rejected, and deleting a session removed its cart items.
-- Async database adapter smoke against local PostgreSQL: create session with cart, read session with cart, replace cart, and update status passed.
+- `make security-smoke`: all release-blocking checks passed.
+- `make demo-smoke`: local demo reaches Food and Instamart checkout URLs and final ORDERED status.
+
 
 ## GitHub Issue Order
 
@@ -99,7 +105,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Closed |
 | 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Closed |
 | 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Closed |
-| 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Security, privacy, and documentation hardening implemented in PR branch; manual verification pending |
+| 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Closed |
 
 ## PRD Traceability
 
