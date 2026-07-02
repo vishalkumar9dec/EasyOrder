@@ -13,7 +13,8 @@ def test_session_persistence_migration_defines_required_tables_constraints_and_i
     assert "CREATE TABLE IF NOT EXISTS cart_items" in sql
     assert "REFERENCES sessions(session_id) ON DELETE CASCADE" in sql
     status_check = (
-        "CHECK (status IN ('INITIALIZING','ACTIVE','DEGRADED','CHECKOUT_READY','ORDERED'))"
+        "CHECK (status IN "
+        "('INITIALIZING','ACTIVE','DEGRADED','CHECKOUT_READY','CHECKOUT_PARTIAL','ORDERED'))"
     )
     assert status_check in sql
     assert "CHECK (dietary_preference IN ('VEG','NON-VEG','ANY'))" in sql

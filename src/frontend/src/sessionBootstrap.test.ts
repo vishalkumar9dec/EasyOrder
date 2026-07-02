@@ -11,7 +11,7 @@ import {
   getWarningTitle,
   type ApiSessionBootstrap,
 } from './sessionBootstrap';
-import { adaptCheckoutValidation, reconcileCartItems } from './sessionCartApi';
+import { adaptCheckoutConfirm, adaptCheckoutValidation, reconcileCartItems } from './sessionCartApi';
 
 const payload: ApiSessionBootstrap = {
   session_id: 'session_123',
@@ -218,5 +218,37 @@ describe('session bootstrap route and adapter', () => {
       sourceLabel: 'Biryani House',
       subtotal: 2480,
     });
+  });
+
+  it('adapts checkout confirmation responses with created and failed steps', () => {
+    const confirmation = adaptCheckoutConfirm({
+      status: 'partial',
+      checkout_complete: false,
+      partial_success: true,
+      steps: [
+        {
+          group_id: 'food:rest-biryani-house',
+          vertical: 'food',
+          source_label: 'Biryani House',
+          status: 'created',
+          checkout_url: 'https://mock.swiggy.local/checkout/food/rest-biryani-house/normal',
+        },
+        {
+          group_id: 'instamart:instamart',
+          vertical: 'instamart',
+          source_label: 'Instamart Mock Store',
+          status: 'failed',
+          error_message: 'MockSwiggyCartCreationError: checkout cart creation failed',
+        },
+      ],
+    });
+
+    expect(confirmation).toMatchObject({
+      status: 'partial',
+      checkoutComplete: false,
+      partialSuccess: true,
+    });
+    expect(confirmation.steps[0].checkoutUrl).toContain('rest-biryani-house');
+    expect(confirmation.steps[1].errorMessage).toContain('cart creation failed');
   });
 });

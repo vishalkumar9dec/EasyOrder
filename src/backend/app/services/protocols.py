@@ -80,6 +80,10 @@ class ISwiggyMcpClient(Protocol):
         """Search Swiggy Instamart items."""
         ...
 
+    async def exchange_oauth_code(self, oauth_code: str) -> str:
+        """Exchange a Swiggy OAuth code for an authorization header."""
+        ...
+
     async def create_cart(
         self,
         auth_header: str,

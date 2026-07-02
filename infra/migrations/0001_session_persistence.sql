@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     dietary_preference TEXT NOT NULL DEFAULT 'ANY'
         CHECK (dietary_preference IN ('VEG','NON-VEG','ANY')),
     status TEXT NOT NULL DEFAULT 'INITIALIZING'
-        CHECK (status IN ('INITIALIZING','ACTIVE','DEGRADED','CHECKOUT_READY','ORDERED')),
+        CHECK (status IN ('INITIALIZING','ACTIVE','DEGRADED','CHECKOUT_READY','CHECKOUT_PARTIAL','ORDERED')),
     budget_warning BOOLEAN NOT NULL DEFAULT FALSE,
     degraded_verticals TEXT[] NOT NULL DEFAULT '{}',
     warnings JSONB NOT NULL DEFAULT '[]'::jsonb,
