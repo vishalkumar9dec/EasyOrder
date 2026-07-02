@@ -96,8 +96,8 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Closed |
 | 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Closed |
 | 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Task 6.4, Task 7.1 | Closed |
-| 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Swiggy OAuth confirmation and sequential checkout mock implemented; PR/manual verification pending |
-| 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Open, blocked by #5 and #10 |
+| 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Closed |
+| 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Real Swiggy MCP boundary and Meta sender tests implemented; PR/manual verification pending |
 | 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Open, blocked by #11 |
 | 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Open, blocked by #12 |
 

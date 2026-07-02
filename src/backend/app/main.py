@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.session import router as session_router
-from app.api.whatsapp import create_mock_agent_service
+from app.api.whatsapp import create_agent_service
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
 from app.services.whatsapp_sender import create_whatsapp_sender
@@ -11,7 +11,7 @@ from app.services.whatsapp_sender import create_whatsapp_sender
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name)
-    app.state.agent_service = create_mock_agent_service()
+    app.state.agent_service = create_agent_service(settings)
     app.state.db_adapter = app.state.agent_service.db
     app.state.swiggy_client = app.state.agent_service.swiggy_client
     app.state.whatsapp_sender = create_whatsapp_sender(
