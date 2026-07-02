@@ -2,6 +2,7 @@ import {
   adaptSessionBootstrap,
   type ApiCartItem,
   type ApiSessionBootstrap,
+  type CheckoutPreviewGroup,
   type SessionBootstrapViewModel,
 } from './sessionBootstrap';
 import type { DietaryTag, Vertical } from './playgroundModel';
@@ -25,6 +26,38 @@ export interface CartItemUpdateInput {
 }
 
 export type RealtimeConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'offline';
+
+export interface ApiCheckoutIssue {
+  code: string;
+  message: string;
+  vertical: Vertical;
+  item_id?: string | null;
+  source_label?: string | null;
+  new_price?: string | number | null;
+  substitutes: ApiCartItem[];
+}
+
+export interface ApiCheckoutValidationResponse {
+  status: string;
+  checkout_ready: boolean;
+  groups: Array<{
+    group_id: string;
+    vertical: Vertical;
+    source_id: string;
+    source_label: string;
+    item_count: number;
+    subtotal: string | number;
+    items: ApiCartItem[];
+  }>;
+  issues: ApiCheckoutIssue[];
+}
+
+export interface CheckoutValidationViewModel {
+  status: string;
+  checkoutReady: boolean;
+  groups: CheckoutPreviewGroup[];
+  issues: ApiCheckoutIssue[];
+}
 
 export function reconcileCartItems(
   current: ApiCartItem[],
@@ -89,6 +122,40 @@ export async function deleteCartItem(
     method: 'DELETE',
     path: `cart-items/${cartItemId}`,
   });
+}
+
+export async function validateCheckout(
+  sessionId: string,
+  token: string,
+): Promise<CheckoutValidationViewModel> {
+  const response = await fetch(`/api/session/${sessionId}/checkout?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+  });
+  const payload = await response.json();
+  if (response.status === 409) {
+    return adaptCheckoutValidation(payload.detail as ApiCheckoutValidationResponse);
+  }
+  if (!response.ok) {
+    throw new Error(`Checkout validation failed with ${response.status}`);
+  }
+  return adaptCheckoutValidation(payload as ApiCheckoutValidationResponse);
+}
+
+export function adaptCheckoutValidation(
+  payload: ApiCheckoutValidationResponse,
+): CheckoutValidationViewModel {
+  return {
+    status: payload.status,
+    checkoutReady: payload.checkout_ready,
+    groups: payload.groups.map((group) => ({
+      groupId: group.group_id,
+      vertical: group.vertical,
+      sourceLabel: group.source_label,
+      itemCount: group.item_count,
+      subtotal: Number(group.subtotal),
+    })),
+    issues: payload.issues,
+  };
 }
 
 async function mutateSession(

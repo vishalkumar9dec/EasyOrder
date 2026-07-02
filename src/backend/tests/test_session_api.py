@@ -6,6 +6,7 @@ from app.main import create_app
 from app.models.session import hash_host_token
 from app.models.whatsapp import IncomingMessage
 from app.services.mock_agent import MockAgentService
+from app.services.mock_swiggy import MockSwiggyMcpClient, MockSwiggyScenario
 
 
 def run(coro):
@@ -193,3 +194,107 @@ def test_cart_mutation_validates_source_attribution_and_missing_items() -> None:
     assert missing_restaurant.status_code == 422
     assert missing_cart_item.status_code == 404
     assert missing_cart_item.json()["detail"] == "Cart item not found"
+
+
+def test_host_can_validate_checkout_with_grouped_steps() -> None:
+    app, result = create_initialized_session()
+    client = TestClient(app)
+
+    validation = client.post(
+        f"/api/session/{result.session.session_id}/checkout",
+        params={"token": result.host_token},
+    )
+
+    assert validation.status_code == 200
+    body = validation.json()
+    assert body["checkout_ready"] is True
+    assert body["status"] == "checkout_ready"
+    assert [group["vertical"] for group in body["groups"]] == ["food", "instamart"]
+    assert body["groups"][0]["source_label"] == "Biryani House"
+    assert body["groups"][1]["source_label"] == "Instamart Mock Store"
+
+    refreshed = client.get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.host_token},
+    )
+    assert refreshed.json()["status"] == "CHECKOUT_READY"
+
+
+def test_guest_cannot_validate_checkout() -> None:
+    app, result = create_initialized_session()
+
+    response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/checkout",
+        params={"token": result.session.guest_token},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Only the host can validate checkout"
+
+
+def test_checkout_validation_returns_unavailable_item_conflict() -> None:
+    app, result = create_initialized_session()
+    app.state.swiggy_client = MockSwiggyMcpClient(
+        MockSwiggyScenario(unavailable_item_id="im-cola")
+    )
+
+    response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/checkout",
+        params={"token": result.host_token},
+    )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["checkout_ready"] is False
+    assert detail["issues"][0]["code"] == "ITEM_UNAVAILABLE"
+    assert detail["issues"][0]["item_id"] == "im-cola"
+    assert detail["issues"][0]["source_label"] == "Instamart Mock Store"
+    assert detail["issues"][0]["substitutes"][0]["source_label"] == "Instamart Mock Store"
+
+
+def test_checkout_validation_returns_price_change_conflict() -> None:
+    app, result = create_initialized_session()
+    app.state.swiggy_client = MockSwiggyMcpClient(
+        MockSwiggyScenario(price_change_item_id="food-chicken-biryani")
+    )
+
+    response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/checkout",
+        params={"token": result.host_token},
+    )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["issues"][0]["code"] == "PRICE_CHANGED"
+    assert detail["issues"][0]["item_id"] == "food-chicken-biryani"
+    assert detail["issues"][0]["new_price"] == "645.00"
+
+
+def test_checkout_validation_groups_multiple_food_restaurants() -> None:
+    app, result = create_initialized_session("@EasyOrder get pizza for 3 under 3000")
+    client = TestClient(app)
+    add_response = client.post(
+        f"/api/session/{result.session.session_id}/cart-items",
+        params={"token": result.host_token},
+        json={
+            "name": "Masala dosa",
+            "quantity": 2,
+            "price": "140.00",
+            "dietary_tag": "VEG",
+            "vertical": "food",
+            "restaurant_id": "rest-dosa-corner",
+            "restaurant_name": "Dosa Corner",
+        },
+    )
+    assert add_response.status_code == 201
+
+    validation = client.post(
+        f"/api/session/{result.session.session_id}/checkout",
+        params={"token": result.host_token},
+    )
+
+    assert validation.status_code == 200
+    groups = validation.json()["groups"]
+    food_groups = [group for group in groups if group["vertical"] == "food"]
+    assert [group["source_label"] for group in food_groups] == ["Dosa Corner", "Pizza Yard"]
+    assert validation.json()["groups"][-1]["vertical"] == "instamart"

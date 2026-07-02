@@ -11,6 +11,7 @@ export interface CartItem {
   quantity: number;
   unitPrice: number;
   dietaryTag: DietaryTag;
+  restaurantId?: string;
   restaurantName?: string;
   brandName?: string;
   sourceLabel?: string;
