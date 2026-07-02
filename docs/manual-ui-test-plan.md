@@ -1,6 +1,6 @@
 # EasyOrder Manual UI Test Plan
 
-Last verified: 2026-07-01.
+Last verified: 2026-07-02.
 
 This document reflects the current project state from `docs/easyorder-prd.md`,
 `docs/implementation-tasks.md`, the local worktree, and live GitHub issue status.
@@ -24,6 +24,8 @@ mock Swiggy OAuth confirmation and sequential cart creation. The issue
 real Swiggy MCP client boundary and Meta WhatsApp sandbox sender coverage.
 The issue [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12)
 branch adds the repeatable local demo smoke, request-id logging, and runbooks.
+The issue [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13)
+branch adds the consolidated security smoke and final documentation hardening pass.
 
 Current GitHub status:
 
@@ -41,8 +43,8 @@ Current GitHub status:
 | 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Host-only checkout entry UI and pre-checkout validation | Closed |
 | 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Mock OAuth confirmation and sequential checkout cart creation | Closed |
 | 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Real Swiggy MCP boundary and Meta sender sandbox coverage | Closed |
-| 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Local demo, observability, and runbooks | Implemented in PR branch; manual verification pending |
-| 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Security, privacy, and documentation hardening | Open, blocked |
+| 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Local demo, observability, and runbooks | Closed |
+| 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Security, privacy, and documentation hardening | Implemented in PR branch; manual verification pending |
 
 ## Verification I Performed
 
@@ -233,6 +235,21 @@ repeatable mock-mode demo and operational debugging path:
 - Local demo steps live in [local-demo.md](/Users/vishalkumar/projects/swiggy_builder_prog/docs/runbooks/local-demo.md).
 - Environment setup, SQL inspection snippets, common failures, and release
   checks live in [operations.md](/Users/vishalkumar/projects/swiggy_builder_prog/docs/runbooks/operations.md).
+
+## Security And Documentation Changes From Issue #13
+
+Issue [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) adds a
+single local security regression smoke that exercises the release-blocking
+privacy and authorization paths together:
+
+- `make security-smoke` runs the in-process privacy suite.
+- `scripts/easyorder_security_smoke.py` verifies request-id propagation,
+  mention-only webhook privacy, prompt-injection rejection, group-safe guest
+  links, guest bootstrap redaction, invalid token rejection, cross-session write
+  rejection, guest checkout blocking, OAuth failure safety, and host-only
+  pre-checkout validation.
+- The release checklist now includes the security smoke alongside test, build,
+  lint, and demo smoke commands.
 
 ## Required UI Changes From Vendor/Restaurant Discovery
 
@@ -426,6 +443,7 @@ The cases that require internal state inspection are covered by automated tests:
 | API-36 | Local demo smoke | `make demo-smoke` and `tests/test_demo_smoke.py` | Mock-mode flow creates a session from the WhatsApp fixture, opens guest state, edits cart, validates checkout, creates checkout URLs, and ends as `ORDERED`. |
 | API-37 | Request id observability | `tests/test_health.py::test_request_logging_middleware_sets_request_id_header` | Backend preserves incoming `x-request-id` and returns it on the response for log correlation. |
 | API-38 | Runbook coverage | `docs/runbooks/local-demo.md` and `docs/runbooks/operations.md` | Runbooks cover local setup, demo command, session SQL inspection, common failures, and release validation checklist. |
+| API-39 | Security smoke | `make security-smoke` and `tests/test_security_smoke.py` | Consolidated release-blocking suite passes for untagged privacy, prompt-injection blocking, token redaction, invalid-token reads, cross-session writes, guest checkout attempts, failed host OAuth, and host-only validation. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 
@@ -449,9 +467,10 @@ Run these before changing warning, dietary, or checkout-readiness behavior:
 make backend-test
 make frontend-test
 make frontend-build
+make security-smoke
 ```
 
 Then manually retest `UI-01` through `UI-07` in the playground and `API-01` through
-`API-13` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
+`API-13` plus `API-39` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
 agent now produces session/cart states, and issue [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5)
 hands guest and host links to separate WhatsApp sender channels for future PWA work.
