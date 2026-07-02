@@ -19,7 +19,9 @@ branch adds budget, dietary, and degraded-state review UI on the real session
 route. The issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9)
 branch adds host-only checkout entry UI and the pre-checkout validation API. The
 issue [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) branch adds
-mock Swiggy OAuth confirmation and sequential cart creation.
+mock Swiggy OAuth confirmation and sequential cart creation. The issue
+[#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) branch adds the
+real Swiggy MCP client boundary and Meta WhatsApp sandbox sender coverage.
 
 Current GitHub status:
 
@@ -35,8 +37,9 @@ Current GitHub status:
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Cart mutation API and realtime fallback collaboration | Closed |
 | 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Budget, dietary, and degraded-state session UI | Closed |
 | 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Host-only checkout entry UI and pre-checkout validation | Closed |
-| 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Mock OAuth confirmation and sequential checkout cart creation | Implemented in PR branch; manual verification pending |
-| 12-14 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Real integrations, E2E, hardening | Open, blocked |
+| 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Mock OAuth confirmation and sequential checkout cart creation | Closed |
+| 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Real Swiggy MCP boundary and Meta sender sandbox coverage | Implemented in PR branch; manual verification pending |
+| 13-14 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | E2E, runbooks, hardening | Open, blocked |
 
 ## Verification I Performed
 
@@ -51,7 +54,7 @@ python3 .agents/skills/easyorder-daily-status/scripts/daily_status.py --repo-roo
 
 Results:
 
-- `make test`: backend tests passed with 45 tests; frontend tests passed with 2 test files and 17 tests.
+- `make test`: backend tests passed with 56 tests; frontend tests passed with 2 test files and 20 tests.
 - `make frontend-build`: production build passed.
 - Backend Ruff check passed.
 - Local API smoke passed for session bootstrap guest access, invalid-token `401`, and missing-session `404`.
@@ -182,6 +185,35 @@ Swiggy OAuth confirmation and sequential cart creation:
   URLs, failed-step details, and updates session status to `CHECKOUT_PARTIAL`.
 - The host session page can create mock Swiggy carts after validation and show
   each checkout link or failed step.
+
+## API Changes From Issue #11
+
+Issue [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) adds
+production-shaped integration boundaries while keeping local mock mode as the
+default:
+
+- `SWIGGY_CLIENT_MODE=mock` remains the local/test default.
+- `SWIGGY_CLIENT_MODE=mcp` selects `SwiggyMcpClient` and requires
+  `SWIGGY_MCP_SERVER_PATH`.
+- `SWIGGY_MCP_SERVER_ENV` accepts a JSON object of environment variables for the
+  MCP stdio command.
+- Real Swiggy MCP responses are normalized to the same item shape as mock
+  responses, including Food restaurant id/name and Instamart brand/source labels.
+- MCP tool errors are mapped to application exceptions before they reach route
+  handlers.
+- `WHATSAPP_PROVIDER_MODE=meta` selects the Meta Cloud API sender; mock remains
+  default. The sandbox payload is covered without making live network calls.
+
+Manual sandbox verification requires provider credentials:
+
+```bash
+SWIGGY_CLIENT_MODE=mcp
+SWIGGY_MCP_SERVER_PATH=/absolute/path/to/swiggy-mcp-server
+SWIGGY_MCP_SERVER_ENV={"SWIGGY_ENV":"sandbox"}
+WHATSAPP_PROVIDER_MODE=meta
+WHATSAPP_ACCESS_TOKEN=<sandbox-token>
+WHATSAPP_PHONE_NUMBER_ID=<sandbox-phone-number-id>
+```
 
 ## Required UI Changes From Vendor/Restaurant Discovery
 
@@ -368,6 +400,10 @@ The cases that require internal state inspection are covered by automated tests:
 | API-29 | Empty verticals are skipped | `tests/test_session_api.py::test_checkout_confirm_skips_empty_verticals` | Food-only sessions create Food checkout steps only; Instamart-only sessions create Instamart checkout steps only. |
 | API-30 | Partial checkout failure recovery | `tests/test_session_api.py::test_checkout_confirm_reports_partial_failure` | Mock Instamart cart creation failure returns `partial_success=true`, preserves successful Food URL, and updates session status to `CHECKOUT_PARTIAL`. |
 | API-31 | OAuth exchange failure | `tests/test_session_api.py::test_checkout_confirm_reports_oauth_failure` | Mock OAuth failure returns `400` without creating checkout carts. |
+| API-32 | Swiggy MCP response normalization | `tests/test_swiggy_mcp.py` | Real-client fixtures normalize Food restaurant id/name, Instamart brand/source labels, price, dietary tag, OAuth token, and checkout URL into the mock-compatible shape. |
+| API-33 | Swiggy MCP error mapping | `tests/test_swiggy_mcp.py::test_swiggy_mcp_client_maps_tool_errors` | MCP tool error payloads raise application exceptions instead of leaking raw tool responses. |
+| API-34 | Swiggy client mode selection | `tests/test_swiggy_mcp.py::test_swiggy_client_factory_keeps_mock_default_and_validates_mcp_config` | Mock mode remains default; MCP mode requires `SWIGGY_MCP_SERVER_PATH`. |
+| API-35 | Meta WhatsApp sandbox sender payload | `tests/test_whatsapp_sender.py` | Meta sender builds the Graph API text-message payload, maps HTTP errors, and is selected by `WHATSAPP_PROVIDER_MODE=meta`. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 

@@ -9,9 +9,11 @@ from pydantic import ValidationError
 
 from app.config import Settings, get_settings
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
-from app.services.agent import AgentRejectedPromptError
+from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
+from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
 from app.services.protocols import IAgentService, IWhatsAppSender
+from app.services.swiggy_mcp import create_swiggy_client
 from app.services.whatsapp_sender import WhatsAppSendError
 
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
@@ -153,3 +155,16 @@ async def ingest_webhook(
 
 def create_mock_agent_service() -> MockAgentService:
     return MockAgentService()
+
+
+def create_agent_service(settings: Settings) -> IAgentService:
+    if settings.swiggy_client_mode == "mock":
+        return MockAgentService()
+    return EasyOrderAgentService(
+        db=InMemoryDBAdapter(),
+        swiggy_client=create_swiggy_client(
+            mode=settings.swiggy_client_mode,
+            server_path=settings.swiggy_mcp_server_path,
+            server_env=settings.swiggy_mcp_server_env,
+        ),
+    )

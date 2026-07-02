@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     # External integrations
     swiggy_client_mode: str = "mock"
+    swiggy_mcp_server_path: str = ""
+    swiggy_mcp_server_env: str = "{}"
     llm_mode: str = "mock"
 
     model_config = SettingsConfigDict(
