@@ -8,6 +8,7 @@ import {
 } from '../playgroundModel';
 import {
   adaptSessionBootstrap,
+  buildCheckoutPreviewGroups,
   getBudgetStatus,
   getItemWarnings,
   getRoleLabel,
@@ -17,7 +18,13 @@ import {
   type ApiSessionBootstrap,
   type SessionBootstrapViewModel,
 } from '../sessionBootstrap';
-import { createCartItem, deleteCartItem, updateCartItem } from '../sessionCartApi';
+import {
+  createCartItem,
+  deleteCartItem,
+  updateCartItem,
+  validateCheckout,
+  type CheckoutValidationViewModel,
+} from '../sessionCartApi';
 import { useSupabaseCartRealtime } from '../useSupabaseCartRealtime';
 
 type LoadState =
@@ -138,6 +145,12 @@ function SessionCanvas({
   const warnings = useMemo(() => session.warnings, [session.warnings]);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [isMutating, setIsMutating] = useState(false);
+  const [checkoutState, setCheckoutState] = useState<{
+    status: 'idle' | 'validating' | 'ready' | 'blocked' | 'error';
+    result?: CheckoutValidationViewModel;
+    message?: string;
+  }>({ status: 'idle' });
+  const checkoutPreviewGroups = useMemo(() => buildCheckoutPreviewGroups(session.cart), [session.cart]);
   const { connectionState } = useSupabaseCartRealtime({
     sessionId: session.sessionId,
     token,
@@ -192,6 +205,26 @@ function SessionCanvas({
         source_label: 'Manual Instamart source',
       }),
     );
+  }
+
+  async function handleCheckoutValidation() {
+    if (!token) {
+      setCheckoutState({ status: 'error', message: 'Session token is missing.' });
+      return;
+    }
+    setCheckoutState({ status: 'validating' });
+    try {
+      const result = await validateCheckout(session.sessionId, token);
+      setCheckoutState({
+        status: result.checkoutReady ? 'ready' : 'blocked',
+        result,
+      });
+    } catch {
+      setCheckoutState({
+        status: 'error',
+        message: 'Checkout validation failed. Refresh the session and try again.',
+      });
+    }
   }
 
   return (
@@ -318,15 +351,12 @@ function SessionCanvas({
           <div className="checkout-section">
             <p className="checkout-title">Checkout</p>
             {isHost ? (
-              <div className={`checkout-result ${session.checkoutEligible ? 'good' : 'warn'}`}>
-                <span className="checkout-status">{session.checkoutEligible ? 'Ready' : 'Not ready'}</span>
-                <p className="checkout-result-title">
-                  {session.checkoutEligible ? 'Host checkout eligible' : 'Checkout unavailable'}
-                </p>
-                <p className="checkout-result-detail">
-                  Source-attributed cart is loaded. Final stock and price validation comes later.
-                </p>
-              </div>
+              <HostCheckoutPanel
+                session={session}
+                previewGroups={checkoutPreviewGroups}
+                checkoutState={checkoutState}
+                onValidate={handleCheckoutValidation}
+              />
             ) : (
               <p className="guest-note">
                 Guests can review the cart. Only the host can validate and checkout.
@@ -336,6 +366,97 @@ function SessionCanvas({
         </aside>
       </div>
     </section>
+  );
+}
+
+function HostCheckoutPanel({
+  session,
+  previewGroups,
+  checkoutState,
+  onValidate,
+}: {
+  session: SessionBootstrapViewModel;
+  previewGroups: ReturnType<typeof buildCheckoutPreviewGroups>;
+  checkoutState: {
+    status: 'idle' | 'validating' | 'ready' | 'blocked' | 'error';
+    result?: CheckoutValidationViewModel;
+    message?: string;
+  };
+  onValidate: () => void;
+}) {
+  const shownGroups = checkoutState.result?.groups ?? previewGroups;
+  const tone = checkoutState.status === 'ready'
+    ? 'good'
+    : checkoutState.status === 'blocked' || !session.checkoutEligible
+      ? 'warn'
+      : checkoutState.status === 'error'
+        ? 'danger'
+        : 'good';
+
+  return (
+    <>
+      <div className="checkout-steps" aria-label="Checkout groups">
+        {shownGroups.map((group, index) => (
+          <div className="checkout-step" key={group.groupId}>
+            <span className="checkout-step-index">{index + 1}</span>
+            <div>
+              <p className="checkout-step-title">{group.sourceLabel}</p>
+              <p className="checkout-step-detail">
+                {formatVertical(group.vertical)} | {group.itemCount} item{group.itemCount === 1 ? '' : 's'} | {formatCurrency(group.subtotal)}
+              </p>
+            </div>
+          </div>
+        ))}
+        {shownGroups.length === 0 && <p className="guest-note">Add cart items before validating checkout.</p>}
+      </div>
+      <button
+        type="button"
+        className="checkout-btn"
+        onClick={onValidate}
+        disabled={!session.checkoutEligible || checkoutState.status === 'validating'}
+      >
+        {checkoutState.status === 'validating' ? 'Validating...' : 'Validate checkout'}
+      </button>
+      <div className={`checkout-result ${tone}`}>
+        <span className="checkout-status">
+          {checkoutState.status === 'ready'
+            ? 'Ready'
+            : checkoutState.status === 'blocked'
+              ? 'Blocked'
+              : session.checkoutEligible ? 'Preview' : 'Not ready'}
+        </span>
+        <p className="checkout-result-title">
+          {checkoutState.status === 'ready'
+            ? 'Stock and prices validated'
+            : checkoutState.status === 'blocked'
+              ? 'Review checkout issues'
+              : session.checkoutEligible
+                ? `${shownGroups.length} Swiggy order${shownGroups.length === 1 ? '' : 's'} planned`
+                : 'Checkout unavailable'}
+        </p>
+        <p className="checkout-result-detail">
+          {checkoutState.status === 'ready'
+            ? 'OAuth confirmation and cart creation come next.'
+            : checkoutState.status === 'blocked'
+              ? 'Resolve unavailable items or price changes before continuing.'
+              : checkoutState.message ?? 'Food is split by restaurant. Instamart stays separate.'}
+        </p>
+        {checkoutState.result?.issues.length ? (
+          <div className="checkout-issues">
+            {checkoutState.result.issues.map((issue) => (
+              <div className="checkout-issue" key={`${issue.code}-${issue.item_id ?? issue.message}`}>
+                <span>{issue.code.replaceAll('_', ' ')}</span>
+                <p>{issue.message}</p>
+                {issue.new_price && <p>New price: {formatCurrency(Number(issue.new_price))}</p>}
+                {issue.substitutes.length > 0 && (
+                  <p>Suggested: {issue.substitutes.map((item) => item.name).join(', ')}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </>
   );
 }
 

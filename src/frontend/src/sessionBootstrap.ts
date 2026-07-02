@@ -54,6 +54,14 @@ export interface SessionBootstrapViewModel {
   total: number;
 }
 
+export interface CheckoutPreviewGroup {
+  groupId: string;
+  vertical: Vertical;
+  sourceLabel: string;
+  itemCount: number;
+  subtotal: number;
+}
+
 export interface BudgetStatusViewModel {
   percent: number;
   delta: number;
@@ -142,10 +150,40 @@ export function adaptCartItem(item: ApiCartItem): CartItem {
     quantity: item.quantity,
     unitPrice: Number(item.price),
     dietaryTag: item.dietary_tag,
+    restaurantId: item.restaurant_id ?? undefined,
     restaurantName: item.restaurant_name ?? undefined,
     brandName: item.brand_name ?? undefined,
     sourceLabel: item.source_label ?? undefined,
   };
+}
+
+export function buildCheckoutPreviewGroups(cart: CartItem[]): CheckoutPreviewGroup[] {
+  const groups = new Map<string, CheckoutPreviewGroup>();
+  for (const item of cart) {
+    const sourceKey = item.vertical === 'food'
+      ? (item.restaurantId ?? item.restaurantName ?? 'unknown-restaurant')
+      : 'instamart';
+    const groupId = `${item.vertical}:${sourceKey}`;
+    const sourceLabel = item.vertical === 'food'
+      ? (item.restaurantName ?? 'Unknown restaurant')
+      : (item.sourceLabel ?? 'Instamart');
+    const current = groups.get(groupId) ?? {
+      groupId,
+      vertical: item.vertical,
+      sourceLabel,
+      itemCount: 0,
+      subtotal: 0,
+    };
+    current.itemCount += item.quantity;
+    current.subtotal += item.quantity * item.unitPrice;
+    groups.set(groupId, current);
+  }
+  return Array.from(groups.values()).sort((left, right) => {
+    if (left.vertical !== right.vertical) {
+      return left.vertical === 'food' ? -1 : 1;
+    }
+    return left.sourceLabel.localeCompare(right.sourceLabel);
+  });
 }
 
 export function getSessionHealthLabel(status: SessionStatus): string {
