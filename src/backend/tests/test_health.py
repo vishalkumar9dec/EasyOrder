@@ -22,6 +22,13 @@ def test_readyz_exposes_mock_dependency_modes() -> None:
     assert body["llm"] == "mock"
 
 
+def test_request_logging_middleware_sets_request_id_header() -> None:
+    response = TestClient(app).get("/healthz", headers={"x-request-id": "req_test_123"})
+
+    assert response.status_code == 200
+    assert response.headers["x-request-id"] == "req_test_123"
+
+
 def test_settings_parses_comma_separated_cors_origins() -> None:
     settings = Settings(backend_cors_origins="http://localhost:5173,http://localhost:4173")
 
