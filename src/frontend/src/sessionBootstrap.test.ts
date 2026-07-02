@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { getSessionRoute } from './App';
 import {
   adaptSessionBootstrap,
+  buildCheckoutPreviewGroups,
   getBudgetStatus,
   getItemWarnings,
   getRoleLabel,
@@ -10,7 +11,7 @@ import {
   getWarningTitle,
   type ApiSessionBootstrap,
 } from './sessionBootstrap';
-import { reconcileCartItems } from './sessionCartApi';
+import { adaptCheckoutValidation, reconcileCartItems } from './sessionCartApi';
 
 const payload: ApiSessionBootstrap = {
   session_id: 'session_123',
@@ -69,6 +70,7 @@ describe('session bootstrap route and adapter', () => {
     expect(viewModel.cart[0]).toMatchObject({
       id: 'food-biryani',
       apiId: 1,
+      restaurantId: 'rest-biryani-house',
       restaurantName: 'Biryani House',
       dietaryTag: 'NON-VEG',
     });
@@ -143,5 +145,78 @@ describe('session bootstrap route and adapter', () => {
     });
     expect(itemWarnings).toHaveLength(1);
     expect(itemWarnings[0].code).toBe('DIETARY_MISMATCH');
+  });
+
+  it('builds host checkout preview groups by restaurant and Instamart source', () => {
+    const viewModel = adaptSessionBootstrap({
+      ...payload,
+      cart_items: [
+        ...payload.cart_items,
+        {
+          id: 3,
+          item_id: 'food-paneer-roll',
+          name: 'Paneer tikka rolls',
+          quantity: 2,
+          price: '180.00',
+          added_by: 'guest',
+          dietary_tag: 'VEG',
+          vertical: 'food',
+          restaurant_id: 'rest-roll-house',
+          restaurant_name: 'Roll House',
+        },
+      ],
+    });
+
+    const groups = buildCheckoutPreviewGroups(viewModel.cart);
+
+    expect(groups).toEqual([
+      {
+        groupId: 'food:rest-biryani-house',
+        vertical: 'food',
+        sourceLabel: 'Biryani House',
+        itemCount: 4,
+        subtotal: 2480,
+      },
+      {
+        groupId: 'food:rest-roll-house',
+        vertical: 'food',
+        sourceLabel: 'Roll House',
+        itemCount: 2,
+        subtotal: 360,
+      },
+      {
+        groupId: 'instamart:instamart',
+        vertical: 'instamart',
+        sourceLabel: 'Instamart Mock Store',
+        itemCount: 2,
+        subtotal: 220,
+      },
+    ]);
+  });
+
+  it('adapts checkout validation responses for the host panel', () => {
+    const validation = adaptCheckoutValidation({
+      status: 'checkout_ready',
+      checkout_ready: true,
+      groups: [
+        {
+          group_id: 'food:rest-biryani-house',
+          vertical: 'food',
+          source_id: 'rest-biryani-house',
+          source_label: 'Biryani House',
+          item_count: 4,
+          subtotal: '2480.00',
+          items: [payload.cart_items[0]],
+        },
+      ],
+      issues: [],
+    });
+
+    expect(validation.checkoutReady).toBe(true);
+    expect(validation.groups[0]).toMatchObject({
+      groupId: 'food:rest-biryani-house',
+      sourceLabel: 'Biryani House',
+      subtotal: 2480,
+    });
   });
 });

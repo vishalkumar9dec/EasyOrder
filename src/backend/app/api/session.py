@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field, ValidationError
 from app.models.session import (
     CartItem,
     CartItemResponse,
+    CheckoutGroup,
+    CheckoutIssue,
+    CheckoutValidationResponse,
     DietaryTag,
     Session,
     SessionBootstrapResponse,
@@ -17,7 +20,8 @@ from app.models.session import (
     Vertical,
     hash_host_token,
 )
-from app.services.protocols import IDBAdapter
+from app.services.mock_swiggy import MockSwiggyItemUnavailableError
+from app.services.protocols import IDBAdapter, ISwiggyMcpClient
 
 router = APIRouter(prefix="/api/session", tags=["session"])
 
@@ -49,6 +53,10 @@ def get_db_adapter(request: Request) -> IDBAdapter:
     return request.app.state.db_adapter
 
 
+def get_swiggy_client(request: Request) -> ISwiggyMcpClient:
+    return request.app.state.swiggy_client
+
+
 @router.get("/{session_id}")
 async def get_session_bootstrap(
     session_id: str,
@@ -67,6 +75,60 @@ async def get_session_bootstrap(
         )
 
     return build_session_bootstrap_response(session, role)
+
+
+@router.post("/{session_id}/checkout")
+async def validate_checkout(
+    session_id: str,
+    token: str = Query(min_length=1),
+    db: IDBAdapter = Depends(get_db_adapter),
+    swiggy: ISwiggyMcpClient = Depends(get_swiggy_client),
+) -> CheckoutValidationResponse:
+    session, role = await get_authorized_session(session_id, token, db)
+    if role != SessionRole.HOST:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the host can validate checkout",
+        )
+    if not session.cart_items:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CheckoutValidationResponse(
+                status="blocked",
+                checkout_ready=False,
+                groups=[],
+                issues=[
+                    CheckoutIssue(
+                        code="EMPTY_CART",
+                        message="Add at least one item before checkout.",
+                        vertical=Vertical.FOOD,
+                    )
+                ],
+            ).model_dump(mode="json"),
+        )
+
+    groups = build_checkout_groups(session.cart_items)
+    issues: list[CheckoutIssue] = []
+    for group in groups:
+        issues.extend(await validate_checkout_group(group, swiggy))
+
+    if issues:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CheckoutValidationResponse(
+                status="blocked",
+                checkout_ready=False,
+                groups=groups,
+                issues=issues,
+            ).model_dump(mode="json"),
+        )
+
+    await db.update_session_status(session.session_id, SessionStatus.CHECKOUT_READY)
+    return CheckoutValidationResponse(
+        status="checkout_ready",
+        checkout_ready=True,
+        groups=groups,
+    )
 
 
 @router.post("/{session_id}/cart-items", status_code=status.HTTP_201_CREATED)
@@ -214,6 +276,99 @@ def cart_item_response(item: CartItem) -> CartItemResponse:
         brand_name=item.brand_name,
         source_label=item.source_label,
     )
+
+
+def build_checkout_groups(items: list[CartItem]) -> list[CheckoutGroup]:
+    grouped: dict[str, list[CartItem]] = {}
+    for item in items:
+        if item.vertical == Vertical.FOOD:
+            key = f"food:{item.restaurant_id}"
+        else:
+            key = "instamart:default"
+        grouped.setdefault(key, []).append(item)
+
+    groups: list[CheckoutGroup] = []
+    for key, group_items in grouped.items():
+        first = group_items[0]
+        vertical = Vertical(first.vertical)
+        if vertical == Vertical.FOOD:
+            source_id = first.restaurant_id or "unknown-restaurant"
+            source_label = first.restaurant_name or "Unknown restaurant"
+        else:
+            source_id = "instamart"
+            source_label = first.source_label or "Instamart"
+        groups.append(
+            CheckoutGroup(
+                group_id=f"{vertical.value}:{source_id}",
+                vertical=vertical,
+                source_id=source_id,
+                source_label=source_label,
+                item_count=sum(item.quantity for item in group_items),
+                subtotal=sum((item.price * item.quantity for item in group_items), Decimal("0.00")),
+                items=[cart_item_response(item) for item in group_items],
+            )
+        )
+
+    return sorted(groups, key=lambda group: (group.vertical != Vertical.FOOD, group.source_label))
+
+
+async def validate_checkout_group(
+    group: CheckoutGroup,
+    swiggy: ISwiggyMcpClient,
+) -> list[CheckoutIssue]:
+    try:
+        result = await swiggy.create_cart(
+            auth_header="mock-precheckout-validation",
+            vertical=group.vertical,
+            items=[checkout_payload_item(item) for item in group.items],
+        )
+    except MockSwiggyItemUnavailableError as error:
+        item_id = str(error).split(" ", maxsplit=1)[0]
+        substitutes = await swiggy.get_substitute_items(item_id)
+        return [
+            CheckoutIssue(
+                code="ITEM_UNAVAILABLE",
+                message=f"{item_id} is unavailable before checkout.",
+                vertical=group.vertical,
+                item_id=item_id,
+                source_label=group.source_label,
+                substitutes=[
+                    cart_item_response(validate_cart_item(substitute_item_payload(substitute_item)))
+                    for substitute_item in substitutes
+                ],
+            )
+        ]
+
+    if result.get("status") == "price_changed":
+        return [
+            CheckoutIssue(
+                code="PRICE_CHANGED",
+                message=f"{result['item_id']} changed price before checkout.",
+                vertical=group.vertical,
+                item_id=result["item_id"],
+                source_label=group.source_label,
+                new_price=Decimal(str(result["new_price"])),
+            )
+        ]
+    return []
+
+
+def substitute_item_payload(item: dict[str, object]) -> dict[str, object]:
+    return {"added_by": "swiggy", "quantity": 1, **item}
+
+
+def checkout_payload_item(item: CartItemResponse) -> dict[str, object]:
+    return {
+        "item_id": item.item_id,
+        "name": item.name,
+        "quantity": item.quantity,
+        "price": str(item.price),
+        "vertical": item.vertical,
+        "restaurant_id": item.restaurant_id,
+        "restaurant_name": item.restaurant_name,
+        "brand_name": item.brand_name,
+        "source_label": item.source_label,
+    }
 
 
 def is_checkout_eligible(session: Session, role: SessionRole) -> bool:

@@ -16,7 +16,8 @@ sessions by token, render a mobile-first planning canvas, add/update/delete cart
 items through the session API, and keep multiple local clients refreshed through a
 polling realtime fallback. The issue [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8)
 branch adds budget, dietary, and degraded-state review UI on the real session
-route. Swiggy checkout APIs are not implemented yet.
+route. The issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9)
+branch adds host-only checkout entry UI and the pre-checkout validation API.
 
 Current GitHub status:
 
@@ -31,7 +32,8 @@ Current GitHub status:
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Session bootstrap planning canvas | Closed |
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Cart mutation API and realtime fallback collaboration | Closed |
 | 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Budget, dietary, and degraded-state session UI | Implemented in PR branch; manual verification pending |
-| 10-14 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Checkout, integrations, E2E, hardening | Open, blocked |
+| 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Host-only checkout entry UI and pre-checkout validation | Implemented in PR branch; manual verification pending |
+| 11-14 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | OAuth confirmation, integrations, E2E, hardening | Open, blocked |
 
 ## Verification I Performed
 
@@ -143,6 +145,22 @@ to strings, then derives:
 - Degraded vertical badges remain visible while Food and Instamart manual add
   controls stay available.
 
+## UI/API Changes From Issue #9
+
+Issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) adds
+host-only checkout validation for real sessions:
+
+- `POST /api/session/{session_id}/checkout?token=...` validates only host tokens.
+- Guests receive `403` and cannot trigger checkout validation.
+- Food checkout previews are grouped by restaurant. Instamart remains a separate
+  checkout group.
+- Successful validation returns `checkout_ready=true`, planned checkout groups,
+  and updates the session status to `CHECKOUT_READY`.
+- Mock unavailable item and price-change responses return `409` with structured
+  issue details and substitute suggestions when available.
+- The React session page shows host-only checkout steps and a `Validate checkout`
+  action. Guests see guidance but no validation button.
+
 ## Required UI Changes From Vendor/Restaurant Discovery
 
 These requirements are now enforced in the backend cart contract and remain pending
@@ -201,6 +219,9 @@ Use `Ctrl+C` to stop the long-running dev servers.
 | UI-16 | Two-window cart refresh | Open the same guest session link in two browser windows. Add or remove an item in one window, then wait for the realtime strip to report `connected` in the other window. | The second window reflects the changed cart within the polling interval without duplicate rows. Both windows keep source-attributed cart rows. | Issue [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) polling realtime fallback. | Supabase event-channel wiring can replace polling when browser credentials/client dependency are introduced. |
 | UI-17 | Budget and dietary review session | Start backend and frontend, create a session with `API-04` or `API-05`, copy the returned guest link, and open it in a mobile viewport. | If the session is over budget, the page shows a budget review strip, highlighted budget panel, over-budget amount, and `Budget review` signal. If the session is vegetarian with a non-veg Food item, the affected cart row shows `Dietary review` while preserving its restaurant name. Editing controls remain available. | Issue [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). | Checkout validation in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
 | UI-18 | Degraded availability review session | Start backend and frontend, create or load a session whose `degraded_verticals` includes Food or Instamart. Open the guest link in a mobile viewport. | The page shows a degraded alert strip, structured degraded availability signal, degraded vertical badge, and still exposes `+ Food` and `+ Instamart` controls for manual recovery. Existing cart rows keep source labels. | Issue [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). | Real checkout validation and recovery in [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
+| UI-19 | Host validates real session checkout | Start backend and frontend, create a session with `API-01`, open the private host link from the mock sender or backend test helper, then click `Validate checkout`. | Host sees grouped checkout steps before clicking. A normal biryani session shows one Food restaurant step and one Instamart step. After validation, the panel says `Stock and prices validated` and the session remains token-redacted. | Issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). | OAuth confirmation and sequential cart creation in [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). |
+| UI-20 | Guest cannot validate real session checkout | Open the same session with the guest link. | The checkout panel shows guest guidance only. There is no `Validate checkout` button. Cart editing controls remain available. | Issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). | Checkout security hardening in [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13). |
+| UI-21 | Multi-restaurant checkout preview | Open a host session, add a manual Food item with a different restaurant through the session UI or `API-18`, then refresh and inspect checkout. | Checkout preview shows one step per Food restaurant, followed by Instamart when present. For two restaurants plus Instamart, the host sees three planned Swiggy orders before validation. | Issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). | Sequential checkout URLs in [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). |
 
 ## Backend/API Tests Available After Issue #4
 
@@ -312,6 +333,11 @@ The cases that require internal state inspection are covered by automated tests:
 | API-18 | Cross-session mutation is rejected | `tests/test_session_api.py::test_cart_mutation_rejects_cross_session_token` | A token from another session receives `401` when attempting to mutate this session's cart. |
 | API-19 | Mutation payload validation | `tests/test_session_api.py::test_cart_mutation_validates_source_attribution_and_missing_items` | Food item creation without restaurant id/name returns `422`; missing cart item update returns `404`. |
 | API-20 | Warning UI adapter derivation | `src/frontend/src/sessionBootstrap.test.ts` | Frontend preserves structured warnings and derives budget overage, dietary item flags, and human-readable signal titles. |
+| API-21 | Host checkout validation success | `tests/test_session_api.py::test_host_can_validate_checkout_with_grouped_steps` | Host token can call `POST /api/session/{session_id}/checkout`; response has `checkout_ready=true`, one Food restaurant group, one Instamart group, and the session status becomes `CHECKOUT_READY`. |
+| API-22 | Guest checkout validation is forbidden | `tests/test_session_api.py::test_guest_cannot_validate_checkout` | Guest token receives `403` from checkout validation even though guests can still edit cart items. |
+| API-23 | Unavailable item validation conflict | `tests/test_session_api.py::test_checkout_validation_returns_unavailable_item_conflict` | Mock unavailable item returns `409` with `ITEM_UNAVAILABLE`, source label, and substitute suggestions. |
+| API-24 | Price-change validation conflict | `tests/test_session_api.py::test_checkout_validation_returns_price_change_conflict` | Mock price change returns `409` with `PRICE_CHANGED`, affected item id, source label, and new price. |
+| API-25 | Multi-restaurant checkout grouping | `tests/test_session_api.py::test_checkout_validation_groups_multiple_food_restaurants` and `src/frontend/src/sessionBootstrap.test.ts` | Food items from two restaurants produce two Food checkout groups; Instamart remains a separate group after Food. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 

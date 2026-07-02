@@ -13,6 +13,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name)
     app.state.agent_service = create_mock_agent_service()
     app.state.db_adapter = app.state.agent_service.db
+    app.state.swiggy_client = app.state.agent_service.swiggy_client
     app.state.whatsapp_sender = create_whatsapp_sender(
         provider_mode=settings.whatsapp_provider_mode,
         access_token=settings.whatsapp_access_token,

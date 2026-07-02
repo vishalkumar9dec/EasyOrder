@@ -192,18 +192,43 @@ class SessionBootstrapResponse(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
 
-class CheckoutRequest(BaseModel):
-    """Host checkout confirmation request."""
+class CheckoutGroup(BaseModel):
+    """One Swiggy checkout payload preview."""
 
-    oauth_code: str = Field(min_length=1)
-    host_token: str = Field(min_length=1)
+    group_id: str
+    vertical: Vertical
+    source_id: str
+    source_label: str
+    item_count: int
+    subtotal: Decimal
+    items: list[CartItemResponse]
+
+    model_config = ConfigDict(use_enum_values=True)
 
 
-class CheckoutResponse(BaseModel):
-    """Sequential checkout URLs returned after cart creation."""
+class CheckoutIssue(BaseModel):
+    """A blocking issue found during pre-checkout validation."""
 
-    food_checkout_url: str | None = None
-    instamart_checkout_url: str | None = None
+    code: str
+    message: str
+    vertical: Vertical
+    item_id: str | None = None
+    source_label: str | None = None
+    new_price: Decimal | None = None
+    substitutes: list[CartItemResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
+class CheckoutValidationResponse(BaseModel):
+    """Pre-checkout validation result returned before OAuth confirmation."""
+
+    status: str
+    checkout_ready: bool
+    groups: list[CheckoutGroup]
+    issues: list[CheckoutIssue] = Field(default_factory=list)
+
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class GeneratedSessionTokens(BaseModel):
