@@ -94,9 +94,9 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 06 | [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5) | Task 8.2 | Closed |
 | 07 | [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6) | Task 5.1, Task 6.1 | Closed |
 | 08 | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) | Task 5.2, Task 6.2 | Closed |
-| 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Warning, dietary, and degraded-state UI implemented; PR/manual verification pending |
-| 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Task 6.4, Task 7.1 | Open, blocked by #8 |
-| 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Open, blocked by #9 |
+| 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Task 6.3 | Closed |
+| 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Task 6.4, Task 7.1 | Closed |
+| 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Swiggy OAuth confirmation and sequential checkout mock implemented; PR/manual verification pending |
 | 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Open, blocked by #5 and #10 |
 | 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Open, blocked by #11 |
 | 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Open, blocked by #12 |

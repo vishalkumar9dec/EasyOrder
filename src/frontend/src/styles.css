@@ -1376,6 +1376,17 @@ ul, ol {
   transform: none;
 }
 
+.checkout-btn.secondary {
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.checkout-btn.secondary:hover {
+  background: rgba(232, 93, 44, 0.12);
+}
+
 .checkout-steps {
   display: flex;
   flex-direction: column;
@@ -1506,6 +1517,12 @@ ul, ol {
 
 .checkout-links a:hover {
   color: var(--accent-gold);
+}
+
+.checkout-link-error {
+  color: var(--warning);
+  font-size: var(--text-caption);
+  line-height: 1.4;
 }
 
 /* =============================================
