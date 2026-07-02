@@ -181,8 +181,14 @@ make frontend-build
 make test
 make smoke
 make demo-smoke
+make security-smoke
 make up
 ```
+
+`make security-smoke` runs the release-blocking privacy and authorization checks
+in-process: untagged messages ignored, injection rejected, host token not exposed
+to guests or group messages, invalid/cross-session tokens rejected, guest checkout
+blocked, and checkout cart creation gated behind host OAuth.
 
 ## Troubleshooting
 

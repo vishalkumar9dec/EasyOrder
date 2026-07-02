@@ -123,5 +123,6 @@ Meta WhatsApp send fails:
 - `make frontend-build`
 - `src/backend/.venv/bin/python -m ruff check src/backend/app src/backend/tests`
 - `make demo-smoke`
+- `make security-smoke`
 - Verify `.env.example` contains all required variables without secrets.
 - Confirm open PR test report lists skipped live-provider checks.

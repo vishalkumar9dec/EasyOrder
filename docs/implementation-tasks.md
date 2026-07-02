@@ -27,7 +27,7 @@ Recommended GitHub issue shape:
 
 ## Implementation Status
 
-Last verified: 2026-07-01.
+Last verified: 2026-07-02.
 
 Branch state:
 
@@ -98,8 +98,8 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Task 6.4, Task 7.1 | Closed |
 | 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Task 7.2 | Closed |
 | 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Closed |
-| 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Local demo smoke, observability, and runbooks implemented; PR/manual verification pending |
-| 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Open, blocked by #12 |
+| 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Closed |
+| 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Security, privacy, and documentation hardening implemented in PR branch; manual verification pending |
 
 ## PRD Traceability
 
