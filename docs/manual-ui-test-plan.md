@@ -22,6 +22,8 @@ issue [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) branch adds
 mock Swiggy OAuth confirmation and sequential cart creation. The issue
 [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) branch adds the
 real Swiggy MCP client boundary and Meta WhatsApp sandbox sender coverage.
+The issue [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12)
+branch adds the repeatable local demo smoke, request-id logging, and runbooks.
 
 Current GitHub status:
 
@@ -38,8 +40,9 @@ Current GitHub status:
 | 09 | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8) | Budget, dietary, and degraded-state session UI | Closed |
 | 10 | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9) | Host-only checkout entry UI and pre-checkout validation | Closed |
 | 11 | [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10) | Mock OAuth confirmation and sequential checkout cart creation | Closed |
-| 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Real Swiggy MCP boundary and Meta sender sandbox coverage | Implemented in PR branch; manual verification pending |
-| 13-14 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12)-[#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | E2E, runbooks, hardening | Open, blocked |
+| 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Real Swiggy MCP boundary and Meta sender sandbox coverage | Closed |
+| 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Local demo, observability, and runbooks | Implemented in PR branch; manual verification pending |
+| 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Security, privacy, and documentation hardening | Open, blocked |
 
 ## Verification I Performed
 
@@ -54,7 +57,7 @@ python3 .agents/skills/easyorder-daily-status/scripts/daily_status.py --repo-roo
 
 Results:
 
-- `make test`: backend tests passed with 56 tests; frontend tests passed with 2 test files and 20 tests.
+- `make test`: backend tests passed with 65 tests; frontend tests passed with 2 test files and 20 tests.
 - `make frontend-build`: production build passed.
 - Backend Ruff check passed.
 - Local API smoke passed for session bootstrap guest access, invalid-token `401`, and missing-session `404`.
@@ -214,6 +217,22 @@ WHATSAPP_PROVIDER_MODE=meta
 WHATSAPP_ACCESS_TOKEN=<sandbox-token>
 WHATSAPP_PHONE_NUMBER_ID=<sandbox-phone-number-id>
 ```
+
+## Demo And Runbook Changes From Issue #12
+
+Issue [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) adds a
+repeatable mock-mode demo and operational debugging path:
+
+- `make demo-smoke` runs the complete local flow in-process: WhatsApp fixture,
+  guest session bootstrap, guest cart edit, host checkout validation, and mock
+  sequential checkout confirmation.
+- `scripts/easyorder_demo_smoke.py` prints session id, cart count, checkout group
+  count, checkout URLs, and final status.
+- Backend responses include `x-request-id`; request logs use the `easyorder.api`
+  logger with request id, route, status, latency, and session id when available.
+- Local demo steps live in [local-demo.md](/Users/vishalkumar/projects/swiggy_builder_prog/docs/runbooks/local-demo.md).
+- Environment setup, SQL inspection snippets, common failures, and release
+  checks live in [operations.md](/Users/vishalkumar/projects/swiggy_builder_prog/docs/runbooks/operations.md).
 
 ## Required UI Changes From Vendor/Restaurant Discovery
 
@@ -404,6 +423,9 @@ The cases that require internal state inspection are covered by automated tests:
 | API-33 | Swiggy MCP error mapping | `tests/test_swiggy_mcp.py::test_swiggy_mcp_client_maps_tool_errors` | MCP tool error payloads raise application exceptions instead of leaking raw tool responses. |
 | API-34 | Swiggy client mode selection | `tests/test_swiggy_mcp.py::test_swiggy_client_factory_keeps_mock_default_and_validates_mcp_config` | Mock mode remains default; MCP mode requires `SWIGGY_MCP_SERVER_PATH`. |
 | API-35 | Meta WhatsApp sandbox sender payload | `tests/test_whatsapp_sender.py` | Meta sender builds the Graph API text-message payload, maps HTTP errors, and is selected by `WHATSAPP_PROVIDER_MODE=meta`. |
+| API-36 | Local demo smoke | `make demo-smoke` and `tests/test_demo_smoke.py` | Mock-mode flow creates a session from the WhatsApp fixture, opens guest state, edits cart, validates checkout, creates checkout URLs, and ends as `ORDERED`. |
+| API-37 | Request id observability | `tests/test_health.py::test_request_logging_middleware_sets_request_id_header` | Backend preserves incoming `x-request-id` and returns it on the response for log correlation. |
+| API-38 | Runbook coverage | `docs/runbooks/local-demo.md` and `docs/runbooks/operations.md` | Runbooks cover local setup, demo command, session SQL inspection, common failures, and release validation checklist. |
 
 ## PRD Use Cases Not Fully Testable In The UI Yet
 

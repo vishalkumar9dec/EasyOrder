@@ -180,6 +180,7 @@ make frontend-test
 make frontend-build
 make test
 make smoke
+make demo-smoke
 make up
 ```
 
@@ -217,3 +218,5 @@ and LLM behavior.
 - Delivery plan: `docs/implementation-plan.md`
 - Task list: `docs/implementation-tasks.md`
 - Domain glossary: `CONTEXT.md`
+- Local demo runbook: `docs/runbooks/local-demo.md`
+- Operations runbook: `docs/runbooks/operations.md`
