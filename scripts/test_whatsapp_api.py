@@ -82,6 +82,7 @@ def send_template(token: str, to: str, phone_number_id: str, template_name: str)
 def send_text(token: str, to: str, phone_number_id: str, message: str) -> None:
     """Send a plain text message (only works within 24h service window)."""
     print(f"\nSending text message to {to}...")
+    print(f"Body: {message}")
     result = api_call("POST", f"{phone_number_id}/messages", token, {
         "messaging_product": "whatsapp",
         "to": to,
@@ -139,20 +140,34 @@ def main() -> None:
     )
 
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--send-template", action="store_true",
-                       help="Send template message")
-    group.add_argument("--send-text", action="store_true",
-                       help="Send a text message (needs open service window)")
-    group.add_argument("--check-number", action="store_true",
-                       help="Check phone number registration status")
-    group.add_argument("--check-subscription", action="store_true",
-                       help="Check WABA app subscription")
+    group.add_argument("--send-template", action="store_true", help="Send template message")
+    group.add_argument(
+        "--send-text",
+        action="store_true",
+        help="Send a text message (needs open service window)",
+    )
+    group.add_argument(
+        "--check-number",
+        action="store_true",
+        help="Check phone number registration status",
+    )
+    group.add_argument(
+        "--check-subscription",
+        action="store_true",
+        help="Check WABA app subscription",
+    )
 
-    parser.add_argument("--template-name", default="hello_world",
-                        help="Template name to send (defaults to hello_world)")
+    parser.add_argument(
+        "--template-name",
+        default="hello_world",
+        help="Template name to send (defaults to hello_world)",
+    )
     parser.add_argument("--to", help="Recipient phone number (with country code, no +)")
-    parser.add_argument("--message", default="Hello from EasyOrder!",
-                        help="Text message body (for --send-text)")
+    parser.add_argument(
+        "--message",
+        default="Hello from EasyOrder, simplifying your food and instamart orders",
+        help="Text message body (for --send-text)",
+    )
 
     args = parser.parse_args()
 
