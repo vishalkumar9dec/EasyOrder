@@ -39,3 +39,16 @@ make db-down
 Later slices can add Supabase CLI configuration for Auth, Realtime, and Storage. Until then,
 the project keeps mock integrations as the default and uses plain PostgreSQL for local
 schema and adapter work.
+
+## WhatsApp API Testing
+
+For testing WhatsApp Cloud API outbound messages using the credentials loaded from `src/backend/.env`:
+
+```bash
+# Check test phone number status
+python3 scripts/test_whatsapp_api.py --check-number
+
+# Send the hello_world template message (ensure recipient number is pre-verified on Meta dashboard)
+python3 scripts/test_whatsapp_api.py --send-template --to <RECIPIENT_PHONE_NUMBER>
+```
+
