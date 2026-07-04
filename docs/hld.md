@@ -58,7 +58,7 @@ graph LR
 
 | Step | What happens | Components involved |
 |------|-------------|-------------------|
-| 1 | Host sends `@EasyOrder get biryani for 4, budget ₹2000` in WhatsApp group | WhatsApp → EasyOrder Server |
+| 1 | After the group agrees on a menu, the host sends `@EasyOrder get biryani for 4, budget ₹2000` to the EasyOrder WhatsApp business/test number | WhatsApp → EasyOrder Server |
 | 2 | FastAPI receives the webhook, validates Meta signature, filters for `@EasyOrder` tag | FastAPI App |
 | 3 | FastAPI creates a session ID and invokes the LangGraph agent with the raw prompt | FastAPI App → LangGraph |
 | 4 | Agent runs Input Guardrails (prompt injection check, PII sanitization) | LangGraph Agentic Framework |
@@ -66,8 +66,8 @@ graph LR
 | 6 | Agent concurrently queries Swiggy Food and Instamart via MCP tool calls | LangGraph → Swiggy MCP |
 | 7 | Agent runs Output Guardrails (budget check, dietary validation, stock filter) | LangGraph Agentic Framework |
 | 8 | Agent writes the session record and recommended cart to PostgreSQL via Supabase | LangGraph → PostgreSQL (Supabase) |
-| 9 | FastAPI sends WhatsApp template messages: guest link to group, host link via DM | FastAPI App → WhatsApp |
-| 10 | Group members open the Mobile App (PWA), collaborate on cart in real-time via Supabase Realtime channels | Mobile App ↔ PostgreSQL (Supabase) |
+| 9 | FastAPI replies privately to the host's WhatsApp `wa_id` with the host link and shareable guest planning link | FastAPI App → WhatsApp |
+| 10 | The host shares the guest link as needed; group members open the Mobile App (PWA), collaborate on cart in real-time via Supabase Realtime channels | Mobile App ↔ PostgreSQL (Supabase) |
 | 11 | Host triggers checkout; FastAPI handles Swiggy OAuth and sequential cart creation | Mobile App → FastAPI App → Swiggy MCP |
 
 ---
@@ -99,8 +99,8 @@ FastAPI Application (main.py)
 4. PWA sends the code to `POST /api/session/checkout/confirm` — the backend exchanges it for an access token, creates one checkout payload per Food restaurant plus a separate Instamart payload when needed, and returns the ordered checkout redirect URLs.
 
 ### 2.4 Authentication & Token Separation
-* **Host Token:** SHA-256 derived, sent privately via WhatsApp DM. Grants full session control and checkout privileges.
-* **Guest Token:** Random UUID, posted publicly in the group chat. Grants cart item read/write only.
+* **Host Token:** SHA-256 derived, sent privately to the initiating WhatsApp `wa_id`. Grants full session control and checkout privileges.
+* **Guest Token:** Random UUID, sent to the host as a shareable planning link. Grants cart item read/write only.
 * **Supabase Auth:** PWA clients authenticate via Supabase Anonymous Auth (or magic link). The JWT is passed in API headers and evaluated by RLS policies on every database operation.
 
 ### 2.5 Local Development & Free-Tier Sandbox

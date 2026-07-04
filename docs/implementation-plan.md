@@ -153,7 +153,7 @@ Exit criteria:
 
 - Meta webhook verification and message ingestion work through a tunnel.
 - Swiggy MCP client can be swapped between mock and real modes.
-- Host and group messages are sent through the configured WhatsApp provider.
+- In live Meta mode, EasyOrder replies privately to the inbound sender `wa_id`; mock mode can still capture separate guest/group and host channels for local privacy assertions.
 - Integration failures degrade or retry according to documented behavior.
 
 ### Phase 7: Hardening, Observability, And Release Candidate

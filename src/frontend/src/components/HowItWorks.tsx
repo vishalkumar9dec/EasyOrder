@@ -13,7 +13,7 @@ export function HowItWorks() {
             <div className="step-icon" aria-hidden="true">💬</div>
             <h3>Tag @EasyOrder</h3>
             <p>
-              Drop a message like "@EasyOrder get biryani for 6 under ₹3000" in your WhatsApp group. The AI parses your budget, headcount, and food preferences instantly.
+              After the group agrees, message EasyOrder directly with "@EasyOrder get biryani for 6 under ₹3000". The AI parses your budget, headcount, and food preferences instantly.
             </p>
           </div>
 
@@ -22,7 +22,7 @@ export function HowItWorks() {
             <div className="step-icon" aria-hidden="true">🎨</div>
             <h3>Collaborate on Canvas</h3>
             <p>
-              Everyone gets a shared link to the Planning Canvas. Add items from Swiggy Food and Instamart, adjust quantities, and watch the cart update in real-time.
+              The host gets a private link plus a shareable guest link. Add items from Swiggy Food and Instamart, adjust quantities, and watch the cart update in real-time.
             </p>
           </div>
 

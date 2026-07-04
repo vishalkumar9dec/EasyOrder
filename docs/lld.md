@@ -74,7 +74,7 @@ from pydantic import BaseModel, Field
 class WhatsAppIncomingMessage(BaseModel):
     sender_id: str = Field(..., example="919988776655")
     message_text: str = Field(..., example="@EasyOrder need biryani for 6 under 3000")
-    group_id: str = Field(..., example="group_ipl_fans_1")
+    phone_number_id: str = Field(..., example="123456789012345")
     timestamp: int
 
 class SessionInitResponse(BaseModel):
@@ -136,6 +136,9 @@ class SwiggyMcpClient:
 ```sql
 CREATE TABLE sessions (
     session_id      TEXT PRIMARY KEY,
+    -- Legacy name: stores the WhatsApp conversation/source identifier used for
+    -- local mock handoff. In live Meta mode, direct replies are routed by the
+    -- inbound sender wa_id instead of this column.
     whatsapp_group_id TEXT NOT NULL,
     host_token_hash TEXT NOT NULL,
     guest_token     TEXT NOT NULL,

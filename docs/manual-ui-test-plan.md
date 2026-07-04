@@ -110,8 +110,10 @@ outbound WhatsApp sender boundary. In mock mode, tagged webhook handling capture
 two outbound messages: a group message with only the guest planning link, and a
 private host message with the host-only link. The webhook response remains
 group-safe and does not include the host token. A Meta Cloud API sender is
-available behind the same interface for sandbox configuration, and proactive
-template-message placeholders remain disabled for the MVP.
+available behind the same interface for sandbox configuration. In live Meta mode,
+the handoff is direct-user only: EasyOrder replies to the inbound sender `wa_id`
+with a private host link and a shareable guest link. Proactive template-message
+placeholders remain disabled for the MVP.
 
 ## UI/API Changes From Issue #6
 
@@ -418,6 +420,7 @@ The cases that require internal state inspection are covered by automated tests:
 | API-11 | Source attribution is preserved and malformed source-less results are skipped | `tests/test_session_domain.py`, `tests/test_agent_service.py`, `tests/test_db_adapter.py`, `tests/test_mock_swiggy.py`, and `tests/test_migrations.py` assert Food restaurant metadata, Instamart source labels, DB persistence, migration constraints, and `SOURCE_ATTRIBUTION_MISSING` warnings. |
 | API-12 | Group link handoff excludes host token | `tests/test_whatsapp_webhook.py::test_tagged_message_creates_mock_session` | The mock WhatsApp sender captures a group message to `group_ipl_fans_1` with the guest planning link only; the group text does not contain `host_`. |
 | API-13 | Private host link handoff includes host token | `tests/test_whatsapp_webhook.py::test_tagged_message_creates_mock_session` | The mock WhatsApp sender captures a private message to the sender WhatsApp id with the host link containing the one-time `host_` token. Template-message placeholders remain disabled until proactive updates are implemented. |
+| API-13a | Meta mode uses direct sender handoff | `tests/test_whatsapp_webhook.py::test_meta_mode_sends_direct_handoff_to_inbound_sender` | In Meta mode, EasyOrder sends one private handoff to the inbound sender `wa_id`, not to the business `phone_number_id`/mock group id. The webhook response still excludes `host_`. |
 | API-14 | Guest token bootstraps session state | `tests/test_session_api.py::test_guest_token_bootstraps_redacted_session_state` | Guest token returns role `guest`, cart, warnings, degraded state, source attribution, and no host token/hash/phone fields. |
 | API-15 | Host token bootstraps host state | `tests/test_session_api.py::test_host_token_bootstraps_host_role_without_exposing_token_material` | Host token returns role `host` and checkout eligibility while keeping raw token and host-token hash out of the response. |
 | API-16 | Invalid, cross-session, and missing links fail safely | `tests/test_session_api.py` | Invalid or cross-session token returns `401`; missing session returns `404`. |
@@ -449,14 +452,14 @@ The cases that require internal state inspection are covered by automated tests:
 
 | PRD story | Desired manual test | Why not complete today | Planned issue |
 |---|---|---|---|
-| 1, 12 | Send WhatsApp messages with and without `@EasyOrder`; verify only tagged messages create sessions. | Backend webhook and mock outbound handoff are testable locally, but live Meta sandbox sending still needs configured provider credentials. | Closed backend slice [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3); handoff in [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5); PWA bootstrap continues in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). |
-| 2, 3 | Send a natural-language order request and open the generated session link. | Testable in local mock mode through webhook fixtures and the PWA session route. Live WhatsApp sandbox still needs configured provider credentials. | Backend/PWA slices through [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7); live integration in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
+| 1, 12 | Send WhatsApp messages with and without `@EasyOrder`; verify only tagged messages create sessions. | Backend webhook, mock outbound handoff, and Meta-mode direct sender routing are testable locally; live Meta sandbox sending still needs configured provider credentials and a claimed test number. | Closed backend slice [#3](https://github.com/vishalkumar9dec/EasyOrder/issues/3); handoff in [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5); PWA bootstrap continues in [#6](https://github.com/vishalkumar9dec/EasyOrder/issues/6). |
+| 2, 3 | Send a natural-language order request and open the generated session link. | Testable in local mock mode through webhook fixtures and the PWA session route. Live WhatsApp sandbox needs configured provider credentials and should be tested as a direct conversation with the EasyOrder business/test number. | Backend/PWA slices through [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7); live integration in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
 | 4 | Open guest link and customize the real session cart. | Testable locally with API-backed add/update/delete controls. Rich preference-specific editing is still pending. | Base cart editing in [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7); dietary/warning controls in [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
 | 5 | Open the same session in two browser windows and confirm realtime cart updates. | Testable with the local polling fallback. Native Supabase browser event-channel wiring is pending credentials/client setup. | [#7](https://github.com/vishalkumar9dec/EasyOrder/issues/7) fallback; future Supabase wiring when configured. |
 | 6 | Persist guest dietary additions and verify host-visible warnings. | Current dietary state is scenario fixture data only. | [#8](https://github.com/vishalkumar9dec/EasyOrder/issues/8). |
 | 7 | Run final stock and price validation against mock Swiggy state. | Current stock/price changes are pre-modeled UI states, not API responses. | [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). |
 | 8, 9, 10 | Host completes mock Swiggy OAuth and sees one checkout step per Food restaurant plus Instamart when needed. | Testable locally with mock OAuth and mock checkout URLs. Real Swiggy OAuth/MCP credentials and live cart creation remain pending. | Mock path in [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10), then real MCP and WhatsApp work in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
-| 10 | Delivery updates are posted back to WhatsApp group. | Deferred unless delivery-status hooks are available. | Scaffold/provider placeholder in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11), broader demo/runbook coverage in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
+| 10 | Delivery updates are sent privately to the host. | Deferred unless delivery-status hooks are available. | Scaffold/provider placeholder in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11), broader demo/runbook coverage in [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12). |
 | 11 | Host opts into sports/tournament nudges during setup. | Deferred for MVP; only template-message placeholder is planned. | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
 
 ## Suggested Regression Pass Before Checkout Or Integration Changes
@@ -471,6 +474,6 @@ make security-smoke
 ```
 
 Then manually retest `UI-01` through `UI-07` in the playground and `API-01` through
-`API-13` plus `API-39` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
+`API-13a` plus `API-39` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
 agent now produces session/cart states, and issue [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5)
-hands guest and host links to separate WhatsApp sender channels for future PWA work.
+keeps mock guest/host channels for privacy tests while Meta mode uses direct-user handoff.

@@ -5,7 +5,7 @@ export function Footer() {
         <div>
           <p className="footer-brand">Easy<span>Order</span></p>
           <p className="footer-tagline">
-            WhatsApp-first group food ordering. Collaborate on a shared cart, manage budgets, and checkout through Swiggy — together.
+            WhatsApp-first group food ordering. The host starts from WhatsApp, everyone collaborates on a shared cart, and checkout runs through Swiggy.
           </p>
         </div>
 

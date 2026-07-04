@@ -1,9 +1,13 @@
 # EasyOrder
 
 EasyOrder is a WhatsApp-first group ordering system for coordinating Swiggy Food and
-Instamart carts. The MVP starts as a mobile-first web app opened from a WhatsApp link,
-with mock integrations by default so the product flow can be tested locally before live
-WhatsApp, Swiggy, OAuth, or Supabase credentials are required.
+Instamart carts. The live WhatsApp MVP uses a direct conversation with the EasyOrder
+business/test number: a host summarizes the final group decision with an `@EasyOrder`
+prompt, and EasyOrder replies privately to that host's WhatsApp `wa_id` with the
+host link and a shareable guest planning link. The app still starts as a mobile-first
+web app opened from a WhatsApp link, with mock integrations by default so the product
+flow can be tested locally before live WhatsApp, Swiggy, OAuth, or Supabase credentials
+are required.
 
 ## Project Structure
 
@@ -187,8 +191,9 @@ make up
 
 `make security-smoke` runs the release-blocking privacy and authorization checks
 in-process: untagged messages ignored, injection rejected, host token not exposed
-to guests or group messages, invalid/cross-session tokens rejected, guest checkout
-blocked, and checkout cart creation gated behind host OAuth.
+to guests or mock group messages, invalid/cross-session tokens rejected, guest checkout
+blocked, and checkout cart creation gated behind host OAuth. In live Meta mode, the
+WhatsApp handoff is direct-user only and replies to the inbound sender `wa_id`.
 
 ## Troubleshooting
 

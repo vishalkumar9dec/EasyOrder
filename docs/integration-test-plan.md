@@ -11,18 +11,38 @@ Cloud API, Swiggy MCP server, Supabase Realtime, and Swiggy OAuth. The
 > run in mock mode and pass without any credentials. This plan is for verifying
 > live integrations that mock mode cannot cover.
 
+> [!IMPORTANT]
+> The current repository is ready to validate Meta webhook verification, real
+> inbound WhatsApp messages, direct-user replies, and session creation. In
+> `WHATSAPP_PROVIDER_MODE=meta`, EasyOrder replies to the inbound sender `wa_id`
+> with a private host link and a shareable guest planning link. The mock-only
+> group handoff remains available for local demos, but live Meta testing should
+> use a direct conversation with the Meta WhatsApp test/business number.
+
+> [!NOTE]
+> Testing in an ordinary consumer WhatsApp group is also not supported by this
+> code path today. The expected live flow is: people discuss in a normal group,
+> the host sends the final `@EasyOrder ...` prompt from their own WhatsApp number
+> to the EasyOrder business/test number, and EasyOrder continues privately with
+> that sender. Free-form enquiry/Q&A messages are not implemented yet; only
+> tagged order prompts containing `@EasyOrder` are routed to the order-session
+> flow.
+
 ---
 
 ## Prerequisites
 
 ### Environment File
 
-Create a `.env` in the repository root (never commit it):
+Create or update [src/backend/.env](../src/backend/.env.example) (never commit
+real credentials). `make backend-dev` runs from `src/backend`, and the backend
+settings loader reads `.env` from that directory:
 
 ```bash
 # ── Core ──
 APP_ENV=sandbox
-PUBLIC_APP_BASE_URL=https://<your-tunnel-or-deployed-url>
+PUBLIC_APP_BASE_URL=https://<frontend-tunnel-or-deployed-url>
+BACKEND_CORS_ORIGINS=http://localhost:5173,https://<frontend-tunnel-or-deployed-url>
 
 # ── WhatsApp Meta Cloud API ──
 WHATSAPP_PROVIDER_MODE=meta
@@ -32,16 +52,22 @@ WHATSAPP_APP_SECRET=<meta-webhook-app-secret>
 WHATSAPP_VERIFY_TOKEN=<your-chosen-verify-token>
 
 # ── Swiggy MCP ──
-SWIGGY_CLIENT_MODE=mcp
-SWIGGY_MCP_SERVER_PATH=/absolute/path/to/swiggy-mcp-server
-SWIGGY_MCP_SERVER_ENV={"SWIGGY_ENV":"sandbox"}
+# Keep mock while validating WhatsApp plumbing. Switch to mcp only when the
+# Swiggy MCP server is available and tested standalone.
+SWIGGY_CLIENT_MODE=mock
+SWIGGY_MCP_SERVER_PATH=
+SWIGGY_MCP_SERVER_ENV={}
 
 # ── Database ──
 DATABASE_URL=postgresql://easyorder:easyorder@localhost:5432/easyorder
 
-# ── LLM (optional, keep mock for now) ──
+# ── LLM ──
 LLM_MODE=mock
 ```
+
+If you use a local frontend tunnel, the frontend itself may also need
+[src/frontend/.env](../src/frontend/.env.example) values for any browser-facing
+API base URL supported by the current frontend build.
 
 ### Provider Setup Checklists
 
@@ -60,11 +86,14 @@ LLM_MODE=mock
    - Subscribe to `messages` field.
 
 > [!TIP]
-> Use `localtunnel`, `ngrok`, or Cloudflare Tunnel to expose your local backend:
+> For end-to-end link opening, expose both backend and frontend:
 > ```bash
-> npx -y localtunnel --port 8000 --subdomain easyorder-dev
+> npx -y localtunnel --port 8000 --subdomain easyorder-api-dev
+> npx -y localtunnel --port 5173 --subdomain easyorder-web-dev
 > ```
-> Then set `PUBLIC_APP_BASE_URL=https://easyorder-dev.loca.lt`.
+> Then set `PUBLIC_APP_BASE_URL=https://easyorder-web-dev.loca.lt` and configure
+> the Meta callback URL as
+> `https://easyorder-api-dev.loca.lt/api/whatsapp/webhook`.
 
 #### Swiggy MCP Server
 
@@ -97,29 +126,43 @@ LLM_MODE=mock
 
 ### Phase 1: WhatsApp Integration
 
+Current status:
+
+- **Ready now:** Meta webhook verification, HMAC validation, inbound tagged
+  message parsing, mention-only filtering, direct-user replies, and session
+  creation.
+- **Mock-only today:** group guest-link handoff and private host-link handoff are
+  fully covered by `make demo-smoke`, `make security-smoke`, and webhook tests.
+- **Not supported today:** adding EasyOrder to a normal WhatsApp group and
+  using `@EasyOrder` there as a bot mention.
+
 | ID | Test | Steps | Expected | Env vars required |
 |---|---|---|---|---|
 | INT-01 | Webhook verification handshake | Start backend with sandbox env. Meta dashboard sends verification GET to `/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=<token>&hub.challenge=<challenge>`. | Backend returns the challenge string with 200. Dashboard shows ✅ verified. | `WHATSAPP_VERIFY_TOKEN` |
 | INT-02 | Webhook HMAC signature validation | Send a POST to `/api/whatsapp/webhook` with a valid `X-Hub-Signature-256` header. Then send one with a tampered signature. | Valid signature: processed normally. Tampered: 403 rejected. | `WHATSAPP_APP_SECRET` |
-| INT-03 | Tagged message → live group response | From a sandbox test phone, send `@EasyOrder get biryani for 4 under 2000` to the WhatsApp test number. | The sandbox phone number sends two messages: (1) Group message with guest planning link only, (2) Private DM to sender with host link. Verify the **group message does NOT contain** `host_`. | `WHATSAPP_PROVIDER_MODE=meta`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` |
-| INT-04 | Untagged message → silence | From the sandbox phone, send `let's order pizza tonight` without `@EasyOrder`. | No response message is sent. Backend logs show `status=ignored`. | Same as INT-03 |
-| INT-05 | Guest link opens from WhatsApp | Tap the guest link from the INT-03 group message on a mobile device. | PWA session page loads with role `Guest`, source-attributed cart rows, and no host token visible. | `PUBLIC_APP_BASE_URL` must be accessible |
-| INT-06 | Host link opens from WhatsApp DM | Tap the host link from the INT-03 private DM. | PWA session page loads with role `Host`, checkout eligibility, and no raw token values displayed. | Same as INT-05 |
+| INT-03 | Tagged message → session creation | From a registered sandbox test phone, send `@EasyOrder get biryani for 4 under 2000` to the Meta WhatsApp test/business number. | Backend receives the webhook, creates a session, and in `WHATSAPP_PROVIDER_MODE=meta` sends the private handoff back to the sender `wa_id`. | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`; `WHATSAPP_PROVIDER_MODE=meta`, `WHATSAPP_ACCESS_TOKEN`, and `WHATSAPP_PHONE_NUMBER_ID` for live reply |
+| INT-04 | Untagged message → silence | From the sandbox phone, send `let's order pizza tonight` without `@EasyOrder`. | No session is created. Backend returns/records `status=ignored`. No outbound WhatsApp response should be sent. | Same as INT-03 |
+| INT-05 | Guest link opens from WhatsApp or copied link | After session creation, open the generated guest link from logs, a mock smoke output, or a fixed live WhatsApp response. | PWA session page loads with role `Guest`, source-attributed cart rows, and no host token visible. | `PUBLIC_APP_BASE_URL` must be accessible from the phone |
+| INT-06 | Host link opens from private/direct handoff | After session creation, open the generated host link from test helper/logs or a fixed direct WhatsApp response. | PWA session page loads with role `Host`, checkout eligibility, and no raw token values displayed. | Same as INT-05 |
+| INT-07 | Live direct-user outbound reply | Send a tagged prompt from the sandbox phone after configuring Meta credentials. | WhatsApp receives one private EasyOrder reply to the sender `wa_id` containing the private host link and shareable guest link. The webhook HTTP response must not contain `host_`. | `WHATSAPP_PROVIDER_MODE=meta`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` |
+| INT-08 | Free-form enquiry limitation | Send `what can you order for my party?` without `@EasyOrder`, then send `@EasyOrder what can you order for my party?`. | Untagged message is ignored. Tagged enquiry currently enters the order-session guardrail/parser path; there is no general Q&A answer route yet. | Same as INT-03 |
 
 **How to run:**
 
 ```bash
 # Terminal 1: expose local backend
-npx -y localtunnel --port 8000 --subdomain easyorder-dev
+npx -y localtunnel --port 8000 --subdomain easyorder-api-dev
 
 # Terminal 2: start backend in sandbox mode
 make db-up && make db-migrate
 make backend-dev  # reads .env automatically
 
 # Terminal 3: start frontend (point to tunnel for links)
-PUBLIC_APP_BASE_URL=https://easyorder-dev.loca.lt make frontend-dev
+npx -y localtunnel --port 5173 --subdomain easyorder-web-dev
+make frontend-dev
 
-# Then send WhatsApp messages from your sandbox test phone
+# Then send WhatsApp messages from your registered sandbox test phone to the
+# Meta WhatsApp test/business number.
 ```
 
 ---
@@ -253,16 +296,16 @@ Switching to native Supabase channels requires:
 | Variable | Default | Required for | Notes |
 |---|---|---|---|
 | `APP_ENV` | `local` | Webhook signature skip | Set to `sandbox` or `production` to enforce HMAC |
-| `WHATSAPP_PROVIDER_MODE` | `mock` | INT-01 → INT-06 | `mock` or `meta` |
-| `WHATSAPP_ACCESS_TOKEN` | (empty) | INT-03 → INT-06 | Meta sandbox temporary token |
-| `WHATSAPP_PHONE_NUMBER_ID` | (empty) | INT-03 → INT-06 | Meta sandbox phone number |
+| `WHATSAPP_PROVIDER_MODE` | `mock` | INT-03 → INT-08 | Use `mock` for local/demo checks; use `meta` for live direct-user WhatsApp replies. |
+| `WHATSAPP_ACCESS_TOKEN` | (empty) | INT-07 | Meta sandbox temporary token or system-user token for outbound sends. |
+| `WHATSAPP_PHONE_NUMBER_ID` | (empty) | INT-07 | Meta sandbox/business phone number id used as the sender. |
 | `WHATSAPP_APP_SECRET` | (empty) | INT-02 | Meta app secret for HMAC |
 | `WHATSAPP_VERIFY_TOKEN` | `local-verify-token` | INT-01 | Must match Meta dashboard config |
-| `WHATSAPP_API_VERSION` | `v20.0` | INT-03 → INT-06 | Meta Graph API version |
+| `WHATSAPP_API_VERSION` | `v20.0` | INT-07 | Meta Graph API version |
 | `SWIGGY_CLIENT_MODE` | `mock` | INT-10 → INT-14 | `mock` or `mcp` |
 | `SWIGGY_MCP_SERVER_PATH` | (empty) | INT-10 → INT-13 | Absolute path to MCP binary/script |
 | `SWIGGY_MCP_SERVER_ENV` | `{}` | INT-10 → INT-12 | JSON object of MCP env vars |
-| `PUBLIC_APP_BASE_URL` | `http://localhost:5173` | INT-05, INT-06 | Must be accessible from WhatsApp devices |
+| `PUBLIC_APP_BASE_URL` | `http://localhost:5173` | INT-05 → INT-07 | Must be accessible from WhatsApp devices when links are sent or copied. |
 | `DATABASE_URL` | (local pg) | All | PostgreSQL connection string |
 | `LLM_MODE` | `mock` | All | Keep `mock` until real LLM integration |
 
@@ -281,13 +324,14 @@ echo "WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-(not set)}"
 ls -la ${SWIGGY_MCP_SERVER_PATH:-(not set)} 2>/dev/null || echo "MCP server not found"
 
 # 3. Is your local backend accessible from the internet?
-curl -s https://<your-tunnel>/api/health || echo "Tunnel not reachable"
+curl -s https://<your-tunnel>/healthz || echo "Tunnel not reachable"
 ```
 
 | If you have... | You can test... |
 |---|---|
 | Nothing | Mock mode only (existing manual-ui-test-plan.md) |
-| Meta sandbox credentials + tunnel | Phase 1 (INT-01 → INT-06) |
+| Meta sandbox app + backend tunnel | Phase 1 inbound checks (INT-01 → INT-04) |
+| Meta sandbox credentials | Phase 1 live direct-user outbound checks (INT-05 → INT-07) |
 | Swiggy MCP server binary | Phase 2 (INT-10 → INT-14) |
 | Both + Swiggy OAuth | Phase 3 (INT-20 → INT-24) |
 | Supabase project + frontend wiring | Phase 4 (INT-30 → INT-33) |

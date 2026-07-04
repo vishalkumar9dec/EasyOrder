@@ -4,7 +4,7 @@ import hmac
 from fastapi.testclient import TestClient
 
 from app.api.whatsapp import verify_signature
-from app.config import Settings
+from app.config import Settings, get_settings
 from app.main import app
 from app.services.mock_agent import MockAgentService
 from app.services.whatsapp_sender import MockWhatsAppSender
@@ -142,6 +142,37 @@ def test_tagged_message_creates_mock_session() -> None:
     assert private_message.recipient_id == "919988776655"
     assert "host_" in private_message.text
     assert "host_" not in str(body)
+
+
+def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
+    sender = MockWhatsAppSender()
+    original_sender = app.state.whatsapp_sender
+    app.state.whatsapp_sender = sender
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        app_env="local",
+        whatsapp_provider_mode="meta",
+        public_app_base_url="https://easyorder-web-dev.loca.lt",
+    )
+
+    try:
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload("@EasyOrder 3 egg rolls and 1 lassi under 2500"),
+        )
+    finally:
+        app.state.whatsapp_sender = original_sender
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "created"
+    assert len(sender.sent_messages) == 1
+    handoff_message = sender.sent_messages[0]
+    assert handoff_message.channel == "private"
+    assert handoff_message.recipient_id == "919988776655"
+    assert handoff_message.recipient_id != "group_ipl_fans_1"
+    assert "host_" in handoff_message.text
+    assert "guest_" in handoff_message.text
+    assert "host_" not in str(response.json())
 
 
 def test_mock_sender_keeps_template_placeholders_disabled() -> None:

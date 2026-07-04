@@ -111,9 +111,9 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 
 | PRD story | User outcome | Primary tasks |
 |---|---|---|
-| 1 | Host adds EasyOrder to WhatsApp group | 3.1, 3.2, 8.2, 9.1 |
+| 1 | Host sends the final agreed order prompt to EasyOrder from their WhatsApp number | 3.1, 3.2, 8.2, 9.1 |
 | 2 | Host requests food for group under budget | 3.2, 4.2, 4.3, 4.4, 4.5 |
-| 3 | Group receives collaborative link | 4.5, 8.2, 9.1 |
+| 3 | Host receives private host link and shareable guest link | 4.5, 8.2, 9.1 |
 | 4 | Guest opens PWA and sees source-attributed cart | 5.1, 5.2, 6.1, 6.2 |
 | 5 | Members see realtime cart updates | 1.3, 1.4, 5.2, 6.2 |
 | 6 | Guests mark dietary preferences | 1.2, 4.5, 5.2, 6.3 |
@@ -994,7 +994,7 @@ Debug strategy:
 
 ## Task 8.2: Implement WhatsApp Message Sending
 
-Objective: Send guest link to group and host link privately after session initialization.
+Objective: Send the live WhatsApp handoff to the initiating host after session initialization.
 
 Dependencies: Task 3.2, Task 4.5.
 
@@ -1003,25 +1003,26 @@ Implementation:
 - Add WhatsApp provider interface.
 - Implement mock sender for local tests.
 - Implement Meta Cloud API sender for sandbox/staging.
-- Send guest link to group.
-- Send host link privately via DM.
+- In live Meta mode, send one private handoff to the inbound sender `wa_id` with the host link and shareable guest link.
+- In mock mode, continue capturing separate guest/group and private host messages for local privacy assertions.
 - Add template-message placeholders for proactive/event notifications.
 
 Acceptance criteria:
 
 - In mock mode, outgoing messages are captured for assertions.
-- In sandbox mode, configured test numbers receive expected messages.
-- Host token is never posted publicly in the group.
+- In sandbox mode, the configured test sender receives the expected direct-user message.
+- Host token is never included in guest links, webhook responses, or mock public/group messages.
 
 Automated tests:
 
 - Mock sender test for group and host messages.
-- Redaction test ensuring host token is not in group message payload.
+- Meta-mode routing test ensuring the direct handoff goes to the inbound sender `wa_id`.
+- Redaction test ensuring host token is not in guest-facing payloads.
 
 Manual test:
 
-- Use Meta sandbox test group or mocked sender log.
-- Confirm group receives guest link and host receives private host link.
+- Use a registered Meta sandbox test phone and send a tagged prompt to the EasyOrder business/test number.
+- Confirm the sender receives one private reply containing the host link and shareable guest link.
 
 Debug strategy:
 

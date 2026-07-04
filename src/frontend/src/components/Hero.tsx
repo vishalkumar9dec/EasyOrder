@@ -21,7 +21,7 @@ export function Hero() {
         </h1>
 
         <p className="hero-subtitle">
-          Plan group meals, share a collaborative cart in real-time, and checkout through Swiggy — all from your WhatsApp group.
+          Plan group meals from WhatsApp, share a collaborative cart in real-time, and checkout through Swiggy with the host in control.
         </p>
 
         <div className="hero-actions">

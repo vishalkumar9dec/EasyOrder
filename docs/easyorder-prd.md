@@ -6,13 +6,13 @@ Group food and supply ordering is currently a high-friction coordination problem
 
 ## Solution
 
-EasyOrder is a WhatsApp-first agentic assistant linked with a collaborative Web PWA canvas. It intercepts group intent where it naturally occurs (WhatsApp group chats), parses constraints via an Orchestrator-Workers LLM pattern, recommends selections via a multi-user visual planning canvas, and compiles unified carts. It then hands over sequential checkout sessions to the host using secure Swiggy OAuth.
+EasyOrder is a WhatsApp-first agentic assistant linked with a collaborative Web PWA canvas. It captures the group's final ordering intent from the host in a direct WhatsApp conversation with the EasyOrder business/test number, parses constraints via an Orchestrator-Workers LLM pattern, recommends selections via a multi-user visual planning canvas, and compiles unified carts. It then hands over sequential checkout sessions to the host using secure Swiggy OAuth.
 
 ## User Stories
 
-1. As a party host, I want to add EasyOrder to my WhatsApp group, so that it can help us coordinate our dinner plans automatically.
+1. As a party host, I want to send EasyOrder the final menu we agreed on from my WhatsApp number, so that it can turn the group decision into an order plan.
 2. As a party host, I want to request biryani and starters for a group of 6 under a specific budget, so that the AI can suggest options matching my pricing constraints.
-3. As a group member, I want to receive a collaborative link in our WhatsApp group chat, so that I can view and customize the group's order from my own device.
+3. As a group member, I want the host to share a collaborative link after EasyOrder creates the session, so that I can view and customize the group's order from my own device.
 4. As a group guest, I want to open the shared PWA link, so that I can see the host's selected food packages, the restaurant each Food item comes from, and add my own choice of drinks from Instamart.
 5. As a group member, I want to see real-time updates when other guests add items to the canvas, so that we do not duplicate selections.
 6. As a guest with dietary restrictions, I want to mark my additions as vegetarian or gluten-free on the canvas, so that the host can ensure my preferences are respected.
@@ -20,14 +20,14 @@ EasyOrder is a WhatsApp-first agentic assistant linked with a collaborative Web 
 8. As a host, I want to log in using Swiggy OAuth, so that my cart is created directly on my Swiggy account.
 9. As a host, I want food items grouped by restaurant and grocery items grouped by Instamart brand/vendor context, so that I know exactly where every item will be ordered from before payment.
 10. As a host, I want to checkout sequentially for each required Swiggy order, so that Food items from different restaurants and Instamart items are placed as separate Swiggy orders when Swiggy requires it.
-11. As a WhatsApp group member, I want the bot to post delivery updates directly to the group chat, so that everyone knows when the food is arriving.
+11. As a host, I want EasyOrder to send order status and delivery updates privately to me, so that I can forward or summarize updates for the group.
 12. As a group host, I want to opt in to sports or tournament updates during PWA session setup, so that the bot can nudge us with relevant food deals during matches.
-13. As a group member, I want the bot to ignore general conversations and only reply when tagged with `@EasyOrder`, so that my group's privacy is respected.
+13. As a WhatsApp user, I want EasyOrder to ignore general conversations and only act on messages tagged with `@EasyOrder`, so that my privacy is respected.
 
 ## Implementation Decisions
 
 ### 1. WhatsApp to PWA Session State & Handoff
-* **Tokenized Access:** The bot generates unique session URLs formatted as `https://easyorder.app/session/<session_id>?token=<guest_token>`. The guest token provides passwordless read/write access to the specific cart, while the host token links to their WhatsApp ID for Swiggy OAuth checkout.
+* **Tokenized Access:** EasyOrder generates unique session URLs formatted as `https://easyorder.app/session/<session_id>?token=<guest_token>`. The guest token provides passwordless read/write access to the specific cart, while the host token links to the initiating WhatsApp `wa_id` for Swiggy OAuth checkout.
 * **Real-time Sync:** A shared state store (e.g., Firebase Firestore or Realtime Database) synchronizes mutations instantly across up to 10 active PWA clients in the same session.
 
 ### 2. Orchestrator-Worker Concurrency and Fault Tolerance
@@ -49,9 +49,9 @@ EasyOrder is a WhatsApp-first agentic assistant linked with a collaborative Web 
 * **Checkout Step Visibility:** Before OAuth handoff, the host must see the number of Swiggy orders required, grouped by restaurant or Instamart source, with each group's subtotal and item list.
 * **Inventory Verification:** Immediately before OAuth redirection, the PWA validates item pricing and stock levels. If an item is out of stock, the client displays a replacement modal (e.g., suggesting a substitute brand) before confirming the final order creation.
 
-### 4. Group Privacy & Proactive Prompts
-* **Mention-Only Listening:** The WhatsApp webhook only processes messages containing the `@EasyOrder` mention to protect user privacy and optimize API usage.
-* **Template-Driven Event Nudges:** Proactive notifications (e.g., for sports events or weather changes) are scheduled using official, pre-approved WhatsApp Business Message Templates. They are only sent to groups where the host explicitly opted in during a previous session.
+### 4. WhatsApp Privacy & Proactive Prompts
+* **Mention-Only Direct Intake:** The WhatsApp webhook only processes direct messages containing the `@EasyOrder` mention to protect user privacy and optimize API usage. Normal consumer group-chat bot participation is not part of the live MVP.
+* **Template-Driven Event Nudges:** Proactive notifications (e.g., for sports events or weather changes) are scheduled using official, pre-approved WhatsApp Business Message Templates. They are only sent to users who explicitly opted in during a previous session.
 
 ## Testing Decisions
 

@@ -46,7 +46,7 @@ backend-dev:
 	cd src/backend && .venv/bin/python -m uvicorn app.main:app --reload --port $(BACKEND_PORT)
 
 backend-test:
-	cd src/backend && .venv/bin/python -m pytest
+	cd src/backend && WHATSAPP_PROVIDER_MODE=mock .venv/bin/python -m pytest
 
 backend-smoke:
 	cd src/backend && python3 -m compileall app tests
@@ -78,7 +78,7 @@ db-down:
 smoke: backend-smoke frontend-build
 
 demo-smoke:
-	$(BACKEND_PYTHON) scripts/easyorder_demo_smoke.py
+	WHATSAPP_PROVIDER_MODE=mock $(BACKEND_PYTHON) scripts/easyorder_demo_smoke.py
 
 security-smoke:
-	$(BACKEND_PYTHON) scripts/easyorder_security_smoke.py
+	WHATSAPP_PROVIDER_MODE=mock $(BACKEND_PYTHON) scripts/easyorder_security_smoke.py

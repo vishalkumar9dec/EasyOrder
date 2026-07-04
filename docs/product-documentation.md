@@ -4,9 +4,9 @@
 
 **Product name:** EasyOrder
 
-EasyOrder is a WhatsApp-first agentic AI assistant and collaborative Web/PWA interface that helps groups plan, optimize, and order food/supplies using Swiggy MCP (Model Context Protocol). 
+EasyOrder is a WhatsApp-first agentic AI assistant and collaborative Web/PWA interface that helps groups plan, optimize, and order food/supplies using Swiggy MCP (Model Context Protocol).
 
-Instead of a single host facing decision fatigue and manual cart building, EasyOrder integrates into WhatsApp group chats to capture group intent, automatically coordinates preferences via a shared Web/PWA planning canvas, builds unified baskets across Swiggy verticals, and hands over a consolidated checkout link to the host via Swiggy OAuth.
+Instead of a single host facing decision fatigue and manual cart building, EasyOrder captures the group's final decision from the host in a direct WhatsApp conversation with the EasyOrder business/test number. It then coordinates preferences via a shared Web/PWA planning canvas, builds unified baskets across Swiggy verticals, and hands over consolidated checkout links to the host via Swiggy OAuth.
 
 ## 2. Swiggy Builder Program Context
 
@@ -43,7 +43,7 @@ Current pain points of group ordering:
 - **Cart Abandonment:** Group alignment takes so long that delivery times shift, items go out of stock, or users simply lose momentum.
 - **Vertical Silos:** Buying food (`/food`) and party supplies/drinks (`/im`) requires placing separate orders in separate visual funnels.
 
-EasyOrder solves this by intercepting the group coordination where it naturally happens (WhatsApp) and moving the visual execution to a collaborative shared canvas (PWA) powered by Swiggy's MCP.
+EasyOrder solves this by meeting the host where the coordination already happened (WhatsApp), accepting the final agreed prompt in a direct EasyOrder conversation, and moving the visual execution to a collaborative shared canvas (PWA) powered by Swiggy's MCP.
 
 ## 4. Core Positioning
 
@@ -71,10 +71,10 @@ Primary users:
 The first version focuses on a group of 4–10 people planning food and drinks.
 
 ### User Flow:
-1. **Initiate on WhatsApp:** The host adds the EasyOrder bot to their WhatsApp group chat and prompts: `@EasyOrder 6 of us want biryani and starters under Rs 3000, arriving in 45 mins.`
+1. **Agree in WhatsApp, initiate privately:** The group discusses options in a normal WhatsApp group. Once the menu is clear, the host sends the final prompt to the EasyOrder WhatsApp business/test number: `@EasyOrder 6 of us want biryani and starters under Rs 3000, arriving in 45 mins.`
 2. **AI Intent Parsing & MCP Lookup:** The orchestrator agent calls the Swiggy `/food` MCP tool to search for matching restaurants, cross-referencing rating and ETA constraints while preserving restaurant identity for every Food item.
-3. **The Magic Canvas Link:** The bot posts a reply in the WhatsApp group chat: 
-   > *"I found 3 great biryani options. Tap this link to add your favorite drinks, customize plates, and checkout: `[easyorder.app/session/123]`"*
+3. **The Magic Canvas Link:** EasyOrder replies privately to the host's WhatsApp `wa_id`:
+   > *"I found 3 great biryani options. Review and place the order from your private host link: `[easyorder.app/session/123?token=host...]`. Share this guest link if others should review the planning canvas: `[easyorder.app/session/123?token=guest...]`"*
 4. **Collaborative Planning Canvas (PWA):**
    - Clicking the link opens a lightweight, mobile-first Web PWA.
    - All group members can join the active session.
@@ -84,13 +84,13 @@ The first version focuses on a group of 4–10 people planning food and drinks.
    - Group members can tap to add cold drinks or ice from Swiggy Instamart (`/im`) to the same planning session.
    - Dietary preferences (veg/non-veg split) are clearly visible.
 5. **Secure Checkout Handoff:** Once the group is satisfied, the host taps "Order via Swiggy". The PWA previews the required Swiggy orders: one checkout per Food restaurant plus a separate Instamart checkout when grocery items exist. This triggers the Swiggy OAuth login, matches the delivery address, builds each checkout payload, and redirects the host through the required Swiggy checkout pages.
-6. **WhatsApp Tracking:** The bot updates the WhatsApp group chat in real-time as the delivery status changes.
+6. **WhatsApp Tracking:** EasyOrder sends status and delivery updates privately to the host, who can forward the relevant updates to the group.
 
 ## 7. Expansion Use Case: Occasion Concierge & Contextual Recommendations
 
 Once the collaborative food engine is stable, EasyOrder will expand into a proactive occasion concierge:
 
-- **Context-Aware Event Triggers (e.g., FIFA / IPL Tournaments):** The bot monitors external calendars and events. During a match or tournament, it proactively nudges the WhatsApp group:
+- **Context-Aware Event Triggers (e.g., FIFA / IPL Tournaments):** The bot monitors external calendars and events. During a match or tournament, it proactively nudges opted-in hosts:
   > *"Hey! The India vs. Pakistan match starts in 2 hours. 🏏 Chicken tikka platters and chilled drinks are trending near you. Should I set up a group plan?"*
 - **Romantic Dinners:** Reserving tables via Dineout (`/dineout`) and ordering flowers/gifts via Instamart (`/im`) as a single, coordinated flow.
 - **Birthdays:** Suggesting food, ordering a cake/candles via Instamart, and coordinating invitations.
@@ -98,11 +98,11 @@ Once the collaborative food engine is stable, EasyOrder will expand into a proac
 
 ## 8. Product Surface
 
-- **WhatsApp Group Bot** handles:
-  - Natural language triggers and prompts
+- **WhatsApp Direct Host Assistant** handles:
+  - Natural language triggers and prompts from the host's WhatsApp `wa_id`
   - Session link generation
   - Contextual match/tournament prompts (e.g., "FIFA is on tonight, suggest wings")
-  - Team status/updates and delivery tracking
+  - Host-facing status updates and delivery tracking
   - Reordering shortcuts
 
 - **Collaborative PWA** handles:
@@ -117,7 +117,7 @@ Once the collaborative food engine is stable, EasyOrder will expand into a proac
 To support both **modular subagent reasoning** and **low latency**, EasyOrder implements Anthropic's **Orchestrator-Workers** architecture pattern. Rather than executing agents in a slow, sequential loop, workers are executed concurrently using asynchronous parallel processing.
 
 ```text
-User on WhatsApp Group / PWA Canvas
+Host on WhatsApp Direct Chat / PWA Canvas
   │
   ▼
 Messaging Gateway / Webhook
@@ -125,7 +125,7 @@ Messaging Gateway / Webhook
   ▼
 ┌────────────────────────────────────────────────────────┐
 │              Orchestrator LLM Agent                    │
-│  - Parses raw group intent & constraints               │
+│  - Parses final group intent & constraints             │
 │  - Decides which Workers to invoke                     │
 │  - Synthesizes final results & updates Session Store    │
 └──────────────────────────┬─────────────────────────────┘
@@ -154,7 +154,7 @@ Messaging Gateway / Webhook
    - **IM Worker:** Queries `/im` MCP endpoints for cold drinks, chips, and snacks.
    - **Budget & Qty Worker:** Computes serving sizes and validates the combined cost against the budget constraint.
 3. **Parallel Execution:** In a language like Node.js or Python, these workers are run concurrently (`Promise.all` or `asyncio.gather`), fetching menu and inventory data in parallel, taking only a single API hop delay (~1-2 seconds).
-4. **Synthesis & PWA Update:** The Orchestrator gathers the results, writes the recommended bundle options into the Session Store, and generates the collaborative PWA link for the WhatsApp group.
+4. **Synthesis & PWA Update:** The Orchestrator gathers the results, writes the recommended bundle options into the Session Store, and generates a private host link plus a shareable guest PWA link.
 
 ## 10. Safety and Trust Rules
 
@@ -227,7 +227,7 @@ EasyOrder wins by solving problems Swiggy's standalone consumer app cannot easil
 
 ## 14. MVP Success Metrics
 
-- **Link Click-Through Rate:** % of WhatsApp users who tap the PWA canvas link.
+- **Link Click-Through Rate:** % of invited participants who tap the PWA canvas link.
 - **Guest Contribution Rate:** Average number of guests who add/modify items on the PWA canvas per session.
 - **Checkout Conversion Rate:** % of initiated sessions that complete a Swiggy checkout.
 - **Average Order Value (AOV) Boost:** Average basket value comparison between EasyOrder orders and solo Swiggy orders.
@@ -236,13 +236,13 @@ EasyOrder wins by solving problems Swiggy's standalone consumer app cannot easil
 ## 15. MVP Scope
 
 ### Included in v1:
-- WhatsApp bot listening to group mentions and parsing group constraints.
+- WhatsApp direct host assistant parsing `@EasyOrder` prompts sent to the EasyOrder business/test number.
 - Real-time PWA planning canvas for up to 10 simultaneous users.
 - Swiggy Food MCP (`/food`) and Instamart MCP (`/im`) integrations.
 - Orchestrator-Workers backend processing queries in parallel.
 - Basic visual menu and item selection in the PWA.
 - Swiggy OAuth handoff for checkout.
-- WhatsApp order status tracking updates.
+- WhatsApp order status tracking updates sent privately to the host.
 
 ### Excluded from v1:
 - Dineout table reservations (`/dineout`).
@@ -253,7 +253,7 @@ EasyOrder wins by solving problems Swiggy's standalone consumer app cannot easil
 ## 16. Roadmap
 
 ### Phase 1: Collaborative MVP & Parallel Architecture
-Build the WhatsApp group bot, Orchestrator-Workers backend, and real-time collaborative PWA canvas for Swiggy Food & Instamart planning.
+Build the WhatsApp direct host assistant, Orchestrator-Workers backend, and real-time collaborative PWA canvas for Swiggy Food & Instamart planning.
 
 ### Phase 2: Social, Financial, & Tournament Context
 Add UPI deep-link generation for easy group bill splitting and introduce context-aware event triggers (proactive tournament prompts).
