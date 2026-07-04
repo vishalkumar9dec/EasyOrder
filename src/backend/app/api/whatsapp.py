@@ -39,6 +39,14 @@ def build_private_host_message(host_link: str) -> str:
     return f"Your EasyOrder host link is ready. Keep this private: {host_link}"
 
 
+def build_direct_user_session_message(guest_link: str, host_link: str) -> str:
+    return (
+        "EasyOrder is ready. Review and place the order from your private host link: "
+        f"{host_link}\n\n"
+        f"If you want others to review the planning canvas, share this guest link: {guest_link}"
+    )
+
+
 def verify_signature(raw_body: bytes, signature_header: str | None, settings: Settings) -> None:
     if settings.skip_signature_verification:
         return
@@ -126,14 +134,20 @@ async def ingest_webhook(
             result.host_token,
         )
         try:
-            await whatsapp_sender.send_group_message(
-                message.phone_number_id,
-                build_group_session_message(guest_link),
-            )
-            await whatsapp_sender.send_private_message(
-                message.sender_id,
-                build_private_host_message(host_link),
-            )
+            if settings.whatsapp_provider_mode == "meta":
+                await whatsapp_sender.send_private_message(
+                    message.sender_id,
+                    build_direct_user_session_message(guest_link, host_link),
+                )
+            else:
+                await whatsapp_sender.send_group_message(
+                    message.phone_number_id,
+                    build_group_session_message(guest_link),
+                )
+                await whatsapp_sender.send_private_message(
+                    message.sender_id,
+                    build_private_host_message(host_link),
+                )
         except WhatsAppSendError as error:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
