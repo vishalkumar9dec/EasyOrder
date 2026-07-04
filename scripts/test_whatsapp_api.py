@@ -63,15 +63,15 @@ def api_call(method: str, endpoint: str, token: str, payload: dict | None = None
         sys.exit(1)
 
 
-def send_template(token: str, to: str, phone_number_id: str) -> None:
-    """Send the pre-approved hello_world template message."""
-    print(f"\nSending hello_world template to {to}...")
+def send_template(token: str, to: str, phone_number_id: str, template_name: str) -> None:
+    """Send a template message."""
+    print(f"\nSending '{template_name}' template to {to}...")
     result = api_call("POST", f"{phone_number_id}/messages", token, {
         "messaging_product": "whatsapp",
         "to": to,
         "type": "template",
         "template": {
-            "name": "hello_world",
+            "name": template_name,
             "language": {"code": "en_US"},
         },
     })
@@ -140,7 +140,7 @@ def main() -> None:
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--send-template", action="store_true",
-                       help="Send hello_world template message")
+                       help="Send template message")
     group.add_argument("--send-text", action="store_true",
                        help="Send a text message (needs open service window)")
     group.add_argument("--check-number", action="store_true",
@@ -148,6 +148,8 @@ def main() -> None:
     group.add_argument("--check-subscription", action="store_true",
                        help="Check WABA app subscription")
 
+    parser.add_argument("--template-name", default="hello_world",
+                        help="Template name to send (defaults to hello_world)")
     parser.add_argument("--to", help="Recipient phone number (with country code, no +)")
     parser.add_argument("--message", default="Hello from EasyOrder!",
                         help="Text message body (for --send-text)")
@@ -169,7 +171,7 @@ def main() -> None:
         if not args.to:
             print("--to is required. Example: --to 919876543210")
             sys.exit(1)
-        send_template(args.token, args.to, args.phone_number_id)
+        send_template(args.token, args.to, args.phone_number_id, args.template_name)
 
     elif args.send_text:
         if not args.to:
