@@ -76,6 +76,16 @@ Newly identified product requirement:
 
 - Cart items must preserve and display source attribution. Food items require restaurant id/name. Instamart items require a source/store label and should preserve product brand when available.
 - Food checkout cannot combine multiple restaurants in one Swiggy order. Checkout must split Food payloads by restaurant, then process Instamart separately.
+- WhatsApp is now a first-class product surface, not just an integration pipe.
+  Inbound messages should be visible in the PWA when they create or update a
+  session, and outbound handoff should use WhatsApp-native CTA/template affordance
+  where available instead of long raw URLs in message bodies.
+- EasyOrder should support two explicit WhatsApp operating modes:
+  mention-triggered planning and dedicated business-chat assistance. These modes
+  share the same backend but have different privacy and intent-routing rules.
+- Saved lists/wishlists are the next retention feature. They should start with
+  short deterministic commands and review-before-order flows before adding
+  broader free-form shopping autonomy.
 
 Verification completed on 2026-07-02:
 
@@ -106,6 +116,12 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Closed |
 | 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Closed |
 | 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Closed |
+| 15 | TBD | Task 10.1: WhatsApp message timeline in PWA | Proposed |
+| 16 | TBD | Task 10.2: WhatsApp-native CTA/template handoff | Proposed |
+| 17 | TBD | Task 10.3: Dedicated business-chat intent router | Proposed |
+| 18 | TBD | Task 10.4: Saved lists and short add grammar | Proposed |
+| 19 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
+| 20 | TBD | Task 10.6: Order history/status and group-share commands | Proposed |
 
 ## PRD Traceability
 
@@ -124,6 +140,13 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 11 | Group receives delivery updates | Deferred unless Swiggy delivery-status hooks are available; scaffold provider in 8.2 |
 | 12 | Host opts into sports or tournament updates | Deferred for MVP; template-message placeholder in 8.2 |
 | 13 | Bot ignores untagged conversations | 3.2, 9.3 |
+| 14 | Host sees the initiating WhatsApp message inside the PWA | 10.1 |
+| 15 | User receives CTA/button-style handoff instead of long raw URLs | 10.2 |
+| 16 | Returning user chats directly with EasyOrder business account | 10.3 |
+| 17 | User maintains named household/event order lists | 10.4, 10.5 |
+| 18 | User adds items with short command grammar | 10.4 |
+| 19 | Host explicitly shares order details or guest link safely | 10.2, 10.6 |
+| 20 | User asks discovery/offers questions in dedicated chat | 10.3, 10.6 |
 
 ## Dependency Map
 
@@ -140,7 +163,253 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 7.2 -> 8.1
 4.5 + 3.2 -> 8.2
 8.1 + 8.2 -> 9.1 -> 9.2 -> 9.3 -> 9.4
+9.4 -> 10.1 -> 10.2 -> 10.3 -> 10.4 -> 10.5 -> 10.6
 ```
+
+## Next Implementation Wave Recommendation
+
+Build these in order. The first two are close to the system already built; the
+later tasks deliberately expand product scope.
+
+### Task 10.1: WhatsApp Message Timeline In PWA
+
+Objective: Persist user-safe WhatsApp activity events and show them in the
+session UI so the message sent from the phone is visible alongside the generated
+cart.
+
+Dependencies: Tasks 3.2, 5.1, 6.1, 9.2.
+
+Implementation:
+
+- Add a `session_events` or `message_events` persistence model.
+- Store redacted inbound WhatsApp metadata: `session_id`, `message_id`, sender
+  `wa_id`, timestamp, normalized text, mode, and derived intent.
+- Store outbound handoff status events without exposing host tokens.
+- Extend the session bootstrap API with a redacted `timeline` array.
+- Add a compact activity timeline to the PWA session route.
+- Correlate logs and user-facing events with `request_id`, `message_id`, and
+  `session_id`.
+
+Acceptance criteria:
+
+- A live or fixture WhatsApp message that creates a session appears in the PWA
+  as the first timeline event.
+- Timeline events never expose `host_`, access tokens, webhook signatures, or
+  app secrets.
+- Guest and host views both show the initiating message, but only host-safe
+  details appear in guest mode.
+
+Automated tests:
+
+- Session API test verifies timeline redaction.
+- WhatsApp webhook test verifies inbound message event creation.
+- Frontend test verifies timeline rendering from bootstrap payload.
+
+Manual test:
+
+- Send `@EasyOrder get biryani for 4 under 2000` from the handset.
+- Open the returned host or guest link.
+- Confirm the PWA shows the original message and session-created activity.
+
+Debug strategy:
+
+- If backend logs show the webhook but no timeline, inspect persistence writes.
+- If timeline exists through API but not UI, inspect bootstrap adapter mapping.
+
+### Task 10.2: WhatsApp-Native CTA And Short-Link Handoff
+
+Objective: Replace long visible URLs with a trusted WhatsApp handoff experience:
+interactive/template CTA when supported, concise short-link fallback otherwise.
+
+Dependencies: Tasks 8.2, 9.2, 10.1.
+
+Implementation:
+
+- Extend `IWhatsAppSender` with a capability-aware session handoff method.
+- Add Meta sender support for configured interactive/template CTA payloads.
+- Add short-link generation or redirect aliases for host and guest session URLs.
+- Keep one-time tokens server-side or embedded in redirect targets, but avoid
+  displaying raw tokenized URLs as the main WhatsApp copy.
+- Add fallback text for environments where templates or interactive messages are
+  unavailable.
+- Document template names, variables, approval requirements, and fallback rules.
+
+Acceptance criteria:
+
+- Meta mode can send a handoff message with a clear CTA such as `Review order`
+  or `Open EasyOrder`.
+- Fallback mode sends concise copy plus short branded links.
+- The webhook HTTP response and shareable guest message never include host token
+  material.
+
+Automated tests:
+
+- Meta sender payload tests cover CTA/template and fallback payloads.
+- Security smoke verifies host-token redaction still holds.
+
+Manual test:
+
+- Send a tagged handset message and verify WhatsApp displays a polished CTA or
+  short-link fallback.
+
+Debug strategy:
+
+- If CTA messages fail in Meta, fall back to text and inspect template approval,
+  phone number id, and Graph API error body.
+
+### Task 10.3: Dedicated Business-Chat Intent Router
+
+Objective: Support direct chat with the EasyOrder business account as a bot while
+keeping the existing `@EasyOrder` planning trigger intact.
+
+Dependencies: Tasks 3.2, 4.3, 8.2, 9.3.
+
+Implementation:
+
+- Add an explicit inbound mode classifier: mention-triggered planning vs
+  dedicated business chat.
+- Add intent families: start session, saved-list command, order history/status,
+  discovery/offers, share request, unsupported request.
+- Route dedicated chat messages without requiring `@EasyOrder`.
+- Keep ordinary group/passive listening out of scope.
+- Add safe unsupported responses for intents that require unavailable Swiggy
+  scopes or missing identity.
+
+Acceptance criteria:
+
+- `@EasyOrder get biryani...` still creates a planning session.
+- Direct message `what was my last order?` routes to order-history intent and
+  returns a graceful unavailable/needs-link response until real order scopes exist.
+- Direct message `nearest best chole bhature` routes to discovery intent.
+- Untagged messages outside dedicated business-chat mode remain ignored.
+
+Automated tests:
+
+- Intent router unit tests for every intent family.
+- Webhook tests for mention-triggered and dedicated-chat paths.
+
+Manual test:
+
+- In the EasyOrder business chat, send `get started`, `nearest best chole
+  bhature`, and `what was my last order?`.
+
+Debug strategy:
+
+- If messages are ignored, inspect mode classification first, then intent router
+  output, then sender response.
+
+### Task 10.4: Saved Lists And Short Add Grammar
+
+Objective: Let users maintain named order lists through concise WhatsApp commands
+and PWA controls.
+
+Dependencies: Tasks 1.3, 2.1, 10.3.
+
+Implementation:
+
+- Add saved-list and saved-list-item schemas and migrations.
+- Link lists to a user identity derived from WhatsApp `wa_id` initially.
+- Support deterministic commands:
+  - `@EasyOrder vim bar`
+  - `add vim bar to monthly`
+  - `show monthly list`
+  - `remove vim bar from monthly`
+- Add PWA list view/edit controls after the API contract stabilizes.
+
+Acceptance criteria:
+
+- A user can add, view, update, and remove items from a named list.
+- A bare item command uses a sensible default list only after user confirmation
+  or prior preference exists.
+- List data remains scoped to the sender identity.
+
+Automated tests:
+
+- API and persistence tests for list CRUD.
+- Intent parser tests for short add grammar.
+
+Manual test:
+
+- Send `add vim bar to monthly`, then `show monthly list`.
+
+Debug strategy:
+
+- If commands misroute, inspect deterministic parser before LLM fallback.
+
+### Task 10.5: List-To-Cart Review And Offer Optimization
+
+Objective: Convert saved lists into reviewable EasyOrder sessions, applying
+availability, substitution, and offer ranking before checkout.
+
+Dependencies: Tasks 7.1, 7.2, 10.4.
+
+Implementation:
+
+- Add list-to-session conversion endpoint.
+- Query Swiggy Food/Instamart for each list item.
+- Rank candidate items by availability, price, offer, brand preference, and ETA.
+- Flag substitutions explicitly in the session timeline and cart.
+- Require user review before checkout confirmation.
+
+Acceptance criteria:
+
+- `add today's list to cart` creates a session with source-attributed cart rows.
+- Offer-driven substitutions are visible and explainable.
+- Checkout remains blocked until the host/user reviews the generated cart.
+
+Automated tests:
+
+- List-to-cart service tests for exact match, substitute, unavailable, and offer
+  ranking scenarios.
+- Checkout tests verify review-before-order gating.
+
+Manual test:
+
+- Build a monthly list, convert it into a cart, review substitutions, and run
+  mock checkout.
+
+Debug strategy:
+
+- If generated carts look wrong, inspect candidate ranking inputs and stored
+  substitution reasons.
+
+### Task 10.6: Order History, Status, Offers, And Share Commands
+
+Objective: Add returning-user assistant commands after identity, lists, and
+session history are stable.
+
+Dependencies: Tasks 10.3, 10.5 and available Swiggy order/status scopes.
+
+Implementation:
+
+- Add order-history and active-order lookup interfaces behind mockable protocols.
+- Support `what was my last order?`, `when will my order arrive?`, `best
+  upcoming offers`, and `share the order details`.
+- Generate shareable summaries that never include host-only links or private
+  account details.
+- Return graceful unsupported responses when live scopes are unavailable.
+
+Acceptance criteria:
+
+- Mock mode can answer last-order and active-order status questions.
+- Share command creates a safe guest/share summary only after explicit user
+  confirmation.
+- Live mode fails closed when order-history or status scopes are missing.
+
+Automated tests:
+
+- Intent router and provider tests for history/status/offers.
+- Privacy tests for share summaries.
+
+Manual test:
+
+- Ask the business chat for last order, arrival status, offers, and share
+  summary in mock mode.
+
+Debug strategy:
+
+- If live status fails, verify user identity link, Swiggy scopes, and provider
+  error mapping before changing assistant prompts.
 
 ## Task 0.1: Initialize Repository Structure
 

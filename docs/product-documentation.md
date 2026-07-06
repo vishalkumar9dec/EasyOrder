@@ -8,6 +8,12 @@ EasyOrder is a WhatsApp-first agentic AI assistant and collaborative Web/PWA int
 
 Instead of a single host facing decision fatigue and manual cart building, EasyOrder captures the group's final decision from the host in a direct WhatsApp conversation with the EasyOrder business/test number. It then coordinates preferences via a shared Web/PWA planning canvas, builds unified baskets across Swiggy verticals, and hands over consolidated checkout links to the host via Swiggy OAuth.
 
+The next product direction adds a second WhatsApp surface: a dedicated EasyOrder
+business chat for saved lists, reorder help, order-status questions, discovery,
+offers, and support-style interactions. This should be built on the same backend
+as the current `@EasyOrder` planning flow, but treated as a separate operating
+mode with different privacy and intent-routing rules.
+
 ## 2. Swiggy Builder Program Context
 
 This product exists because of the Swiggy Builder Program, also called Builders Club. The program gives accepted developers a path to build AI agents and applications on top of Swiggy's MCP servers.
@@ -45,6 +51,11 @@ Current pain points of group ordering:
 
 EasyOrder solves this by meeting the host where the coordination already happened (WhatsApp), accepting the final agreed prompt in a direct EasyOrder conversation, and moving the visual execution to a collaborative shared canvas (PWA) powered by Swiggy's MCP.
 
+For recurring purchases, EasyOrder also solves a second problem: users do not
+want to rebuild household or event lists from scratch. A lightweight saved-list
+mode lets users add items over time in WhatsApp, then turn the list into a
+reviewable cart when they are ready.
+
 ## 4. Core Positioning
 
 EasyOrder should not be positioned as "Swiggy on WhatsApp." That sounds like a thin wrapper over an existing app.
@@ -73,10 +84,18 @@ The first version focuses on a group of 4–10 people planning food and drinks.
 ### User Flow:
 1. **Agree in WhatsApp, initiate privately:** The group discusses options in a normal WhatsApp group. Once the menu is clear, the host sends the final prompt to the EasyOrder WhatsApp business/test number: `@EasyOrder 6 of us want biryani and starters under Rs 3000, arriving in 45 mins.`
 2. **AI Intent Parsing & MCP Lookup:** The orchestrator agent calls the Swiggy `/food` MCP tool to search for matching restaurants, cross-referencing rating and ETA constraints while preserving restaurant identity for every Food item.
-3. **The Magic Canvas Link:** EasyOrder replies privately to the host's WhatsApp `wa_id`:
-   > *"I found 3 great biryani options. Review and place the order from your private host link: `[easyorder.app/session/123?token=host...]`. Share this guest link if others should review the planning canvas: `[easyorder.app/session/123?token=guest...]`"*
+3. **The Magic Canvas Handoff:** EasyOrder replies privately to the host's WhatsApp `wa_id` with a WhatsApp-native CTA button or approved template where possible:
+   > *"EasyOrder is ready. Review the plan, invite guests, and place the order when you are happy."*
+   >
+   > CTA: `Review order`
+
+   If CTA/template messaging is unavailable in the current sandbox, EasyOrder falls
+   back to concise short branded links. Long tokenized URLs should not be the
+   dominant visible content of the WhatsApp reply.
 4. **Collaborative Planning Canvas (PWA):**
    - Clicking the link opens a lightweight, mobile-first Web PWA.
+   - The session shows the initiating WhatsApp message and key EasyOrder activity
+     as a compact timeline.
    - All group members can join the active session.
    - The host sees the AI-recommended biryani and starter packages.
    - Every Food item shows which restaurant it comes from.
@@ -96,14 +115,45 @@ Once the collaborative food engine is stable, EasyOrder will expand into a proac
 - **Birthdays:** Suggesting food, ordering a cake/candles via Instamart, and coordinating invitations.
 - **B2B Team Meal Budgets:** Allowing team members to add items to a corporate cart up to their individual budget limits (e.g., Rs. 300 per person), consolidating them automatically into a single Swiggy order.
 
+## 7A. Expansion Use Case: Dedicated Business Chat And Saved Lists
+
+The dedicated EasyOrder business chat is a practical expansion because users can
+interact with it like a normal business assistant rather than remembering a long
+prompt. It should support:
+
+- **Saved lists:** `add vim bar to monthly`, `show monthly list`, `add today's
+  list to cart`.
+- **Order memory:** `what was my last order?` and `repeat last match-night
+  snacks`, gated by user identity and available Swiggy scopes.
+- **Status:** `when will my order arrive?`, only when EasyOrder has access to the
+  relevant active order status.
+- **Discovery:** `nearest best chole bhature` and `best upcoming offers`, with
+  source attribution and no hidden checkout.
+- **Sharing:** `share the order details in the group`, implemented as a safe
+  shareable summary or guest link after explicit confirmation.
+
+Professional caution: this is a real product expansion, not just a prompt tweak.
+It requires persistent user identity, saved-list storage, intent routing,
+privacy-safe summaries, template/interactive message configuration, and graceful
+fallbacks when Swiggy order-history or offer scopes are unavailable.
+
 ## 8. Product Surface
 
 - **WhatsApp Direct Host Assistant** handles:
   - Natural language triggers and prompts from the host's WhatsApp `wa_id`
   - Session link generation
+  - WhatsApp-native CTA/template handoff or short-link fallback
+  - User-visible session activity timeline events
   - Contextual match/tournament prompts (e.g., "FIFA is on tonight, suggest wings")
   - Host-facing status updates and delivery tracking
   - Reordering shortcuts
+
+- **Dedicated EasyOrder Business Chat** handles:
+  - Free-form direct conversation with the EasyOrder business account
+  - Saved-list commands and wishlist-to-cart conversion
+  - Discovery and offer questions
+  - Order history/status questions where official data access exists
+  - Safe share-summary generation
 
 - **Collaborative PWA** handles:
   - Multi-user real-time cart collaboration (no app install required)
@@ -159,10 +209,16 @@ Messaging Gateway / Webhook
 ## 10. Safety and Trust Rules
 
 - **No Autonomous Ordering:** The agent can never place an order or charge a card without explicit user validation and checkout confirmation on the PWA.
+- **Review Before Wishlist Checkout:** Saved lists and wishlists can become carts,
+  but user review is mandatory before checkout. Offer-driven substitutions must
+  be visible before order confirmation.
 - **Cart Sync Verification:** The PWA must re-verify item availability and pricing with Swiggy MCP right before the user initiates OAuth checkout to prevent out-of-stock errors.
 - **Source Transparency:** The PWA must show restaurant names for Food items and brand/source context for Instamart items before checkout.
 - **Restaurant-Bounded Food Checkout:** Swiggy Food orders cannot span multiple restaurants, so EasyOrder must split Food checkout steps by restaurant instead of presenting one combined Food order.
 - **Clear Quantity Hypotheses:** Group sizes must show serving estimates: *"This package contains 3 main dishes and 2 starters (estimated serving: 5-6 moderate eaters)."*
+- **No Passive Group Reading:** Dedicated business-chat intelligence must not
+  become silent monitoring of ordinary WhatsApp groups. Group sharing requires
+  explicit user action and privacy-safe links or summaries.
 
 ## 11. LLM Model Selection & Cost Analysis
 
@@ -208,6 +264,19 @@ EasyOrder's Orchestrator-Workers pattern requires low latency, strong JSON schem
 - **Risk:** Paying per conversation on WhatsApp Business API with zero commissions or initial revenue.
 - **Response:** Keep WhatsApp interactions short. Move users to the free-hosted PWA canvas as quickly as possible. Use WhatsApp messages primarily for high-value transaction notifications (session created, order dispatched).
 
+### Dedicated Business Chat Scope Creep
+- **Risk:** Turning EasyOrder into a general-purpose shopping/support bot before
+  session creation, checkout, identity, and data access are reliable.
+- **Response:** Sequence the build: message timeline and CTA polish first, then
+  deterministic intent routing, then saved lists, then order history/status and
+  offers. Keep unsupported intents graceful and honest.
+
+### WhatsApp Template And Interactive Message Limits
+- **Risk:** Product copy assumes arbitrary `href` text or buttons that the
+  WhatsApp Cloud API does not render in ordinary text messages.
+- **Response:** Design the handoff around supported interactive messages or
+  approved templates, with short branded links as fallback.
+
 ### Bill Splitting & Payments
 - **Risk:** Hosts are hesitant to order for groups because collecting money afterward is a hassle.
 - **Response:** Integrate micro-UPI deep links on the PWA checkout screen, allowing guests to tap and pay their share directly to the host's UPI ID, eliminating post-party awkwardness.
@@ -224,6 +293,8 @@ EasyOrder wins by solving problems Swiggy's standalone consumer app cannot easil
 - **Context-Aware Event Hooks:** Proactively initiating plans based on sports, festivals, or weather conditions.
 - **Social Integration:** Sitting inside the WhatsApp chat where the plan is born.
 - **Built-in Bill Splitting:** Solving the financial friction of group dining.
+- **Recurring Commerce Memory:** Saved household/event lists convert repeat
+  purchase intent into reviewable Swiggy carts.
 
 ## 14. MVP Success Metrics
 
@@ -232,11 +303,17 @@ EasyOrder wins by solving problems Swiggy's standalone consumer app cannot easil
 - **Checkout Conversion Rate:** % of initiated sessions that complete a Swiggy checkout.
 - **Average Order Value (AOV) Boost:** Average basket value comparison between EasyOrder orders and solo Swiggy orders.
 - **7-day Cohort Retention:** Repeat group planning sessions within a week.
+- **Saved List Activation:** % of users who create at least one named list.
+- **List-To-Cart Conversion:** % of saved lists converted into a reviewable cart.
+- **WhatsApp CTA Tap Rate:** % of handoff messages where the user taps the CTA or
+  short link.
 
 ## 15. MVP Scope
 
 ### Included in v1:
 - WhatsApp direct host assistant parsing `@EasyOrder` prompts sent to the EasyOrder business/test number.
+- Inbound WhatsApp message visible in the PWA session timeline.
+- WhatsApp handoff with CTA/template where supported, or short branded-link fallback.
 - Real-time PWA planning canvas for up to 10 simultaneous users.
 - Swiggy Food MCP (`/food`) and Instamart MCP (`/im`) integrations.
 - Orchestrator-Workers backend processing queries in parallel.
@@ -247,7 +324,8 @@ EasyOrder wins by solving problems Swiggy's standalone consumer app cannot easil
 ### Excluded from v1:
 - Dineout table reservations (`/dineout`).
 - Automatic UPI splitting payments (introduced in Phase 2).
-- Advanced AI preference memory (remembering past orders).
+- Advanced AI preference memory beyond explicitly named saved lists.
+- Autonomous purchase from a wishlist without user review.
 - Native iOS/Android app wrappers.
 
 ## 16. Roadmap
@@ -255,13 +333,22 @@ EasyOrder wins by solving problems Swiggy's standalone consumer app cannot easil
 ### Phase 1: Collaborative MVP & Parallel Architecture
 Build the WhatsApp direct host assistant, Orchestrator-Workers backend, and real-time collaborative PWA canvas for Swiggy Food & Instamart planning.
 
-### Phase 2: Social, Financial, & Tournament Context
+### Phase 2: WhatsApp Product Surface And Saved Lists
+Show inbound WhatsApp messages in the PWA timeline, replace raw URL-heavy
+handoff with CTA/template or short-link messaging, and add saved household/event
+lists that convert into reviewable carts.
+
+### Phase 3: Dedicated Business Assistant
+Add direct EasyOrder business-chat intents for discovery, offers, order history,
+active order status, and safe group-share summaries.
+
+### Phase 4: Social, Financial, & Tournament Context
 Add UPI deep-link generation for easy group bill splitting and introduce context-aware event triggers (proactive tournament prompts).
 
-### Phase 3: Dineout & Occasions
+### Phase 5: Dineout & Occasions
 Introduce `/dineout` table reservations, venue booking suggestions, and complete birthday/occasion planners.
 
-### Phase 4: B2B Slack & Teams Integration
+### Phase 6: B2B Slack & Teams Integration
 Extend EasyOrder to corporate workspaces (Slack/Teams) with budget limits per employee and consolidated office delivery.
 
 ## 17. References

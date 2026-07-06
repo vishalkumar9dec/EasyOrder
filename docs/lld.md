@@ -15,6 +15,8 @@ src/
 │   ├── api/                          # ── FastAPI Application Layer ──
 │   │   ├── __init__.py
 │   │   ├── whatsapp.py               #   Webhook verify (GET) + ingest (POST)
+│   │   ├── session.py                #   Session bootstrap, cart mutation, checkout
+│   │   ├── lists.py                  #   Saved lists and list-to-cart conversion
 │   │   └── checkout.py               #   Checkout validation + OAuth confirmation
 │   ├── database/                     # ── Storage Layer ──
 │   │   ├── __init__.py
@@ -24,6 +26,10 @@ src/
 │   │   ├── __init__.py
 │   │   ├── mcp_client.py             #   Swiggy MCP stdio client (production)
 │   │   └── mock_mcp.py              #   Mock MCP client (local dev)
+│   ├── whatsapp/                     # ── WhatsApp Product Surface ──
+│   │   ├── intent_router.py          #   Mode and intent classification
+│   │   ├── message_events.py         #   Redacted timeline event creation
+│   │   └── sender.py                 #   Text, CTA/template, fallback handoff
 │   └── orchestrator/                 # ── Agentic AI Layer ──
 │       ├── __init__.py
 │       ├── agent.py                  #   LangGraph state + graph compiler
@@ -59,6 +65,20 @@ class IDBAdapter(Protocol):
     async def create_session(self, session_id: str, data: Dict[str, Any]) -> None: ...
     async def update_cart_items(self, session_id: str, items: List[Dict[str, Any]]) -> None: ...
     async def update_session_status(self, session_id: str, status: str) -> None: ...
+
+class IWhatsAppSender(Protocol):
+    async def send_private_message(self, recipient_id: str, text: str) -> None: ...
+    async def send_session_handoff(
+        self,
+        recipient_id: str,
+        host_url: str,
+        guest_url: str,
+        *,
+        session_id: str,
+    ) -> None: ...
+
+class IIntentRouter(Protocol):
+    async def classify(self, message: "WhatsAppIncomingMessage") -> "RoutedIntent": ...
 ```
 
 ---
@@ -81,6 +101,64 @@ class SessionInitResponse(BaseModel):
     session_id: str
     host_token: str
     guest_link: str
+
+class SessionTimelineEvent(BaseModel):
+    event_id: str
+    session_id: str
+    event_type: str = Field(
+        ...,
+        examples=[
+            "whatsapp_message_received",
+            "session_created",
+            "handoff_sent",
+            "cart_item_added",
+            "checkout_validated",
+        ],
+    )
+    actor_type: str = Field(..., examples=["host", "guest", "easyorder", "system"])
+    occurred_at: str
+    title: str
+    body: str | None = None
+    metadata: dict[str, str] = Field(default_factory=dict)
+
+class RoutedIntent(BaseModel):
+    mode: str = Field(..., examples=["mention_planning", "business_chat"])
+    intent: str = Field(
+        ...,
+        examples=[
+            "start_session",
+            "saved_list_add",
+            "saved_list_show",
+            "order_status",
+            "discovery",
+            "offers",
+            "share_summary",
+            "unsupported",
+        ],
+    )
+    confidence: float
+    normalized_text: str
+    list_name: str | None = None
+    item_query: str | None = None
+
+class SavedListItemRequest(BaseModel):
+    item_query: str
+    quantity_hint: int | None = None
+    vertical_hint: str | None = Field(default=None, examples=["food", "instamart"])
+    brand_preference: str | None = None
+
+class SavedListResponse(BaseModel):
+    list_id: str
+    owner_wa_id: str
+    name: str
+    items: list[dict]
+
+class ListToCartResponse(BaseModel):
+    session_id: str
+    host_link: str
+    guest_link: str
+    substitutions: list[dict]
+    review_required: bool = True
 
 # Checkout
 class CheckoutRequest(BaseModel):
@@ -177,6 +255,50 @@ CREATE TABLE cart_items (
 ALTER PUBLICATION supabase_realtime ADD TABLE cart_items;
 ```
 
+**Session Events Table** (`session_events`):
+```sql
+CREATE TABLE session_events (
+    event_id        TEXT PRIMARY KEY,
+    session_id      TEXT REFERENCES sessions(session_id) ON DELETE CASCADE,
+    event_type      TEXT NOT NULL,
+    actor_type      TEXT NOT NULL,
+    actor_ref       TEXT,
+    title           TEXT NOT NULL,
+    body            TEXT,
+    metadata        JSONB DEFAULT '{}',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX session_events_session_created_idx
+    ON session_events (session_id, created_at);
+
+-- Store redacted user-facing activity only. Do not store access tokens,
+-- webhook signatures, app secrets, OAuth codes, or raw host tokens.
+```
+
+**Saved Lists Tables** (`saved_lists`, `saved_list_items`):
+```sql
+CREATE TABLE saved_lists (
+    list_id         TEXT PRIMARY KEY,
+    owner_wa_id     TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(owner_wa_id, name)
+);
+
+CREATE TABLE saved_list_items (
+    id              SERIAL PRIMARY KEY,
+    list_id         TEXT REFERENCES saved_lists(list_id) ON DELETE CASCADE,
+    item_query      TEXT NOT NULL,
+    quantity_hint   INTEGER,
+    vertical_hint   TEXT CHECK (vertical_hint IN ('food','instamart')),
+    brand_preference TEXT,
+    source_hint     TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
 ### 2.4 Row Level Security (RLS) Policies
 
 ```sql
@@ -211,10 +333,18 @@ CREATE POLICY "cart_items_all" ON cart_items
     );
 ```
 
+Future saved-list RLS should scope rows by the linked user identity. During the
+WhatsApp sandbox phase, `owner_wa_id` is the practical identity key; production
+should link this to a verified EasyOrder user and Swiggy OAuth account before
+exposing order history or status.
+
 ### 2.5 Application Testing Seams
 * **Mock MCP Client:** `MockSwiggyMcpClient` returns static restaurant/item lists instantly, bypassing Node subprocess overhead.
 * **Out-of-Stock Test:** Mock returns `ItemUnavailable` for a target item ID. Assert the checkout endpoint returns `409 Conflict` with substitute item suggestions.
 * **Local PostgreSQL:** All integration tests run against a local PostgreSQL instance via Docker (`docker compose up db`). Supabase CLI (`npx supabase start`) provides the full stack including Realtime and Auth.
+* **Mock WhatsApp Sender:** Supports text, CTA/template handoff, and short-link fallback without network calls.
+* **Intent Router Fixtures:** Deterministic fixtures cover mention-triggered planning, dedicated business-chat discovery, saved-list commands, order status, offers, share requests, and unsupported requests.
+* **Saved List Conversion Fixtures:** Mock Swiggy candidates cover exact matches, substitutions, offers, unavailable items, and review-required checkout gating.
 
 ---
 

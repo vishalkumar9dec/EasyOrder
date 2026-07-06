@@ -27,6 +27,15 @@ branch adds the repeatable local demo smoke, request-id logging, and runbooks.
 The issue [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13)
 branch adds the consolidated security smoke and final documentation hardening pass.
 
+The next proposed wave is not implemented yet. It covers:
+
+- Showing the initiating WhatsApp message and EasyOrder activity as a session
+  timeline in the PWA.
+- Replacing long visible WhatsApp handoff URLs with CTA/template messaging where
+  supported, or short branded links as fallback.
+- Adding a dedicated EasyOrder business-chat assistant mode.
+- Adding saved lists/wishlists and list-to-cart review.
+
 Current GitHub status:
 
 | Order | Issue | Scope | Status |
@@ -316,6 +325,11 @@ Use `Ctrl+C` to stop the long-running dev servers.
 | UI-21 | Multi-restaurant checkout preview | Open a host session, add a manual Food item with a different restaurant through the session UI or `API-18`, then refresh and inspect checkout. | Checkout preview shows one step per Food restaurant, followed by Instamart when present. For two restaurants plus Instamart, the host sees three planned Swiggy orders before validation. | Issue [#9](https://github.com/vishalkumar9dec/EasyOrder/issues/9). | Sequential checkout URLs in [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). |
 | UI-22 | Host creates mock Swiggy checkout carts | Open a real host session, click `Validate checkout`, then click `Create Swiggy carts`. | The panel changes to `Swiggy carts created`, shows one checkout link per planned group, and the links include the relevant Food restaurant id or Instamart step. | Issue [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). | Real Swiggy MCP integration in [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11). |
 | UI-23 | Partial checkout creation is visible | Configure the mock client or run the automated `API-30` path with Instamart cart failure. Reopen the host session after confirmation. | Successful Food checkout links remain visible, failed Instamart step shows a recovery warning, and the session status is `CHECKOUT_PARTIAL`. | Issue [#10](https://github.com/vishalkumar9dec/EasyOrder/issues/10). | Partial recovery hardening in [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13). |
+| UI-24 | WhatsApp message appears in session timeline | Proposed: send a tagged WhatsApp message, open the generated session link, and inspect the session header/activity area. | The initiating message appears as a redacted timeline event with timestamp and session-created activity. Host token material is not visible. | Proposed Task 10.1. | Build message-event persistence and PWA timeline. |
+| UI-25 | WhatsApp handoff CTA/short-link polish | Proposed: send a tagged WhatsApp message in Meta mode with CTA/template support configured. | WhatsApp shows a concise CTA such as `Review order` or a short branded fallback link. It does not show two long raw tokenized URLs as the primary message body. | Proposed Task 10.2. | Build capability-aware WhatsApp sender. |
+| UI-26 | Dedicated business chat discovery | Proposed: in the EasyOrder business chat, send `nearest best chole bhature`. | EasyOrder returns source-attributed discovery results or a graceful unsupported response in mock/live-limited mode. | Proposed Task 10.3. | Build dedicated-chat intent router. |
+| UI-27 | Saved list management | Proposed: send `add vim bar to monthly`, then `show monthly list`. | EasyOrder confirms the item was added and shows the named list scoped to the sender identity. | Proposed Task 10.4. | Build saved-list storage and command grammar. |
+| UI-28 | List-to-cart review | Proposed: send `add today's list to cart`, then open the generated review link. | PWA shows source-attributed items, substitutions/offers, and requires review before checkout. | Proposed Task 10.5. | Build list-to-session conversion and review gating. |
 
 ## Backend/API Tests Available After Issue #4
 

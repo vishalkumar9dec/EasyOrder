@@ -8,7 +8,7 @@ The architecture is presented in three layers: a high-level overview showing all
 
 ## 1. High-Level System Architecture & Request Flow
 
-The system is composed of five blocks: **WhatsApp** and **Mobile App (PWA)** as client ingress points on the left, the **EasyOrder Server** (containing the FastAPI application and LangGraph Agentic Framework) in the center, **Swiggy MCP** as the external commerce platform on the right, and **PostgreSQL (Supabase)** as the persistence and real-time sync layer at the bottom.
+The system is composed of five blocks: **WhatsApp** and **Mobile App (PWA)** as client ingress points on the left, the **EasyOrder Server** (containing the FastAPI application, intent router, and LangGraph Agentic Framework) in the center, **Swiggy MCP** as the external commerce platform on the right, and **PostgreSQL (Supabase)** as the persistence and real-time sync layer at the bottom.
 
 ```mermaid
 graph LR
@@ -20,8 +20,10 @@ graph LR
     subgraph SERVER [EasyOrder Server]
         direction LR
         FAPI[FastAPI App]
+        ROUTER[WhatsApp Intent Router]
         LG[LangGraph Agentic Framework]
-        FAPI <--> LG
+        FAPI <--> ROUTER
+        ROUTER <--> LG
     end
 
     %% ── Swiggy (Right) ──
@@ -32,7 +34,7 @@ graph LR
 
     %% ── Connections ──
     WA -->|Webhook Events| FAPI
-    FAPI -->|Send Template Messages| WA
+    FAPI -->|Send Interactive/Template Messages| WA
     APP -->|API Calls| FAPI
     APP <-->|Supabase Realtime| DB
     LG -->|Tool Calls: Search, Menu, Cart| SWIGGY
@@ -59,16 +61,29 @@ graph LR
 | Step | What happens | Components involved |
 |------|-------------|-------------------|
 | 1 | After the group agrees on a menu, the host sends `@EasyOrder get biryani for 4, budget ₹2000` to the EasyOrder WhatsApp business/test number | WhatsApp → EasyOrder Server |
-| 2 | FastAPI receives the webhook, validates Meta signature, filters for `@EasyOrder` tag | FastAPI App |
+| 2 | FastAPI receives the webhook, validates Meta signature, and classifies the message as mention-triggered planning or dedicated business-chat assistance | FastAPI App → Intent Router |
 | 3 | FastAPI creates a session ID and invokes the LangGraph agent with the raw prompt | FastAPI App → LangGraph |
 | 4 | Agent runs Input Guardrails (prompt injection check, PII sanitization) | LangGraph Agentic Framework |
 | 5 | Agent parses intent via LLM — extracts budget, headcount, dietary preferences | LangGraph → LLM (Gemini/GPT) |
 | 6 | Agent concurrently queries Swiggy Food and Instamart via MCP tool calls | LangGraph → Swiggy MCP |
 | 7 | Agent runs Output Guardrails (budget check, dietary validation, stock filter) | LangGraph Agentic Framework |
-| 8 | Agent writes the session record and recommended cart to PostgreSQL via Supabase | LangGraph → PostgreSQL (Supabase) |
-| 9 | FastAPI replies privately to the host's WhatsApp `wa_id` with the host link and shareable guest planning link | FastAPI App → WhatsApp |
-| 10 | The host shares the guest link as needed; group members open the Mobile App (PWA), collaborate on cart in real-time via Supabase Realtime channels | Mobile App ↔ PostgreSQL (Supabase) |
+| 8 | Agent writes the session record, initiating message event, and recommended cart to PostgreSQL via Supabase | LangGraph → PostgreSQL (Supabase) |
+| 9 | FastAPI replies privately to the host's WhatsApp `wa_id` with a CTA/template handoff or short-link fallback | FastAPI App → WhatsApp |
+| 10 | The host opens the PWA; the session timeline shows the initiating WhatsApp message, EasyOrder activity, and cart events | Mobile App ↔ FastAPI/PostgreSQL |
 | 11 | Host triggers checkout; FastAPI handles Swiggy OAuth and sequential cart creation | Mobile App → FastAPI App → Swiggy MCP |
+
+### Dedicated Business Chat Lifecycle
+
+The dedicated EasyOrder business chat reuses the same webhook and sender
+infrastructure but follows a different intent path:
+
+| Step | What happens | Components involved |
+|------|-------------|-------------------|
+| 1 | User opens the EasyOrder WhatsApp business account and sends `show monthly list`, `nearest best chole bhature`, or `what was my last order?` | WhatsApp → FastAPI |
+| 2 | FastAPI validates the webhook and routes the message as dedicated business-chat mode | FastAPI → Intent Router |
+| 3 | Intent Router classifies the request as saved list, discovery/offers, order history/status, share request, session planning, or unsupported | Intent Router |
+| 4 | Supported commerce intents call LangGraph and Swiggy MCP; saved-list intents call persistence directly when deterministic parsing is enough | Intent Router → LangGraph/PostgreSQL/Swiggy MCP |
+| 5 | EasyOrder replies in WhatsApp with a concise answer, CTA, or review link. It does not place orders without explicit review/checkout confirmation | FastAPI → WhatsApp |
 
 ---
 
@@ -81,9 +96,13 @@ This section zooms into the FastAPI application gateway — its routing structur
 ```text
 FastAPI Application (main.py)
 ├── GET  /api/whatsapp/webhook     → Webhook verification (Meta challenge-response)
-├── POST /api/whatsapp/webhook     → Message ingestion, @EasyOrder filtering, agent invocation
+├── POST /api/whatsapp/webhook     → Message ingestion, mode classification, intent routing, agent invocation
+├── GET  /api/session/{session_id} → Tokenized session bootstrap with redacted activity timeline
+├── POST /api/session/{session_id}/cart-items → Session-scoped cart mutations
 ├── POST /api/session/checkout     → Pre-checkout stock/price validation
 ├── POST /api/session/checkout/confirm → Swiggy OAuth code exchange + cart creation
+├── GET/POST /api/lists            → Saved list management
+├── POST /api/lists/{list_id}/convert → Convert saved list to reviewable session/cart
 └── Middleware: CORS, Rate Limiting, Request Logging
 ```
 
@@ -101,9 +120,23 @@ FastAPI Application (main.py)
 ### 2.4 Authentication & Token Separation
 * **Host Token:** SHA-256 derived, sent privately to the initiating WhatsApp `wa_id`. Grants full session control and checkout privileges.
 * **Guest Token:** Random UUID, sent to the host as a shareable planning link. Grants cart item read/write only.
+* **WhatsApp User Identity:** Initially keyed by sender `wa_id` for sandbox/local use. Production identity must account for verified business contact, consent, and any Swiggy OAuth user link before exposing order history or saved lists.
 * **Supabase Auth:** PWA clients authenticate via Supabase Anonymous Auth (or magic link). The JWT is passed in API headers and evaluated by RLS policies on every database operation.
 
-### 2.5 Local Development & Free-Tier Sandbox
+### 2.5 WhatsApp Message Timeline And Handoff
+* **Session Events:** The backend stores redacted timeline events for inbound
+  WhatsApp messages, EasyOrder handoff attempts, cart mutations, checkout
+  validation, and checkout confirmation.
+* **User-Facing Timeline:** The PWA renders these events so the host can see that
+  the phone message and the session canvas match.
+* **CTA Handoff:** Meta mode should use supported interactive/template messages
+  for `Review order` / `Open EasyOrder` when configured. If not available,
+  EasyOrder sends short branded links instead of long raw token URLs.
+* **Token Privacy:** Host tokens may exist inside signed/redirect URLs, but raw
+  token values must not appear in webhook responses, guest timelines, or share
+  summaries.
+
+### 2.6 Local Development & Free-Tier Sandbox
 * **WhatsApp Sandbox:** Meta's free developer sandbox supports 5 pre-registered test numbers at no cost.
 * **Webhook Tunneling:** `npx localtunnel --port 8000` or `ngrok http 8000` to expose the local FastAPI server to Meta's HTTPS webhook requirements.
 * **Local PostgreSQL:** `docker compose up db` starts PostgreSQL locally. No cloud account required. Supabase CLI (`npx supabase start`) optionally provides the full Supabase stack (Auth, Realtime, Storage) locally.

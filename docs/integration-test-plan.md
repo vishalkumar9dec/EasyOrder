@@ -28,6 +28,12 @@ Cloud API, Swiggy MCP server, Supabase Realtime, and Swiggy OAuth. The
 > tagged order prompts containing `@EasyOrder` are routed to the order-session
 > flow.
 
+> [!NOTE]
+> Proposed next-phase behavior is documented in the PRD and implementation plan
+> but not implemented yet: PWA message timeline, WhatsApp CTA/template handoff,
+> dedicated business-chat free-form intents, saved lists, order history/status,
+> offers, and safe group-share summaries.
+
 ---
 
 ## Prerequisites
@@ -152,6 +158,8 @@ Current status:
 | INT-06 | Host link opens from private/direct handoff | After session creation, open the generated host link from test helper/logs or a fixed direct WhatsApp response. | PWA session page loads with role `Host`, checkout eligibility, and no raw token values displayed. | Same as INT-05 |
 | INT-07 | Live direct-user outbound reply | Send a tagged prompt from the sandbox phone after configuring Meta credentials. | WhatsApp receives one private EasyOrder reply to the sender `wa_id` containing the private host link and shareable guest link. The webhook HTTP response must not contain `host_`. | `WHATSAPP_PROVIDER_MODE=meta`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` |
 | INT-08 | Free-form enquiry limitation | Send `what can you order for my party?` without `@EasyOrder`, then send `@EasyOrder what can you order for my party?`. | Untagged message is ignored. Tagged enquiry currently enters the order-session guardrail/parser path; there is no general Q&A answer route yet. | Same as INT-03 |
+| INT-09 | Session timeline proposal | After a tagged handset message creates a session, open the host or guest link. | Proposed next phase: PWA shows the initiating WhatsApp message and EasyOrder activity timeline without exposing host token material. | Task 10.1 |
+| INT-09a | WhatsApp CTA handoff proposal | Send a tagged handset message with Meta CTA/template mode configured. | Proposed next phase: WhatsApp shows a concise CTA such as `Review order`; fallback is a short branded link, not a long raw token URL. | Task 10.2 and approved/configured Meta message capability |
 
 **How to run:**
 
@@ -170,6 +178,20 @@ make frontend-dev
 # Then send WhatsApp messages from your registered sandbox test phone to the
 # Meta WhatsApp test/business number.
 ```
+
+---
+
+### Phase 1B: Dedicated Business Chat And Saved Lists (Proposed)
+
+These tests are intentionally marked proposed. They should not be considered
+passing criteria for the current MVP until Tasks 10.3-10.6 are implemented.
+
+| ID | Scenario | Steps | Expected result | Config required |
+|---|---|---|---|---|
+| INT-40 | Dedicated business-chat intent routing | In the EasyOrder business chat, send `get started`, `nearest best chole bhature`, and `what was my last order?`. | Messages route to onboarding/session, discovery, and order-history/status intents. Unsupported live history/status scopes return graceful responses. | Meta sandbox/business chat, Task 10.3 |
+| INT-41 | Saved-list short add grammar | Send `add vim bar to monthly`, then `show monthly list`. | EasyOrder stores the item against the sender identity and replies with the current named list. | Task 10.4 |
+| INT-42 | List-to-cart review | Send `add today's list to cart`. | EasyOrder creates a reviewable session/cart, explains substitutions/offers, and requires user review before checkout. | Tasks 10.4-10.5 |
+| INT-43 | Safe group-share command | Send `share the order details`. | EasyOrder asks for confirmation or generates a safe shareable summary/link that excludes host-only tokens and private account details. | Task 10.6 |
 
 ---
 

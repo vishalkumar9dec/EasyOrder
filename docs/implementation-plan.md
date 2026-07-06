@@ -15,6 +15,7 @@ This plan turns the EasyOrder PRD, HLD, LLD, ADRs, glossary, and diagrams into a
   - [ADR 0001: PostgreSQL (Supabase) for Real-Time Session State Synchronization](adr/0001-firestore-realtime-sync.md)
   - [ADR 0002: Sequential Checkout Splits for Food and Grocery Carts](adr/0002-sequential-checkout-splits.md)
   - [ADR 0003: Mention-Only Listening for the WhatsApp Group Bot](adr/0003-mention-only-webhook.md)
+  - [ADR 0004: Separate WhatsApp Operating Modes](adr/0004-whatsapp-operating-modes.md)
 
 ADR 0001 supersedes older Firestore/Firebase references in the PRD or README. The implementation should use PostgreSQL/Supabase for persistence, row-level security, and realtime collaboration.
 
@@ -28,6 +29,10 @@ ADR 0001 supersedes older Firestore/Firebase references in the PRD or README. Th
 6. Make degraded behavior visible and testable whenever Food, Instamart, LLM, OAuth, or Realtime dependencies fail.
 7. Preserve source attribution for every cart item: Food items must show restaurant identity, and Instamart items must show brand/source context when available.
 8. Never assume a single Swiggy Food checkout can contain multiple restaurants; split Food checkout work by restaurant before creating Swiggy carts.
+9. Treat WhatsApp as a product surface, not only a webhook transport. Messages that create or update sessions should become user-visible activity when useful.
+10. Keep operating modes explicit: mention-triggered planning, dedicated business-chat assistance, and saved-list management have different privacy and intent-routing rules.
+11. Prefer WhatsApp-native interactive/template handoffs for trusted calls to action, with short branded links as fallback. Do not rely on HTML-style `href` rendering in plain WhatsApp text.
+12. Never let conversational convenience override review-before-order. Saved lists and assistant replies can prepare carts, but checkout remains host/user confirmed.
 
 ## Recommended Repository Standards
 
@@ -167,6 +172,65 @@ Exit criteria:
 - Logs support debugging a session by `session_id`.
 - Runbooks exist for local setup, common failures, and release validation.
 
+### Phase 8: WhatsApp Product Surface Upgrade
+
+Turn the live WhatsApp integration from "working plumbing" into a user-facing
+product surface. This phase is the recommended next step after the current local
+MVP because it builds directly on the webhook/session/link infrastructure that
+already works.
+
+Exit criteria:
+
+- Incoming WhatsApp messages that create sessions are persisted as redacted
+  session activity events.
+- The PWA session route shows a compact timeline including the initiating message,
+  EasyOrder response, cart edits, validation, and checkout milestones.
+- Live Meta handoff uses a supported interactive CTA/template when configured,
+  and a concise short-link fallback otherwise.
+- Handoff copy clearly separates private host access from shareable guest access.
+- Operational logs and user-facing timeline events are correlated by
+  `request_id`, `message_id`, and `session_id` without exposing token material.
+
+### Phase 9: Dedicated EasyOrder Business Assistant
+
+Add a direct business-chat mode for users who open the EasyOrder WhatsApp
+business account and converse with it as a bot. This is not a replacement for
+the `@EasyOrder` group-planning trigger; it is a second intake mode for account
+and commerce assistance.
+
+Exit criteria:
+
+- The webhook classifies inbound messages into explicit intent families:
+  session planning, saved-list command, order history/status, discovery/offers,
+  share request, or unsupported request.
+- Free-form direct business-chat messages are allowed only in the dedicated chat
+  context; ordinary group/chat monitoring remains out of scope.
+- The assistant can answer safe discovery queries such as "nearest best chole
+  bhature" with source-attributed results.
+- The assistant can answer order-history/status questions only when the user
+  identity is linked and the required Swiggy scopes are available.
+- "Share order details in the group" requires an explicit user-selected target
+  or a generated shareable summary/link; EasyOrder must not leak host-only links.
+
+### Phase 10: Saved Lists And Wishlist-To-Cart
+
+Add persistent named lists for household, office, and recurring event orders.
+This is the strongest retention use case, but it depends on stable user identity
+and a clear confirmation loop.
+
+Exit criteria:
+
+- A user can create and manage named lists through short WhatsApp commands and
+  the PWA.
+- Short add grammar works for common flows, such as `@EasyOrder vim bar`,
+  `add vim bar to monthly`, `show monthly list`, and `add today's list to cart`.
+- List items preserve quantity hints, preferred brand/source where known, and
+  whether the item belongs to Food or Instamart.
+- Converting a list to a cart runs availability, substitution, offer, and
+  checkout-group checks before the user can place an order.
+- The user can review every substitution and offer-driven replacement before
+  checkout confirmation.
+
 ## Cross-Cutting Test Strategy
 
 ### Unit Tests
@@ -197,11 +261,16 @@ Use integration tests where behavior depends on infrastructure boundaries:
 Use browser/API tests for complete user flows:
 
 - Host starts a session from a tagged WhatsApp webhook payload.
+- Host sees the initiating WhatsApp message reflected in the PWA session timeline.
 - Guest opens the PWA link and edits cart items.
 - Two browser clients receive realtime cart updates.
 - Host sees checkout controls and guest does not.
 - Checkout validation detects unavailable items.
 - Host completes mocked sequential checkout for one restaurant, multiple restaurants, and Instamart.
+- Direct business-chat messages route to the correct assistant intent without
+  requiring `@EasyOrder`.
+- Saved list commands can add items, show the list, and convert it into a
+  reviewable cart.
 
 ### Manual Testing
 
@@ -212,6 +281,8 @@ Manual testing should verify:
 - Expected happy path.
 - One failure or degraded path.
 - Logs or UI state make the result understandable.
+- WhatsApp copy and CTA behavior on a real handset whenever message templates or
+  interactive messages are changed.
 
 ## Debugging Strategy
 
