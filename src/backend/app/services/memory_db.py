@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.models.session import CartItem, Session, SessionCreate, SessionStatus
+from app.models.session import CartItem, Session, SessionCreate, SessionEvent, SessionStatus
 from app.services.protocols import IDBAdapter, ISessionStore
 
 
@@ -13,7 +13,9 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
 
     def __init__(self) -> None:
         self.sessions: dict[str, Session] = {}
+        self.events: list[SessionEvent] = []
         self.next_cart_id = 1
+        self._next_event_id = 1
 
     async def create_session(
         self,
@@ -56,6 +58,19 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
     async def update_session_status(self, session_id: str, status: SessionStatus | str) -> None:
         if session := self.sessions.get(session_id):
             session.status = status  # type: ignore[assignment]
+
+    async def insert_session_event(self, event: SessionEvent) -> SessionEvent:
+        from datetime import UTC, datetime
+
+        stored = event.model_copy(
+            update={"id": self._next_event_id, "created_at": datetime.now(UTC)}
+        )
+        self._next_event_id += 1
+        self.events.append(stored)
+        return stored
+
+    async def get_session_events(self, session_id: str) -> list[SessionEvent]:
+        return [e for e in self.events if e.session_id == session_id]
 
     def _assign_cart(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
         assigned: list[CartItem] = []

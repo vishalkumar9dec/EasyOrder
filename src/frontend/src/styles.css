@@ -1762,3 +1762,111 @@ ul, ol {
     scroll-behavior: auto !important;
   }
 }
+
+/* =============================================
+   MESSAGE TIMELINE (Task 10.1)
+   ============================================= */
+.message-timeline {
+  margin: 2rem auto;
+  max-width: 760px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
+.timeline-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+.timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  position: relative;
+  padding-bottom: 1.25rem;
+}
+
+.timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+/* vertical connector line between items */
+.timeline-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 16px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-strong);
+}
+
+.timeline-dot {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--text-muted);
+  margin-top: 2px;
+}
+
+.timeline-item--whatsapp_inbound .timeline-dot {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.timeline-item--links_sent .timeline-dot {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.timeline-item--session_created .timeline-dot {
+  border-color: var(--accent-gold);
+  background: color-mix(in srgb, var(--accent-gold) 20%, transparent);
+}
+
+.timeline-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 0.2rem;
+}
+
+.timeline-message {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 0.25rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-style: italic;
+}
+
+.timeline-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+

@@ -203,3 +203,62 @@ def test_invalid_payload_returns_structured_error() -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Invalid WhatsApp webhook payload"
+
+
+def test_tagged_message_persists_inbound_and_links_sent_events() -> None:
+    """Webhook handler must write whatsapp_inbound and links_sent events."""
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    events_before = len(db.events)
+
+    response = TestClient(app).post(
+        "/api/whatsapp/webhook",
+        json=whatsapp_payload("@EasyOrder get biryani for 4"),
+    )
+
+    assert response.status_code == 200
+    new_events = db.events[events_before:]
+    event_types = [e.event_type for e in new_events]
+    assert "whatsapp_inbound" in event_types
+    assert "links_sent" in event_types
+
+
+def test_inbound_event_contains_message_text_and_sender() -> None:
+    """Inbound event must capture message text and sender wa_id."""
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    events_before = len(db.events)
+
+    TestClient(app).post(
+        "/api/whatsapp/webhook",
+        json=whatsapp_payload("@EasyOrder get coffee for 2"),
+    )
+
+    inbound = next(
+        (e for e in db.events[events_before:] if e.event_type == "whatsapp_inbound"),
+        None,
+    )
+    assert inbound is not None
+    assert inbound.message_text == "@EasyOrder get coffee for 2"
+    assert inbound.sender_wa_id == "919988776655"
+    assert inbound.message_id is not None
+
+
+def test_inbound_event_never_exposes_host_token_material() -> None:
+    """Inbound event must not contain host_, tokens, or secrets in message_text."""
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    events_before = len(db.events)
+
+    TestClient(app).post(
+        "/api/whatsapp/webhook",
+        json=whatsapp_payload("@EasyOrder biryani for 3"),
+    )
+
+    for event in db.events[events_before:]:
+        text = event.message_text or ""
+        assert "host_" not in text, "host_ prefix found in event message_text"
+        assert "token" not in text.lower(), "token material found in event message_text"
