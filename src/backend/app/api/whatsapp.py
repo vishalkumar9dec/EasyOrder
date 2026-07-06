@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
@@ -17,6 +19,17 @@ from app.services.swiggy_mcp import create_swiggy_client
 from app.services.whatsapp_sender import WhatsAppSendError
 
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
+logger = logging.getLogger("easyorder.api")
+terminal_logger = logging.getLogger("uvicorn.error")
+
+
+def log_webhook_event(event: str, **fields: object) -> None:
+    timestamp = datetime.now(UTC).isoformat()
+    event_fields = {"timestamp": timestamp, **fields}
+    field_text = " ".join(f"{key}={value}" for key, value in event_fields.items())
+    message = f"{event} {field_text}"
+    logger.info(message, extra={"event": event, **event_fields})
+    terminal_logger.info(message)
 
 
 def get_agent_service(request: Request) -> IAgentService:
@@ -93,11 +106,17 @@ async def ingest_webhook(
     whatsapp_sender: IWhatsAppSender = Depends(get_whatsapp_sender),
 ) -> dict[str, object]:
     raw_body = await request.body()
+    log_webhook_event(
+        "whatsapp_webhook_received",
+        bytes=len(raw_body),
+        provider_mode=settings.whatsapp_provider_mode,
+    )
     verify_signature(raw_body, x_hub_signature_256, settings)
 
     try:
         payload = WhatsAppWebhookPayload.model_validate_json(raw_body)
     except ValidationError as error:
+        log_webhook_event("whatsapp_webhook_invalid_payload", error_count=len(error.errors()))
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid WhatsApp webhook payload",
@@ -105,8 +124,14 @@ async def ingest_webhook(
 
     incoming_messages = extract_incoming_messages(payload)
     tagged_messages = [message for message in incoming_messages if message.is_easyorder_tagged]
+    log_webhook_event(
+        "whatsapp_webhook_parsed",
+        messages_seen=len(incoming_messages),
+        tagged_messages=len(tagged_messages),
+    )
 
     if not tagged_messages:
+        log_webhook_event("whatsapp_webhook_ignored", reason="no_easyorder_mention")
         return {
             "status": "ignored",
             "reason": "no_easyorder_mention",
@@ -118,6 +143,11 @@ async def ingest_webhook(
         try:
             result = await agent_service.initialize_tagged_message(message)
         except AgentRejectedPromptError as error:
+            log_webhook_event(
+                "whatsapp_prompt_rejected",
+                message_id=message.message_id,
+                sender_id=message.sender_id,
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Tagged message was rejected by input guardrails",
@@ -135,6 +165,13 @@ async def ingest_webhook(
         )
         try:
             if settings.whatsapp_provider_mode == "meta":
+                log_webhook_event(
+                    "whatsapp_handoff_sending",
+                    message_id=message.message_id,
+                    session_id=session.session_id,
+                    recipient_id=message.sender_id,
+                    channel="private",
+                )
                 await whatsapp_sender.send_private_message(
                     message.sender_id,
                     build_direct_user_session_message(guest_link, host_link),
@@ -149,10 +186,23 @@ async def ingest_webhook(
                     build_private_host_message(host_link),
                 )
         except WhatsAppSendError as error:
+            log_webhook_event(
+                "whatsapp_handoff_failed",
+                message_id=message.message_id,
+                session_id=session.session_id,
+                recipient_id=message.sender_id,
+                error=error,
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Session was created but WhatsApp handoff failed",
             ) from error
+        log_webhook_event(
+            "whatsapp_session_created",
+            message_id=message.message_id,
+            session_id=session.session_id,
+            recipient_id=message.sender_id,
+        )
         created_sessions.append(
             {
                 "session_id": session.session_id,

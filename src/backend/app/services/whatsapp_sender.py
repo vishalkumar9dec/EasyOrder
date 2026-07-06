@@ -114,7 +114,11 @@ class MetaCloudWhatsAppSender:
                 if response.status >= 400:
                     raise WhatsAppSendError(f"Meta WhatsApp send failed with {response.status}")
         except urllib.error.HTTPError as error:
-            raise WhatsAppSendError(f"Meta WhatsApp send failed with {error.code}") from error
+            body = error.read().decode("utf-8", errors="replace").strip()
+            detail = f"Meta WhatsApp send failed with {error.code}"
+            if body:
+                detail = f"{detail}: {body[:1000]}"
+            raise WhatsAppSendError(detail) from error
         except urllib.error.URLError as error:
             raise WhatsAppSendError("Meta WhatsApp send failed") from error
 

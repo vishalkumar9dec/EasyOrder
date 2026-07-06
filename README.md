@@ -197,6 +197,10 @@ WhatsApp handoff is direct-user only and replies to the inbound sender `wa_id`.
 
 ## Troubleshooting
 
+For live Meta WhatsApp webhook issues, especially when handset messages do not
+produce backend logs, see
+[docs/runbooks/whatsapp-webhook-troubleshooting.md](docs/runbooks/whatsapp-webhook-troubleshooting.md).
+
 If port `8000` is already in use, stop the old backend process or run the backend on a
 different port:
 
