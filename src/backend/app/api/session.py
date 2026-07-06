@@ -18,6 +18,7 @@ from app.models.session import (
     DietaryTag,
     Session,
     SessionBootstrapResponse,
+    SessionEvent,
     SessionRole,
     SessionStatus,
     Vertical,
@@ -77,7 +78,8 @@ async def get_session_bootstrap(
             detail="Invalid session token",
         )
 
-    return build_session_bootstrap_response(session, role)
+    timeline = await db.get_session_events(session_id)
+    return build_session_bootstrap_response(session, role, timeline=timeline)
 
 
 @router.post("/{session_id}/checkout")
@@ -305,6 +307,8 @@ def authorize_session_role(session: Session, token: str) -> SessionRole | None:
 def build_session_bootstrap_response(
     session: Session,
     role: SessionRole,
+    *,
+    timeline: list[SessionEvent] | None = None,
 ) -> SessionBootstrapResponse:
     return SessionBootstrapResponse(
         session_id=session.session_id,
@@ -318,6 +322,7 @@ def build_session_bootstrap_response(
         warnings=session.warnings,
         cart_items=[cart_item_response(item) for item in session.cart_items],
         checkout_eligible=is_checkout_eligible(session, role),
+        timeline=timeline or [],
     )
 
 

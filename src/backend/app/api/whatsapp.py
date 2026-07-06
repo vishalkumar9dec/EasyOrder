@@ -10,11 +10,12 @@ from fastapi.responses import PlainTextResponse
 from pydantic import ValidationError
 
 from app.config import Settings, get_settings
+from app.models.session import EventType, SessionEvent
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
 from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
 from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
-from app.services.protocols import IAgentService, IWhatsAppSender
+from app.services.protocols import IAgentService, IDBAdapter, IWhatsAppSender
 from app.services.swiggy_mcp import create_swiggy_client
 from app.services.whatsapp_sender import WhatsAppSendError
 
@@ -38,6 +39,10 @@ def get_agent_service(request: Request) -> IAgentService:
 
 def get_whatsapp_sender(request: Request) -> IWhatsAppSender:
     return request.app.state.whatsapp_sender
+
+
+def get_db_adapter(request: Request) -> IDBAdapter:
+    return request.app.state.db_adapter
 
 
 def build_session_link(base_url: str, session_id: str, token: str) -> str:
@@ -104,6 +109,7 @@ async def ingest_webhook(
     settings: Settings = Depends(get_settings),
     agent_service: IAgentService = Depends(get_agent_service),
     whatsapp_sender: IWhatsAppSender = Depends(get_whatsapp_sender),
+    db: IDBAdapter = Depends(get_db_adapter),
 ) -> dict[str, object]:
     raw_body = await request.body()
     log_webhook_event(
@@ -163,6 +169,21 @@ async def ingest_webhook(
             session.session_id,
             result.host_token,
         )
+        # --- Persist inbound event ---
+        request_id = request.headers.get("x-request-id", "")
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.WHATSAPP_INBOUND,
+                message_text=message.message_text,
+                message_id=message.message_id,
+                sender_wa_id=message.sender_id,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
+
         try:
             if settings.whatsapp_provider_mode == "meta":
                 log_webhook_event(
@@ -197,6 +218,18 @@ async def ingest_webhook(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Session was created but WhatsApp handoff failed",
             ) from error
+
+        # --- Persist outbound links_sent event ---
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.LINKS_SENT,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
+
         log_webhook_event(
             "whatsapp_session_created",
             message_id=message.message_id,
@@ -215,6 +248,14 @@ async def ingest_webhook(
         "status": "created",
         "sessions": created_sessions,
     }
+
+
+async def _try_insert_event(db: IDBAdapter, event: SessionEvent) -> None:
+    """Best-effort event persistence — log on failure, never raise."""
+    try:
+        await db.insert_session_event(event)
+    except Exception:
+        logger.exception("session_event_insert_failed session_id=%s", event.session_id)
 
 
 def create_mock_agent_service() -> MockAgentService:
