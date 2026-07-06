@@ -176,20 +176,59 @@ When creating a new app from Meta UI:
    - Verify token: same value as `WHATSAPP_VERIFY_TOKEN`
    - Client certificate toggle: off for local testing
 6. In the **Webhook fields** table, subscribe `messages`.
-7. Ensure the app is subscribed to the WABA itself. The UI may show the callback
-   as verified while the WABA subscribed-apps list still does not contain your
-   app. Verify with:
+7. Ensure the EasyOrder app is subscribed to the WABA itself. This is the part
+   that fixed real handset delivery during the incident. The UI may show the
+   callback as verified, and may show the `messages` field as subscribed, while
+   the WABA subscribed-apps list still does not contain your app. Verify with:
 
    ```bash
    python3 scripts/test_whatsapp_api.py --check-subscription
    ```
 
+   The healthy response must include your app:
+
+   ```json
+   {
+     "whatsapp_business_api_data": {
+       "name": "easyorder",
+       "id": "823160707397760"
+     }
+   }
+   ```
+
+   Seeing Meta's `WA DevX Webhook Events 1P App` alone is not enough. That app
+   is Meta's internal test harness. It can make test webhook payloads appear in
+   the dashboard, but it does not mean real WABA events are being delivered to
+   EasyOrder.
 8. Restart the backend after changing `.env`:
 
    ```bash
    make dev-down
    make backend-dev
    ```
+
+### UI Equivalent Of The WABA Subscription Fix
+
+Meta changes this navigation often, but the concepts are stable:
+
+1. Open the exact Meta app used by EasyOrder: `823160707397760`.
+2. Open the WhatsApp product or the app-level **Webhooks** settings.
+3. Select the webhook object **WhatsApp Business Account**.
+4. Choose the WABA from Step 1: `27488993034053054`.
+5. Subscribe the app to that WABA.
+6. Subscribe the `messages` field.
+7. Save, then run:
+
+   ```bash
+   python3 scripts/test_whatsapp_api.py --check-subscription --waba-id 27488993034053054
+   ```
+
+If the output only lists `WA DevX Webhook Events 1P App`, real handset messages
+are still not wired to EasyOrder. The output should list both apps during local
+testing:
+
+- `easyorder` / `823160707397760`
+- `WA DevX Webhook Events 1P App` / `2202427980234937`
 
 ## Why We Used APIs Instead Of Only The UI
 
@@ -211,6 +250,125 @@ The API calls answered questions the UI did not make obvious:
 Using APIs also made the fix repeatable and auditable. The UI is still fine for
 initial setup, but Graph API checks should be used when behavior contradicts what
 the UI seems to show.
+
+## Exact Fix Applied During The Incident
+
+There were two separate Meta states to fix.
+
+### 1. Update The App Webhook Callback
+
+Before the fix, the app webhook subscription still pointed to an old tunnel:
+
+```text
+https://easyorder-api-dev.loca.lt/api/whatsapp/webhook
+```
+
+But the running backend tunnel was:
+
+```text
+https://chatty-horse-53.loca.lt/api/whatsapp/webhook
+```
+
+We updated the app subscription with this Graph API call:
+
+```http
+POST https://graph.facebook.com/v21.0/823160707397760/subscriptions
+Content-Type: application/x-www-form-urlencoded
+```
+
+Form body:
+
+```text
+object=whatsapp_business_account
+callback_url=https://chatty-horse-53.loca.lt/api/whatsapp/webhook
+verify_token=easyorder_webhook_verify_2026
+fields=messages
+access_token=823160707397760|<WHATSAPP_APP_SECRET>
+```
+
+Expected response:
+
+```json
+{"success": true}
+```
+
+This tells Meta which public backend URL to call for the EasyOrder app's
+`whatsapp_business_account` webhook subscription.
+
+### 2. Subscribe The EasyOrder App To The WABA
+
+Before the fix, `/{waba-id}/subscribed_apps` only showed Meta's DevX app:
+
+```json
+{
+  "data": [
+    {
+      "whatsapp_business_api_data": {
+        "category": "Business",
+        "link": "https://www.facebook.com/games/?app_id=2202427980234937",
+        "name": "WA DevX Webhook Events 1P App",
+        "id": "2202427980234937"
+      }
+    }
+  ]
+}
+```
+
+That meant the WABA was not delivering real events to the EasyOrder app, even
+though the Meta dashboard could still show test webhook payloads.
+
+We attached EasyOrder to the WABA with this Graph API call:
+
+```http
+POST https://graph.facebook.com/v21.0/27488993034053054/subscribed_apps
+Content-Type: application/x-www-form-urlencoded
+Authorization: Bearer <WHATSAPP_ACCESS_TOKEN>
+```
+
+Form body:
+
+```text
+access_token=<WHATSAPP_ACCESS_TOKEN>
+```
+
+Expected response:
+
+```json
+{"success": true}
+```
+
+After the fix, the subscribed-apps check showed both apps:
+
+```json
+{
+  "data": [
+    {
+      "whatsapp_business_api_data": {
+        "link": "https://www.facebook.com/games/?app_id=823160707397760",
+        "name": "easyorder",
+        "id": "823160707397760"
+      }
+    },
+    {
+      "whatsapp_business_api_data": {
+        "category": "Business",
+        "link": "https://www.facebook.com/games/?app_id=2202427980234937",
+        "name": "WA DevX Webhook Events 1P App",
+        "id": "2202427980234937"
+      }
+    }
+  ]
+}
+```
+
+That second state change was the key fix for real handset messages. The app
+callback decides where EasyOrder receives webhooks; the WABA subscribed-apps
+relationship decides whether this WABA delivers real events to EasyOrder at all.
+
+`WHATSAPP_PHONE_NUMBER_ID=1259090637280209` was unrelated to this inbound
+delivery issue. That value is used for outbound sends and replies. The inbound
+delivery relationship is controlled by the app subscription callback and the
+WABA subscribed-apps list.
 
 ## Meta APIs Used
 
