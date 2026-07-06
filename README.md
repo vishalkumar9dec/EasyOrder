@@ -228,10 +228,12 @@ and LLM behavior.
 ## Documentation
 
 - Product scope: `docs/easyorder-prd.md`
+- Product strategy narrative: `docs/product-documentation.md`
 - High-level design: `docs/hld.md`
 - Low-level design: `docs/lld.md`
 - Delivery plan: `docs/implementation-plan.md`
 - Task list: `docs/implementation-tasks.md`
+- WhatsApp operating modes ADR: `docs/adr/0004-whatsapp-operating-modes.md`
 - Domain glossary: `CONTEXT.md`
 - Local demo runbook: `docs/runbooks/local-demo.md`
 - Operations runbook: `docs/runbooks/operations.md`
