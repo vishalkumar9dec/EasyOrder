@@ -34,7 +34,9 @@ def test_request_logging_middleware_logs_timestamp(caplog) -> None:
         response = TestClient(app).get("/healthz", headers={"x-request-id": "req_test_456"})
 
     assert response.status_code == 200
-    request_log = next(record for record in caplog.records if record.message.startswith("request_complete"))
+    request_log = next(
+        record for record in caplog.records if record.message.startswith("request_complete")
+    )
     assert "timestamp=" in request_log.message
     assert "req_test_456" in request_log.message
     assert request_log.timestamp.endswith("+00:00")
