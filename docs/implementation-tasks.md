@@ -119,7 +119,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 15 | TBD | Task 10.1: WhatsApp message timeline in PWA | Proposed |
 | 16 | TBD | Task 10.2: WhatsApp-native CTA/template handoff | Proposed |
 | 17 | TBD | Task 10.3: Dedicated business-chat intent router | Proposed |
-| 18 | TBD | Task 10.4: Saved lists and short add grammar | Proposed |
+| 18 | TBD | Task 10.4: Saved lists and short add grammar | On Hold |
 | 19 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
 | 20 | TBD | Task 10.6: Order history/status and group-share commands | Proposed |
 
@@ -298,7 +298,9 @@ Debug strategy:
 - If messages are ignored, inspect mode classification first, then intent router
   output, then sender response.
 
-### Task 10.4: Saved Lists And Short Add Grammar
+### Task 10.4: [ON HOLD] Saved Lists And Short Add Grammar
+
+Status: ON HOLD (commands are currently too arbitrary)
 
 Objective: Let users maintain named order lists through concise WhatsApp commands
 and PWA controls.
