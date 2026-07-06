@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     whatsapp_provider_mode: str = "mock"
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""
+    whatsapp_waba_id: str = ""
     whatsapp_api_version: str = "v20.0"
 
     # External integrations

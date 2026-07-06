@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -44,15 +45,29 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
         session_match = SESSION_PATH_RE.search(request.url.path)
+        log_timestamp = datetime.now(UTC).isoformat()
+        session_id = session_match.group("session_id") if session_match else None
         logger.info(
-            "request_complete",
+            (
+                "request_complete "
+                "timestamp=%s request_id=%s method=%s path=%s status_code=%s "
+                "latency_ms=%s session_id=%s"
+            ),
+            log_timestamp,
+            request_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+            session_id,
             extra={
+                "timestamp": log_timestamp,
                 "request_id": request_id,
                 "method": request.method,
                 "path": request.url.path,
                 "status_code": response.status_code,
                 "latency_ms": elapsed_ms,
-                "session_id": session_match.group("session_id") if session_match else None,
+                "session_id": session_id,
             },
         )
         response.headers["x-request-id"] = request_id

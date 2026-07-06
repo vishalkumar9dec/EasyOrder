@@ -116,6 +116,8 @@ Meta WhatsApp send fails:
 - Symptom: `502 Session was created but WhatsApp handoff failed`.
 - Confirm sandbox access token, phone number id, and allowed recipient numbers.
 - Check Meta Graph API error code in provider logs.
+- For inbound handset messages that do not reach the backend, see
+  [WhatsApp Webhook Troubleshooting](whatsapp-webhook-troubleshooting.md).
 
 ## Release Validation Checklist
 

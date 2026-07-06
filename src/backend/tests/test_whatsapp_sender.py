@@ -1,4 +1,5 @@
 import json
+from io import BytesIO
 import urllib.error
 
 import pytest
@@ -56,14 +57,16 @@ def test_meta_sender_maps_graph_errors(monkeypatch) -> None:
             400,
             "bad request",
             hdrs=None,
-            fp=None,
+            fp=BytesIO(b'{"error":{"message":"Bad recipient","code":131030}}'),
         )
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
     sender = MetaCloudWhatsAppSender(access_token="test-token", phone_number_id="phone-123")
 
-    with pytest.raises(WhatsAppSendError):
+    with pytest.raises(WhatsAppSendError) as error:
         sender._send_text_message("919988776655", "hello")
+
+    assert "Bad recipient" in str(error.value)
 
 
 def test_whatsapp_sender_factory_selects_meta_mode() -> None:

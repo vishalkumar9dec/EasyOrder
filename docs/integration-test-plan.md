@@ -48,6 +48,7 @@ BACKEND_CORS_ORIGINS=http://localhost:5173,https://<frontend-tunnel-or-deployed-
 WHATSAPP_PROVIDER_MODE=meta
 WHATSAPP_ACCESS_TOKEN=<meta-sandbox-access-token>
 WHATSAPP_PHONE_NUMBER_ID=<meta-sandbox-phone-number-id>
+WHATSAPP_WABA_ID=<meta-whatsapp-business-account-id>
 WHATSAPP_APP_SECRET=<meta-webhook-app-secret>
 WHATSAPP_VERIFY_TOKEN=<your-chosen-verify-token>
 
@@ -84,6 +85,11 @@ API base URL supported by the current frontend build.
    - **Callback URL**: `https://<your-tunnel>/api/whatsapp/webhook`
    - **Verify token**: match `WHATSAPP_VERIFY_TOKEN` in `.env`
    - Subscribe to `messages` field.
+
+If handset messages do not produce backend logs, follow
+[WhatsApp Webhook Troubleshooting](runbooks/whatsapp-webhook-troubleshooting.md)
+to verify the actual app subscription callback URL and WABA subscribed-apps list
+through Meta Graph API.
 
 > [!TIP]
 > For end-to-end link opening, expose both backend and frontend:

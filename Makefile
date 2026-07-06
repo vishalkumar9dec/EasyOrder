@@ -4,9 +4,36 @@ BACKEND_PYTHON := src/backend/.venv/bin/python
 BACKEND_PORT ?= 8000
 FRONTEND_PORT ?= 5173
 
-.PHONY: setup up test backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-migrate db-rollback db-down smoke demo-smoke security-smoke
+.PHONY: setup up dev-down test check-ports backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-migrate db-rollback db-down smoke demo-smoke security-smoke
 
 setup: backend-install frontend-install
+
+check-ports:
+	@if lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "Port $(BACKEND_PORT) is already in use."; \
+		lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN; \
+		echo "Run 'make dev-down' to stop the local EasyOrder dev servers, or run with BACKEND_PORT=<free-port>."; \
+		exit 1; \
+	fi
+	@if lsof -nP -iTCP:$(FRONTEND_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "Port $(FRONTEND_PORT) is already in use."; \
+		lsof -nP -iTCP:$(FRONTEND_PORT) -sTCP:LISTEN; \
+		echo "Run 'make dev-down' to stop the local EasyOrder dev servers, or run with FRONTEND_PORT=<free-port>."; \
+		exit 1; \
+	fi
+
+dev-down:
+	@pids="$$(lsof -tiTCP:$(BACKEND_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \
+	if [ -n "$$pids" ]; then \
+		echo "Stopping backend process(es) on port $(BACKEND_PORT): $$pids"; \
+		kill $$pids; \
+	fi
+	@pids="$$(lsof -tiTCP:$(FRONTEND_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \
+	if [ -n "$$pids" ]; then \
+		echo "Stopping frontend process(es) on port $(FRONTEND_PORT): $$pids"; \
+		kill $$pids; \
+	fi
+	@$(MAKE) db-down
 
 up:
 	set -euo pipefail; \
@@ -24,6 +51,7 @@ up:
 	}; \
 	trap cleanup EXIT INT TERM; \
 	$(MAKE) setup; \
+	$(MAKE) check-ports; \
 	$(MAKE) db-up; \
 	db_started="1"; \
 	$(MAKE) db-migrate; \
@@ -46,7 +74,7 @@ backend-dev:
 	cd src/backend && .venv/bin/python -m uvicorn app.main:app --reload --port $(BACKEND_PORT)
 
 backend-test:
-	cd src/backend && WHATSAPP_PROVIDER_MODE=mock .venv/bin/python -m pytest
+	cd src/backend && APP_ENV=local PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= .venv/bin/python -m pytest
 
 backend-smoke:
 	cd src/backend && python3 -m compileall app tests
@@ -78,7 +106,7 @@ db-down:
 smoke: backend-smoke frontend-build
 
 demo-smoke:
-	WHATSAPP_PROVIDER_MODE=mock $(BACKEND_PYTHON) scripts/easyorder_demo_smoke.py
+	APP_ENV=local PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= $(BACKEND_PYTHON) scripts/easyorder_demo_smoke.py
 
 security-smoke:
-	WHATSAPP_PROVIDER_MODE=mock $(BACKEND_PYTHON) scripts/easyorder_security_smoke.py
+	APP_ENV=local PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= $(BACKEND_PYTHON) scripts/easyorder_security_smoke.py
