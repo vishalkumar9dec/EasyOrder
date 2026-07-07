@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import re
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -22,6 +23,14 @@ from app.services.whatsapp_sender import WhatsAppSendError
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
 logger = logging.getLogger("easyorder.api")
 terminal_logger = logging.getLogger("uvicorn.error")
+
+TIMELINE_REDACTION_PATTERNS = [
+    re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),
+    re.compile(r"\b(?:\+?91[-\s]?)?[6-9]\d{9}\b"),
+    re.compile(r"\b(?:\d[ -]*?){13,16}\b"),
+    re.compile(r"\bhost_[A-Za-z0-9_-]+\b"),
+    re.compile(r"\bguest_[A-Za-z0-9_-]+\b"),
+]
 
 
 def log_webhook_event(event: str, **fields: object) -> None:
@@ -63,6 +72,13 @@ def build_direct_user_session_message(guest_link: str, host_link: str) -> str:
         f"{host_link}\n\n"
         f"If you want others to review the planning canvas, share this guest link: {guest_link}"
     )
+
+
+def redact_timeline_message(message_text: str) -> str:
+    redacted = message_text
+    for pattern in TIMELINE_REDACTION_PATTERNS:
+        redacted = pattern.sub("[redacted]", redacted)
+    return redacted.strip()
 
 
 def verify_signature(raw_body: bytes, signature_header: str | None, settings: Settings) -> None:
@@ -176,7 +192,20 @@ async def ingest_webhook(
             SessionEvent(
                 session_id=session.session_id,
                 event_type=EventType.WHATSAPP_INBOUND,
-                message_text=message.message_text,
+                message_text=redact_timeline_message(message.message_text),
+                intent_label="start_session",
+                message_id=message.message_id,
+                sender_wa_id=message.sender_id,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.SESSION_CREATED,
+                intent_label="start_session",
                 message_id=message.message_id,
                 sender_wa_id=message.sender_id,
                 mode=settings.whatsapp_provider_mode,

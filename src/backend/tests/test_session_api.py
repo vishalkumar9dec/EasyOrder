@@ -538,3 +538,41 @@ def test_timeline_does_not_expose_host_tokens_or_secrets() -> None:
     assert result.session.host_token_hash not in raw, "host token hash leaked"
     assert "host_token" not in raw, "host_token key present in response"
 
+
+def test_cart_mutation_responses_preserve_timeline_events() -> None:
+    """Cart mutation bootstrap responses should not make the UI Activity strip disappear."""
+    from app.models.session import EventType, SessionEvent
+    from app.services.memory_db import InMemoryDBAdapter
+
+    app, result = create_initialized_session()
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    run(
+        db.insert_session_event(
+            SessionEvent(
+                session_id=result.session.session_id,
+                event_type=EventType.WHATSAPP_INBOUND,
+                message_text="@EasyOrder get biryani for 4",
+                sender_wa_id="919988776655",
+                message_id="wamid.timeline-mutation",
+            )
+        )
+    )
+
+    response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/cart-items",
+        params={"token": result.session.guest_token},
+        json={
+            "name": "Paper plates",
+            "quantity": 1,
+            "price": "80.00",
+            "dietary_tag": "ANY",
+            "vertical": "instamart",
+            "brand_name": "EasyServe",
+            "source_label": "Instamart Mock Store",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["timeline"]
+    assert body["timeline"][0]["event_type"] == "whatsapp_inbound"
