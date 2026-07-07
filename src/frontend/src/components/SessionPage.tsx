@@ -405,6 +405,7 @@ function SessionCanvas({
 function MessageTimeline({ events }: { events: ApiSessionEvent[] }) {
   function eventLabel(type: ApiSessionEvent['event_type']): string {
     if (type === 'whatsapp_inbound') return 'WhatsApp message received';
+    if (type === 'session_created') return 'Session created';
     if (type === 'links_sent') return 'Session links sent';
     return type;
   }

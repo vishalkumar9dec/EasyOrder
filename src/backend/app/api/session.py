@@ -220,7 +220,8 @@ async def create_cart_item(
         session.session_id,
         [*session.cart_items, cart_item],
     )
-    return build_session_bootstrap_response(session, role)
+    timeline = await db.get_session_events(session.session_id)
+    return build_session_bootstrap_response(session, role, timeline=timeline)
 
 
 @router.patch("/{session_id}/cart-items/{cart_item_id}")
@@ -243,7 +244,8 @@ async def update_cart_item(
     else:
         next_items[index] = updated
     session.cart_items = await db.update_cart_items(session.session_id, next_items)
-    return build_session_bootstrap_response(session, role)
+    timeline = await db.get_session_events(session.session_id)
+    return build_session_bootstrap_response(session, role, timeline=timeline)
 
 
 @router.delete("/{session_id}/cart-items/{cart_item_id}")
@@ -258,7 +260,8 @@ async def delete_cart_item(
     next_items = [*session.cart_items]
     next_items.pop(index)
     session.cart_items = await db.update_cart_items(session.session_id, next_items)
-    return build_session_bootstrap_response(session, role)
+    timeline = await db.get_session_events(session.session_id)
+    return build_session_bootstrap_response(session, role, timeline=timeline)
 
 
 async def get_authorized_session(
