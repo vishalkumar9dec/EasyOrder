@@ -134,6 +134,16 @@ class Session(BaseModel):
         return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
+class SessionEvent(BaseModel):
+    """Ledger entry marking an inbound message as processed, for idempotent webhooks."""
+
+    id: int | None = None
+    message_id: str
+    event_type: str
+    session_id: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class SessionInitResponse(BaseModel):
     """Response returned after a tagged prompt initializes a session."""
 
