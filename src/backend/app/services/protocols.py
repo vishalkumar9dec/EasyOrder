@@ -9,7 +9,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Protocol
 
-from app.models.session import CartItem, Session, SessionCreate, SessionInitResult, SessionStatus
+from app.models.session import (
+    CartItem,
+    Session,
+    SessionCreate,
+    SessionEvent,
+    SessionInitResult,
+    SessionStatus,
+)
 from app.models.whatsapp import IncomingMessage
 
 
@@ -121,4 +128,12 @@ class IDBAdapter(Protocol):
 
     async def update_session_status(self, session_id: str, status: SessionStatus | str) -> None:
         """Update session lifecycle status."""
+        ...
+
+    async def get_session_event(self, message_id: str, event_type: str) -> SessionEvent | None:
+        """Return the recorded event for a processed message, or None."""
+        ...
+
+    async def insert_session_event(self, event: SessionEvent) -> SessionEvent | None:
+        """Record a processed message; return None if it was already recorded."""
         ...

@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from decimal import Decimal
 from typing import Any
 
-from app.models.session import CartItem, Session, SessionCreate, SessionStatus
+from app.models.session import CartItem, Session, SessionCreate, SessionEvent, SessionStatus
 
 
 class DatabaseAdapterError(RuntimeError):
@@ -172,6 +172,43 @@ class AsyncPostgresDBAdapter:
             )
             if result == "UPDATE 0":
                 raise SessionNotFoundError(f"Session {session_id} was not found")
+        finally:
+            await self._close_connection(connection)
+
+    async def get_session_event(self, message_id: str, event_type: str) -> SessionEvent | None:
+        """Return the recorded event for a processed message, or None."""
+
+        connection = await self._connection_factory()
+        try:
+            row = await connection.fetchrow(
+                """
+                SELECT * FROM session_events
+                WHERE message_id = $1 AND event_type = $2
+                """,
+                message_id,
+                event_type,
+            )
+            return SessionEvent(**dict(row)) if row is not None else None
+        finally:
+            await self._close_connection(connection)
+
+    async def insert_session_event(self, event: SessionEvent) -> SessionEvent | None:
+        """Record a processed message; return None if it was already recorded."""
+
+        connection = await self._connection_factory()
+        try:
+            row = await connection.fetchrow(
+                """
+                INSERT INTO session_events (message_id, event_type, session_id)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (message_id, event_type) DO NOTHING
+                RETURNING *
+                """,
+                event.message_id,
+                event.event_type,
+                event.session_id,
+            )
+            return SessionEvent(**dict(row)) if row is not None else None
         finally:
             await self._close_connection(connection)
 

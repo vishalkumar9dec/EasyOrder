@@ -1,9 +1,10 @@
 from pathlib import Path
 
-MIGRATION = Path(__file__).parents[3] / "infra" / "migrations" / "0001_session_persistence.sql"
-DOWN_MIGRATION = (
-    Path(__file__).parents[3] / "infra" / "migrations" / "0001_session_persistence.down.sql"
-)
+MIGRATIONS_DIR = Path(__file__).parents[3] / "infra" / "migrations"
+MIGRATION = MIGRATIONS_DIR / "0001_session_persistence.sql"
+DOWN_MIGRATION = MIGRATIONS_DIR / "0001_session_persistence.down.sql"
+EVENTS_MIGRATION = MIGRATIONS_DIR / "0002_session_events.sql"
+EVENTS_DOWN_MIGRATION = MIGRATIONS_DIR / "0002_session_events.down.sql"
 
 
 def test_session_persistence_migration_defines_required_tables_constraints_and_indexes() -> None:
@@ -52,3 +53,22 @@ def test_session_persistence_down_migration_drops_owned_objects() -> None:
     assert "DROP POLICY IF EXISTS sessions_read ON sessions" in sql
     assert "DROP TABLE IF EXISTS cart_items" in sql
     assert "DROP TABLE IF EXISTS sessions" in sql
+
+
+def test_session_events_migration_defines_dedupe_table_and_unique_index() -> None:
+    sql = EVENTS_MIGRATION.read_text()
+
+    assert "CREATE TABLE IF NOT EXISTS session_events" in sql
+    assert "message_id TEXT NOT NULL" in sql
+    assert "event_type TEXT NOT NULL" in sql
+    assert "REFERENCES sessions(session_id) ON DELETE SET NULL" in sql
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_session_events_message_id_event_type" in sql
+    assert "ON session_events (message_id, event_type)" in sql
+    assert "ALTER TABLE session_events ENABLE ROW LEVEL SECURITY" in sql
+
+
+def test_session_events_down_migration_drops_owned_objects() -> None:
+    sql = EVENTS_DOWN_MIGRATION.read_text()
+
+    assert "DROP INDEX IF EXISTS idx_session_events_message_id_event_type" in sql
+    assert "DROP TABLE IF EXISTS session_events" in sql

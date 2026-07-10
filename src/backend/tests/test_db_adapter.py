@@ -5,7 +5,14 @@ from decimal import Decimal
 import pytest
 
 from app.db.adapter import AsyncPostgresDBAdapter, SessionNotFoundError
-from app.models.session import CartItem, DietaryTag, SessionCreate, SessionStatus, Vertical
+from app.models.session import (
+    CartItem,
+    DietaryTag,
+    SessionCreate,
+    SessionEvent,
+    SessionStatus,
+    Vertical,
+)
 
 
 class FakeTransaction:
@@ -23,6 +30,7 @@ class FakeConnection:
     def __init__(self) -> None:
         self.sessions: dict[str, dict] = {}
         self.cart_items: list[dict] = []
+        self.session_events: list[dict] = []
         self.transaction_depth = 0
         self.next_cart_id = 1
 
@@ -51,6 +59,33 @@ class FakeConnection:
 
         if "SELECT * FROM sessions" in sql:
             return self.sessions.get(args[0])
+
+        if "INSERT INTO session_events" in sql:
+            already_recorded = any(
+                event["message_id"] == args[0] and event["event_type"] == args[1]
+                for event in self.session_events
+            )
+            if already_recorded:
+                return None
+            row = {
+                "id": len(self.session_events) + 1,
+                "message_id": args[0],
+                "event_type": args[1],
+                "session_id": args[2],
+                "created_at": datetime.now(UTC),
+            }
+            self.session_events.append(row)
+            return row
+
+        if "FROM session_events" in sql:
+            return next(
+                (
+                    event
+                    for event in self.session_events
+                    if event["message_id"] == args[0] and event["event_type"] == args[1]
+                ),
+                None,
+            )
 
         raise AssertionError(f"Unexpected fetchrow SQL: {sql}")
 
@@ -190,3 +225,44 @@ def test_adapter_raises_for_missing_session_cart_or_status_updates() -> None:
 
     with pytest.raises(SessionNotFoundError):
         run(adapter.update_session_status("missing", SessionStatus.ACTIVE))
+
+
+def test_adapter_records_session_event_exactly_once() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    event = SessionEvent(
+        message_id="wamid.dedupe",
+        event_type="whatsapp_tagged_message",
+        session_id="session_abc123",
+    )
+
+    first = run(adapter.insert_session_event(event))
+    second = run(adapter.insert_session_event(event))
+
+    assert first is not None
+    assert first.message_id == "wamid.dedupe"
+    assert second is None
+    assert len(connection.session_events) == 1
+
+
+def test_adapter_gets_session_event_by_message_id_and_type() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    run(
+        adapter.insert_session_event(
+            SessionEvent(
+                message_id="wamid.lookup",
+                event_type="whatsapp_tagged_message",
+                session_id="session_abc123",
+            )
+        )
+    )
+
+    found = run(adapter.get_session_event("wamid.lookup", "whatsapp_tagged_message"))
+    missing = run(adapter.get_session_event("wamid.other", "whatsapp_tagged_message"))
+    wrong_type = run(adapter.get_session_event("wamid.lookup", "other_event"))
+
+    assert found is not None
+    assert found.session_id == "session_abc123"
+    assert missing is None
+    assert wrong_type is None

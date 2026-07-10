@@ -10,17 +10,20 @@ from fastapi.responses import PlainTextResponse
 from pydantic import ValidationError
 
 from app.config import Settings, get_settings
+from app.models.session import SessionEvent
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
 from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
 from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
-from app.services.protocols import IAgentService, IWhatsAppSender
+from app.services.protocols import IAgentService, IDBAdapter, IWhatsAppSender
 from app.services.swiggy_mcp import create_swiggy_client
 from app.services.whatsapp_sender import WhatsAppSendError
 
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
 logger = logging.getLogger("easyorder.api")
 terminal_logger = logging.getLogger("uvicorn.error")
+
+TAGGED_MESSAGE_EVENT_TYPE = "whatsapp_tagged_message"
 
 
 def log_webhook_event(event: str, **fields: object) -> None:
@@ -38,6 +41,10 @@ def get_agent_service(request: Request) -> IAgentService:
 
 def get_whatsapp_sender(request: Request) -> IWhatsAppSender:
     return request.app.state.whatsapp_sender
+
+
+def get_db_adapter(request: Request) -> IDBAdapter:
+    return request.app.state.db_adapter
 
 
 def build_session_link(base_url: str, session_id: str, token: str) -> str:
@@ -104,6 +111,7 @@ async def ingest_webhook(
     settings: Settings = Depends(get_settings),
     agent_service: IAgentService = Depends(get_agent_service),
     whatsapp_sender: IWhatsAppSender = Depends(get_whatsapp_sender),
+    db_adapter: IDBAdapter = Depends(get_db_adapter),
 ) -> dict[str, object]:
     raw_body = await request.body()
     log_webhook_event(
@@ -139,7 +147,20 @@ async def ingest_webhook(
         }
 
     created_sessions = []
+    duplicate_message_ids = []
     for message in tagged_messages:
+        existing_event = await db_adapter.get_session_event(
+            message.message_id,
+            TAGGED_MESSAGE_EVENT_TYPE,
+        )
+        if existing_event is not None:
+            log_webhook_event(
+                "whatsapp_webhook_duplicate",
+                message_id=message.message_id,
+                session_id=existing_event.session_id,
+            )
+            duplicate_message_ids.append(message.message_id)
+            continue
         try:
             result = await agent_service.initialize_tagged_message(message)
         except AgentRejectedPromptError as error:
@@ -197,6 +218,15 @@ async def ingest_webhook(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Session was created but WhatsApp handoff failed",
             ) from error
+        # Recorded only after a successful handoff: a failed send returns 502
+        # without an event, so Meta's retry can still deliver the links.
+        await db_adapter.insert_session_event(
+            SessionEvent(
+                message_id=message.message_id,
+                event_type=TAGGED_MESSAGE_EVENT_TYPE,
+                session_id=session.session_id,
+            )
+        )
         log_webhook_event(
             "whatsapp_session_created",
             message_id=message.message_id,
@@ -211,10 +241,19 @@ async def ingest_webhook(
             }
         )
 
-    return {
+    if not created_sessions:
+        return {
+            "status": "duplicate",
+            "duplicates": duplicate_message_ids,
+        }
+
+    response: dict[str, object] = {
         "status": "created",
         "sessions": created_sessions,
     }
+    if duplicate_message_ids:
+        response["duplicates"] = duplicate_message_ids
+    return response
 
 
 def create_mock_agent_service() -> MockAgentService:

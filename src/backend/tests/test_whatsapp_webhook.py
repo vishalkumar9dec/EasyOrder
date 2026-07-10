@@ -7,10 +7,13 @@ from app.api.whatsapp import verify_signature
 from app.config import Settings, get_settings
 from app.main import app
 from app.services.mock_agent import MockAgentService
-from app.services.whatsapp_sender import MockWhatsAppSender
+from app.services.whatsapp_sender import MockWhatsAppSender, WhatsAppSendError
 
 
-def whatsapp_payload(message_text: str = "@EasyOrder get biryani for 4") -> dict:
+def whatsapp_payload(
+    message_text: str = "@EasyOrder get biryani for 4",
+    message_id: str = "wamid.test",
+) -> dict:
     return {
         "object": "whatsapp_business_account",
         "entry": [
@@ -29,7 +32,7 @@ def whatsapp_payload(message_text: str = "@EasyOrder get biryani for 4") -> dict
                             "messages": [
                                 {
                                     "from": "919988776655",
-                                    "id": "wamid.test",
+                                    "id": message_id,
                                     "timestamp": "1782489000",
                                     "type": "text",
                                     "text": {"body": message_text},
@@ -121,7 +124,10 @@ def test_tagged_message_creates_mock_session() -> None:
 
     response = TestClient(app).post(
         "/api/whatsapp/webhook",
-        json=whatsapp_payload("@EasyOrder get biryani for 4 under 2000"),
+        json=whatsapp_payload(
+            "@EasyOrder get biryani for 4 under 2000",
+            message_id="wamid.tagged-session",
+        ),
     )
 
     assert response.status_code == 200
@@ -157,7 +163,10 @@ def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
     try:
         response = TestClient(app).post(
             "/api/whatsapp/webhook",
-            json=whatsapp_payload("@EasyOrder 3 egg rolls and 1 lassi under 2500"),
+            json=whatsapp_payload(
+                "@EasyOrder 3 egg rolls and 1 lassi under 2500",
+                message_id="wamid.meta-handoff",
+            ),
         )
     finally:
         app.state.whatsapp_sender = original_sender
@@ -173,6 +182,56 @@ def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
     assert "host_" in handoff_message.text
     assert "guest_" in handoff_message.text
     assert "host_" not in str(response.json())
+
+
+def test_retried_webhook_delivery_creates_one_session_and_one_handoff() -> None:
+    client = TestClient(app)
+    agent_service = app.state.agent_service
+    sender = app.state.whatsapp_sender
+    payload = whatsapp_payload(
+        "@EasyOrder snacks for 6 under 1500",
+        message_id="wamid.retried-delivery",
+    )
+
+    first = client.post("/api/whatsapp/webhook", json=payload)
+    sessions_after_first = len(agent_service.store.sessions)
+    messages_after_first = len(sender.sent_messages)
+
+    second = client.post("/api/whatsapp/webhook", json=payload)
+
+    assert first.status_code == 200
+    assert first.json()["status"] == "created"
+    assert second.status_code == 200
+    assert second.json() == {
+        "status": "duplicate",
+        "duplicates": ["wamid.retried-delivery"],
+    }
+    assert len(agent_service.store.sessions) == sessions_after_first
+    assert len(sender.sent_messages) == messages_after_first
+
+
+def test_failed_handoff_is_not_marked_duplicate_so_retry_can_deliver() -> None:
+    class FailingSender(MockWhatsAppSender):
+        async def send_group_message(self, group_id: str, text: str) -> None:
+            raise WhatsAppSendError("simulated send outage")
+
+    payload = whatsapp_payload(
+        "@EasyOrder lunch for 3 under 900",
+        message_id="wamid.retry-after-502",
+    )
+    original_sender = app.state.whatsapp_sender
+    app.state.whatsapp_sender = FailingSender()
+
+    try:
+        failed = TestClient(app).post("/api/whatsapp/webhook", json=payload)
+    finally:
+        app.state.whatsapp_sender = original_sender
+
+    retried = TestClient(app).post("/api/whatsapp/webhook", json=payload)
+
+    assert failed.status_code == 502
+    assert retried.status_code == 200
+    assert retried.json()["status"] == "created"
 
 
 def test_mock_sender_keeps_template_placeholders_disabled() -> None:
