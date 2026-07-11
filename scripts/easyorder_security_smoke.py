@@ -37,6 +37,15 @@ def set_message(fixture: dict, *, message_id: str, body: str) -> dict:
     return next_fixture
 
 
+def resolve_short_link(client: TestClient, short_url: str) -> str:
+    """Follow a short-link redirect and return the tokenized session URL."""
+    path = urlparse(short_url).path
+    response = client.get(path, follow_redirects=False)
+    if response.status_code != 307:
+        raise RuntimeError(f"Short link {path} did not redirect: {response.status_code}")
+    return response.headers["location"]
+
+
 def create_session(
     client: TestClient,
     sender: MockWhatsAppSender,
@@ -49,7 +58,12 @@ def create_session(
     session_id, guest_token = parse_session_link(body["sessions"][0]["guest_link"])
 
     group_message, private_message = sender.sent_messages[messages_before:]
-    host_session_id, host_token = parse_session_link(private_message.text.split()[-1])
+    host_short_url = private_message.text.split()[-1]
+    if "token=" in host_short_url or "host_" in host_short_url:
+        raise RuntimeError("Private host message must carry a short link, not a tokenized URL")
+    host_session_id, host_token = parse_session_link(
+        resolve_short_link(client, host_short_url)
+    )
     if host_session_id != session_id:
         raise RuntimeError("Host and guest links point at different sessions")
     if "host_" in group_message.text or "host_" in str(body):
@@ -115,8 +129,15 @@ def run_security_smoke() -> dict[str, object]:
         sender,
         second_fixture,
     )
-    assert "guest_" in group_text and "host_" not in group_text
-    checks.append("group_message_guest_only")
+    # Task 10.2: outbound copy carries opaque short links only — no raw token
+    # material of either kind may appear in the shared group message.
+    assert "guest_" not in group_text and "host_" not in group_text
+    assert "/api/r/" in group_text
+    guest_target = resolve_short_link(client, group_text.split()[-1])
+    resolved_session_id, resolved_guest_token = parse_session_link(guest_target)
+    assert resolved_session_id == first_session_id
+    assert resolved_guest_token == guest_token
+    checks.append("group_message_short_link_only")
 
     guest_bootstrap = client.get(
         f"/api/session/{first_session_id}",

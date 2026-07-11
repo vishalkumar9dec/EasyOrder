@@ -24,6 +24,15 @@ def parse_session_link(link: str) -> tuple[str, str]:
     return session_id, token
 
 
+def resolve_short_link(client: TestClient, short_url: str) -> str:
+    """Follow a short-link redirect and return the tokenized session URL."""
+    path = urlparse(short_url).path
+    response = client.get(path, follow_redirects=False)
+    if response.status_code != 307:
+        raise RuntimeError(f"Short link {path} did not redirect: {response.status_code}")
+    return response.headers["location"]
+
+
 def run_demo_smoke() -> dict[str, object]:
     app = create_app()
     client = TestClient(app)
@@ -40,7 +49,12 @@ def run_demo_smoke() -> dict[str, object]:
     private_messages = [message for message in sender.sent_messages if message.channel == "private"]
     if not private_messages:
         raise RuntimeError("Demo smoke did not capture the private host link")
-    _host_session_id, host_token = parse_session_link(private_messages[-1].text.split()[-1])
+    host_short_url = private_messages[-1].text.split()[-1]
+    if "token=" in host_short_url:
+        raise RuntimeError("Private host message must carry a short link, not a tokenized URL")
+    _host_session_id, host_token = parse_session_link(
+        resolve_short_link(client, host_short_url)
+    )
 
     guest_bootstrap = client.get(f"/api/session/{session_id}", params={"token": guest_token})
     guest_bootstrap.raise_for_status()
