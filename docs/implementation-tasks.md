@@ -122,7 +122,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 18 | TBD | Task 10.4: Saved lists and short add grammar | On Hold |
 | 19 | TBD | Task 10.7: Durable Postgres persistence wiring | In Review |
 | 20 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
-| 21 | TBD | Task 10.6: Order history/status and group-share commands | Proposed |
+| 21 | TBD | Task 10.6: Order history/status and group-share commands | Phase 1 In Review |
 
 ## PRD Traceability
 
@@ -445,6 +445,14 @@ Debug strategy:
 
 Objective: Add returning-user assistant commands after identity, lists, and
 session history are stable.
+
+Phase 1 (delivered): `what was my last order?` / order-status questions in the
+dedicated business chat are answered from EasyOrder's own durable session
+history — latest session for the sender `wa_id`: status phrase, item count,
+approx total, and a reusable guest short link. No Swiggy order scopes needed;
+replies state that live delivery tracking is not available yet. Requires
+Task 10.7 persistence for answers to survive restarts. Live Swiggy
+history/status/offers and share commands remain deferred (dependencies below).
 
 Dependencies: Tasks 10.3, 10.5 and available Swiggy order/status scopes.
 

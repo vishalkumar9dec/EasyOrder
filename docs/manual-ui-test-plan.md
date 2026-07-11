@@ -764,3 +764,54 @@ session, restart again, open the old link.
 
 **Expected:** Old links 404/unauthorized after restart (process-local stores),
 exactly as before this task; `readyz` shows `"database": "memory"`.
+
+
+---
+
+## Combined Verification: Task 10.7 (Persistence) + Task 10.6 Phase 1 (Order History)
+
+One sitting, one flow — exercises durable persistence and session-history
+answers together. Prerequisites: `make db-up && make db-migrate` (5 migrations),
+`PERSISTENCE_MODE=postgres` in `src/backend/.env`, backend restarted after the
+edit, tunnels up.
+
+### MT-COMBINED-A: Full flow with a restart in the middle
+
+1. **Confirm mode:** `curl -s localhost:8000/readyz` → `"database": "postgres_ok"`.
+2. **Fresh-history check:** from the handset, message the EasyOrder number
+   (no tag): `what was my last order?`
+   → Expected: "I don't have any orders for you yet…" (if you have ordered
+   before on this number, you get a summary instead — that is also correct).
+3. **Order:** send `get biryani for 4 under 2000`
+   → Expected: two button messages (Review order / Share with group).
+4. **History with data:** send `what was my last order?` again
+   → Expected: a summary — "Your last order is still being planned — started
+   <date, time>", item count, approx INR total, a `…/api/r/…` review link, and
+   "Live delivery tracking isn't available yet."
+   → The link must open YOUR session as guest. No `token=`, `host_`, or
+   `guest_` text anywhere in the reply.
+5. **THE RESTART:** stop the backend (Ctrl-C), start it again.
+6. **Everything survives:**
+   - Reload the session tab from step 3 → cart + Activity timeline intact.
+   - Tap the Review order button again → still works (short link durable).
+   - Ask `what was my last order?` once more → same summary, same review
+     link (the short link is reused, not re-minted).
+7. **Ghost-proofing:** replay the same webhook twice across a restart
+   (`python3 scripts/replay_whatsapp_webhook.py …`) → second response is
+   `{"status": "duplicate"}` — the dedup ledger survived the restart.
+
+### MT-COMBINED-B: Privacy isolation
+
+1. From a DIFFERENT WhatsApp number (or a fixture with another `wa_id`), ask
+   `what was my last order?`
+   → Expected: "I don't have any orders for you yet…" — never another
+   user's session. History is keyed strictly to the asking `wa_id`.
+2. The history reply must contain the **guest** review link only. Host access
+   stays exclusively behind the Review order button from the original handoff
+   (host tokens are stored hashed and cannot be reconstructed into links).
+
+### MT-COMBINED-C: Memory mode still degrades as designed
+
+Set `PERSISTENCE_MODE=memory`, restart, ask `what was my last order?`
+→ "I don't have any orders for you yet…" (fresh process, empty store), and
+old links are dead — the pre-10.7 behavior, unchanged by default.

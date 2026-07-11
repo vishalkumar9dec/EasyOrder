@@ -15,9 +15,15 @@ from app.db.adapter import AsyncPostgresDBAdapter
 from app.models.session import EventType, SessionEvent
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
 from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
-from app.services.intent_router import ChatMode, classify_chat_mode, route_business_chat_message
+from app.services.intent_router import (
+    ChatMode,
+    IntentFamily,
+    classify_chat_mode,
+    route_business_chat_message,
+)
 from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
+from app.services.order_history import answer_order_history
 from app.services.protocols import IAgentService, IDBAdapter, IShortLinkService, IWhatsAppSender
 from app.services.swiggy_mcp import create_swiggy_client
 from app.services.whatsapp_sender import SessionHandoff, WhatsAppSendError
@@ -178,9 +184,18 @@ async def ingest_webhook(
         if routed.creates_session:
             planning_messages.append(message)
             continue
-        if routed.reply_text:
+        reply_text = routed.reply_text
+        if routed.family == IntentFamily.ORDER_HISTORY_STATUS:
+            # Task 10.6 phase 1: answer from our own durable session history.
+            reply_text = await answer_order_history(
+                db,
+                short_links,
+                wa_id=message.sender_id,
+                public_app_base_url=settings.public_app_base_url,
+            )
+        if reply_text:
             try:
-                await whatsapp_sender.send_private_message(message.sender_id, routed.reply_text)
+                await whatsapp_sender.send_private_message(message.sender_id, reply_text)
             except WhatsAppSendError as error:
                 log_webhook_event(
                     "whatsapp_business_chat_reply_failed",
