@@ -141,7 +141,9 @@ def test_tagged_message_creates_mock_session() -> None:
     assert private_message.channel == "private"
     assert private_message.recipient_id == "919988776655"
     assert "host_" in private_message.text
+    assert "host_" not in group_message.text
     assert "host_" not in str(body)
+    assert "host_link" not in body["sessions"][0]
 
 
 def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
@@ -173,6 +175,7 @@ def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
     assert "host_" in handoff_message.text
     assert "guest_" in handoff_message.text
     assert "host_" not in str(response.json())
+    assert "host_link" not in response.json()["sessions"][0]
 
 
 def test_mock_sender_keeps_template_placeholders_disabled() -> None:
