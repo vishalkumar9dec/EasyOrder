@@ -625,17 +625,20 @@ See [whatsapp-handoff-templates.md](runbooks/whatsapp-handoff-templates.md).
 
 **Expected:**
 
-- The reply shows a **Review order** button (interactive CTA) or, on fallback,
-  short text with two `…/api/r/…` links.
+- **Two replies**: one with a **Review order** button (host view) and one with
+  an **Open planning canvas** button (guest view). On fallback, one short text
+  message with two `…/api/r/…` links.
 - **No** visible URL contains `token=`, `host_`, or `guest_`.
-- The body text includes a share line with the guest short link.
+- The second message's body also shows the guest short link as copyable text
+  for forwarding to the group.
 
 ### MT-10.2-B: Short links open the correct views
 
 **Steps:**
 
-1. Tap the **Review order** button (or the first short link).
-2. Separately open the guest short link from the share line in another browser.
+1. Tap the **Review order** button.
+2. Separately tap **Open planning canvas** (or copy the guest short link) in
+   another browser.
 
 **Expected:**
 

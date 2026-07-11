@@ -17,15 +17,19 @@ template contract, fallback rules, and short-link behavior.
 Mock mode captures the handoff object and its text fallback for assertions;
 group/private mock messages also carry short links only.
 
-## Interactive CTA Message
+## Interactive CTA Messages
 
-- Type: `interactive` / `cta_url`
-- Button text: `Review order`
-- Button URL: **host short link** (private view)
-- Body: session-ready copy plus the **guest short link** for sharing
+WhatsApp allows only **one URL button per interactive message**, so the CTA
+handoff sends **two messages**:
+
+1. Body: session-ready copy; button `Review order` → **host short link**.
+2. Body: share copy including the **guest short link** as copyable text
+   (so it can be forwarded to the group); button `Open planning canvas` →
+   the same guest short link.
 
 No approval process applies. Requires the 24h session window, which is always
 open for the initiating sender because they just messaged the business number.
+For a single message with both buttons, use the approved template below.
 
 ## Template Contract
 
@@ -37,8 +41,12 @@ The default template name we register is `easyorder_session_handoff`.
 | Template name | `WHATSAPP_HANDOFF_TEMPLATE_NAME` (suggested: `easyorder_session_handoff`) |
 | Language | `WHATSAPP_HANDOFF_TEMPLATE_LANGUAGE` (default `en`) |
 | Body variable `{{1}}` | Guest short URL (shareable planning canvas) |
-| URL button index 0 parameter | Host short URL (private review/checkout) |
+| URL button index 0 parameter | Host short URL (`Review order`, private review/checkout) |
+| URL button index 1 parameter | Guest short URL (`Open planning canvas`) |
 | Category | `UTILITY` |
+
+Templates support up to two URL buttons, which is why the approved template is
+the only way to get both links as buttons in a single message.
 
 Approval requirements:
 
