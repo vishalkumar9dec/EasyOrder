@@ -16,9 +16,9 @@ from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_message
 from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
 from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
-from app.services.protocols import IAgentService, IDBAdapter, IWhatsAppSender
+from app.services.protocols import IAgentService, IDBAdapter, IShortLinkService, IWhatsAppSender
 from app.services.swiggy_mcp import create_swiggy_client
-from app.services.whatsapp_sender import WhatsAppSendError
+from app.services.whatsapp_sender import SessionHandoff, WhatsAppSendError
 
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
 logger = logging.getLogger("easyorder.api")
@@ -54,24 +54,24 @@ def get_db_adapter(request: Request) -> IDBAdapter:
     return request.app.state.db_adapter
 
 
+def get_short_links(request: Request) -> IShortLinkService:
+    return request.app.state.short_links
+
+
+def build_session_path(session_id: str, token: str) -> str:
+    return f"/session/{session_id}?token={token}"
+
+
 def build_session_link(base_url: str, session_id: str, token: str) -> str:
-    return f"{base_url.rstrip('/')}/session/{session_id}?token={token}"
+    return f"{base_url.rstrip('/')}{build_session_path(session_id, token)}"
 
 
-def build_group_session_message(guest_link: str) -> str:
-    return f"EasyOrder is ready. Open the planning canvas: {guest_link}"
+def build_group_session_message(guest_short_url: str) -> str:
+    return f"EasyOrder is ready. Open the planning canvas: {guest_short_url}"
 
 
-def build_private_host_message(host_link: str) -> str:
-    return f"Your EasyOrder host link is ready. Keep this private: {host_link}"
-
-
-def build_direct_user_session_message(guest_link: str, host_link: str) -> str:
-    return (
-        "EasyOrder is ready. Review and place the order from your private host link: "
-        f"{host_link}\n\n"
-        f"If you want others to review the planning canvas, share this guest link: {guest_link}"
-    )
+def build_private_host_message(host_short_url: str) -> str:
+    return f"Your EasyOrder host link is ready. Keep this private: {host_short_url}"
 
 
 def redact_timeline_message(message_text: str) -> str:
@@ -126,6 +126,7 @@ async def ingest_webhook(
     agent_service: IAgentService = Depends(get_agent_service),
     whatsapp_sender: IWhatsAppSender = Depends(get_whatsapp_sender),
     db: IDBAdapter = Depends(get_db_adapter),
+    short_links: IShortLinkService = Depends(get_short_links),
 ) -> dict[str, object]:
     raw_body = await request.body()
     log_webhook_event(
@@ -193,11 +194,6 @@ async def ingest_webhook(
             session.session_id,
             session.guest_token,
         )
-        host_link = build_session_link(
-            settings.public_app_base_url,
-            session.session_id,
-            result.host_token,
-        )
         # --- Persist inbound event ---
         request_id = request.headers.get("x-request-id", "")
         await _try_insert_event(
@@ -239,6 +235,21 @@ async def ingest_webhook(
             ),
         )
 
+        # --- Short-link aliases: handoff copy never carries raw tokenized URLs ---
+        host_short_url = short_links.create_short_url(
+            settings.public_app_base_url,
+            build_session_path(session.session_id, result.host_token),
+        )
+        guest_short_url = short_links.create_short_url(
+            settings.public_app_base_url,
+            build_session_path(session.session_id, session.guest_token),
+        )
+        handoff = SessionHandoff(
+            session_id=session.session_id,
+            host_short_url=host_short_url,
+            guest_short_url=guest_short_url,
+        )
+
         try:
             if settings.whatsapp_provider_mode == "meta":
                 log_webhook_event(
@@ -248,18 +259,15 @@ async def ingest_webhook(
                     recipient_id=message.sender_id,
                     channel="private",
                 )
-                await whatsapp_sender.send_private_message(
-                    message.sender_id,
-                    build_direct_user_session_message(guest_link, host_link),
-                )
+                await whatsapp_sender.send_session_handoff(message.sender_id, handoff)
             else:
                 await whatsapp_sender.send_group_message(
                     message.phone_number_id,
-                    build_group_session_message(guest_link),
+                    build_group_session_message(guest_short_url),
                 )
                 await whatsapp_sender.send_private_message(
                     message.sender_id,
-                    build_private_host_message(host_link),
+                    build_private_host_message(host_short_url),
                 )
         except WhatsAppSendError as error:
             log_webhook_event(
@@ -269,10 +277,34 @@ async def ingest_webhook(
                 recipient_id=message.sender_id,
                 error=error,
             )
+            # Timeline records the failure so the UI never claims a delivery
+            # that WhatsApp did not make; Meta's retry will attempt again.
+            await _try_insert_event(
+                db,
+                SessionEvent(
+                    session_id=session.session_id,
+                    event_type=EventType.HANDOFF_FAILED,
+                    message_id=message.message_id,
+                    sender_wa_id=message.sender_id,
+                    mode=settings.whatsapp_provider_mode,
+                    request_id=request_id,
+                ),
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Session was created but WhatsApp handoff failed",
             ) from error
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.HANDOFF_DELIVERED,
+                message_id=message.message_id,
+                sender_wa_id=message.sender_id,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
         # Recorded only after a successful handoff: a failed send returns 502
         # without a ledger entry, so Meta's retry can still deliver the links.
         await db.insert_session_event(
@@ -295,6 +327,7 @@ async def ingest_webhook(
             {
                 "session_id": session.session_id,
                 "guest_link": guest_link,
+                "guest_short_link": guest_short_url,
                 "status": session.status,
             }
         )
