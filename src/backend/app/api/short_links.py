@@ -19,7 +19,7 @@ def get_short_link_service(request: Request) -> IShortLinkService:
 async def resolve_short_link(code: str, request: Request) -> RedirectResponse:
     short_links = get_short_link_service(request)
     settings: Settings = get_settings()
-    target_path = short_links.resolve(code)
+    target_path = await short_links.resolve(code)
     if target_path is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
