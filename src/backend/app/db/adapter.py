@@ -177,6 +177,30 @@ class AsyncPostgresDBAdapter:
         finally:
             await self._close_connection(connection)
 
+    async def list_sessions_for_host(self, host_phone: str, *, limit: int = 10) -> list[Session]:
+        """Read the most recent sessions created by a host wa_id, newest first."""
+
+        connection = await self._connection_factory()
+        try:
+            rows = await connection.fetch(
+                """
+                SELECT * FROM sessions
+                WHERE host_phone = $1
+                ORDER BY created_at DESC
+                LIMIT $2
+                """,
+                host_phone,
+                limit,
+            )
+            sessions = []
+            for row in rows:
+                session = self._session_from_row(row)
+                session.cart_items = await self._fetch_cart_items(connection, session.session_id)
+                sessions.append(session)
+            return sessions
+        finally:
+            await self._close_connection(connection)
+
     async def update_cart_items(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
         """Atomically replace the persisted cart for a session."""
 
