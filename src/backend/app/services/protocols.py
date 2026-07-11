@@ -145,6 +145,10 @@ class IDBAdapter(Protocol):
         """Retrieve a session and its cart by ID."""
         ...
 
+    async def get_latest_session_for_host(self, host_phone: str) -> Session | None:
+        """Retrieve the most recent session created by a host wa_id."""
+        ...
+
     async def update_cart_items(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
         """Replace a session cart with validated items."""
         ...

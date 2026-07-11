@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create HLD/LLD"
+  short_description: "Create architecture and LLD docs"
+  default_prompt: "Use $create-hld-lld to create HLD and LLD docs for this project from the product requirements."

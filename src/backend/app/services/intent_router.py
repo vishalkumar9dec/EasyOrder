@@ -51,6 +51,9 @@ class RoutedIntent:
     # message continues into the planning pipeline instead.
     reply_text: str | None
     creates_session: bool = False
+    # SHARE_REQUEST only: True when the message itself carries explicit
+    # confirmation ("share yes"), unlocking the forwardable summary.
+    share_confirmed: bool = False
 
 
 EXAMPLE_PROMPT = "get biryani for 4 under 2000"
@@ -117,6 +120,8 @@ _DISCOVERY_PATTERNS = [
     re.compile(r"\bsuggest\b"),
 ]
 
+_SHARE_CONFIRMATION = re.compile(r"\b(yes|confirm|go ahead|haan)\b")
+
 _ORDER_REQUEST_PATTERNS = [
     re.compile(r"\b(get|order|need|want|send)\b"),
     re.compile(r"\bunder\s+\d+"),
@@ -158,7 +163,8 @@ def route_business_chat_message(message_text: str) -> RoutedIntent:
     if any(pattern.search(normalized) for pattern in _SAVED_LIST_PATTERNS):
         return RoutedIntent(IntentFamily.SAVED_LIST_COMMAND, SAVED_LIST_REPLY)
     if "share" in normalized:
-        return RoutedIntent(IntentFamily.SHARE_REQUEST, SHARE_REPLY)
+        confirmed = _SHARE_CONFIRMATION.search(normalized) is not None
+        return RoutedIntent(IntentFamily.SHARE_REQUEST, SHARE_REPLY, share_confirmed=confirmed)
     if any(pattern.search(normalized) for pattern in _DISCOVERY_PATTERNS):
         return RoutedIntent(IntentFamily.DISCOVERY_OFFERS, DISCOVERY_REPLY)
     if any(pattern.search(normalized) for pattern in _ORDER_REQUEST_PATTERNS):
