@@ -7,12 +7,14 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.account import router as account_router
 from app.api.session import router as session_router
 from app.api.short_links import router as short_links_router
 from app.api.whatsapp import create_agent_service, create_db_adapter_for_settings
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
 from app.services.short_links import create_short_link_service
+from app.services.web_auth import create_auth_store
 from app.services.whatsapp_sender import create_whatsapp_sender
 
 logger = logging.getLogger("easyorder.api")
@@ -35,6 +37,7 @@ def create_app() -> FastAPI:
         handoff_template_language=settings.whatsapp_handoff_template_language,
     )
     app.state.short_links = create_short_link_service(settings)
+    app.state.auth_store = create_auth_store(settings)
 
     app.add_middleware(
         CORSMiddleware,
@@ -111,6 +114,7 @@ def create_app() -> FastAPI:
             "llm": settings.llm_mode,
         }
 
+    app.include_router(account_router)
     app.include_router(session_router)
     app.include_router(short_links_router)
     app.include_router(whatsapp_router)

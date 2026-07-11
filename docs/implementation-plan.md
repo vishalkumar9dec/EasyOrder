@@ -232,6 +232,22 @@ Exit criteria:
 - The user can review every substitution and offer-driven replacement before
   checkout confirmation.
 
+### Phase 11: Unified Identity And Account API Parity
+
+Give the PWA a real login (WhatsApp OTP, ADR 0006) and expose account
+features as HTTP APIs consumed by both surfaces. Chat-only account features
+are considered incomplete.
+
+Exit criteria:
+
+- A user can log in to the PWA with their phone number via a WhatsApp OTP.
+- Web sessions are HTTP-only cookies, hashed at rest, revocable, durable in
+  postgres persistence mode.
+- `GET /api/me/orders` returns the same order history the WhatsApp chat
+  answers with, authorized by the web session.
+- The PWA shows a My Orders view backed by the account API.
+- Webhook responders and the account API share one service layer.
+
 ## Cross-Cutting Test Strategy
 
 ### Unit Tests

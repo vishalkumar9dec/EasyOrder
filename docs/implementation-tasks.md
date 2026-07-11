@@ -123,6 +123,51 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 19 | TBD | Task 10.7: Durable Postgres persistence wiring | In Review |
 | 20 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
 | 21 | TBD | Task 10.6: Order history/status and group-share commands | Phases 1-2 In Review |
+| 22 | TBD | Task 11.1: WhatsApp OTP login and account API | In Review |
+| 23 | TBD | Task 11.2: PWA login screen and My Orders view | Proposed |
+
+### Task 11.1: WhatsApp OTP Login And Account API
+
+Objective: Real browser identity via WhatsApp OTP (ADR 0006) plus the first
+account API, so PWA and chat serve identical data from one service layer.
+
+Dependencies: Tasks 10.3, 10.6 phase 1, 10.7 (durable sessions).
+
+Implementation:
+
+- `POST /api/auth/otp/request` sends a 6-digit code to the phone's WhatsApp
+  via the existing sender (mock captures it locally).
+- `POST /api/auth/otp/verify` checks the hashed code (expiry + attempt
+  limits) and sets an HTTP-only `easyorder_web_session` cookie; opaque token
+  hashed at rest; durable in postgres mode. `POST /api/auth/logout` revokes.
+- `GET /api/me` returns the logged-in wa_id; `GET /api/me/orders` lists the
+  caller's sessions (status, items, total, reusable guest short link) from
+  the same order-history service the chat uses.
+- Auth storage behind an `IAuthStore` protocol with memory and postgres
+  implementations (migration 0006).
+
+Acceptance criteria:
+
+- Full login flow works offline in mock mode (code captured by mock sender).
+- Wrong code, expired code, and >5 attempts fail closed.
+- `/api/me/orders` returns only the caller's sessions and never host tokens.
+- Chat history answers and `/api/me/orders` derive from the same service.
+
+Automated tests: auth flow, negative paths, cookie session validation,
+orders API isolation, persistence-mode wiring.
+
+Manual test: request an OTP on the handset, log in via curl/PWA, list
+orders, restart the backend (postgres mode), confirm the cookie still works.
+
+### Task 11.2: PWA Login Screen And My Orders View
+
+Objective: Surface Task 11.1 in the PWA: phone + OTP login screen, session
+cookie handling, and a My Orders page (list, status, totals, open buttons)
+served by `/api/me/orders`.
+
+Dependencies: Task 11.1.
+
+Status: Proposed (next after 11.1).
 
 ## PRD Traceability
 

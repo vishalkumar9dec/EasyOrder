@@ -834,3 +834,32 @@ old links are dead — the pre-10.7 behavior, unchanged by default.
    → "I don't have any orders for you yet…" — never someone else's order.
 5. Restart the backend between steps 1 and 2 → `share yes` still works and
    reuses the same guest short link (durable, Task 10.7).
+
+---
+
+## Task 11.1 — WhatsApp OTP Login And Account API Manual Verification
+
+The PWA login screen ships in Task 11.2; until then verify the API with curl.
+
+### MT-11.1-A: Log in with a WhatsApp OTP and list your orders
+
+1. Backend up in postgres mode (`readyz` → `postgres_ok`), tunnels up,
+   `WHATSAPP_PROVIDER_MODE=meta`.
+2. Request a code (use your own WhatsApp number):
+   `curl -s -X POST localhost:8000/api/auth/otp/request -H 'Content-Type: application/json' -d '{"phone":"+91XXXXXXXXXX"}'`
+   → `{"status":"sent"}` and a WhatsApp message with a 6-digit code arrives.
+3. Verify and store the cookie:
+   `curl -s -c /tmp/eo.jar -X POST localhost:8000/api/auth/otp/verify -H 'Content-Type: application/json' -d '{"phone":"+91XXXXXXXXXX","code":"123456"}'`
+   → `{"status":"ok","wa_id":"91…"}`
+4. `curl -s -b /tmp/eo.jar localhost:8000/api/me/orders` → your sessions,
+   newest first, each with status, item count, total, and a `review_url`
+   short link that opens the session. **Same records the chat answers with.**
+5. Restart the backend → repeat step 4 with the same cookie jar → still 200
+   (web sessions are durable).
+
+### MT-11.1-B: Auth fails closed
+
+- Wrong code 5 times → 6th attempt with the REAL code is also rejected.
+- `/api/me` and `/api/me/orders` without the cookie → 401.
+- `POST /api/auth/logout` then retry with the old cookie → 401.
+- A second phone number logging in sees an empty orders list, never yours.
