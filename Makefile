@@ -74,7 +74,7 @@ backend-dev:
 	cd src/backend && .venv/bin/python -m uvicorn app.main:app --reload --port $(BACKEND_PORT)
 
 backend-test:
-	cd src/backend && APP_ENV=local PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= .venv/bin/python -m pytest
+	cd src/backend && APP_ENV=local PERSISTENCE_MODE=memory PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= .venv/bin/python -m pytest
 
 backend-smoke:
 	cd src/backend && python3 -m compileall app tests
@@ -113,7 +113,7 @@ db-down:
 smoke: backend-smoke frontend-build
 
 demo-smoke:
-	APP_ENV=local PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= $(BACKEND_PYTHON) scripts/easyorder_demo_smoke.py
+	APP_ENV=local PERSISTENCE_MODE=memory PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= $(BACKEND_PYTHON) scripts/easyorder_demo_smoke.py
 
 security-smoke:
-	APP_ENV=local PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= $(BACKEND_PYTHON) scripts/easyorder_security_smoke.py
+	APP_ENV=local PERSISTENCE_MODE=memory PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= $(BACKEND_PYTHON) scripts/easyorder_security_smoke.py
