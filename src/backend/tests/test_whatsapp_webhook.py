@@ -19,6 +19,7 @@ def whatsapp_payload(
     message_text: str = "@EasyOrder get biryani for 4",
     message_id: str | None = None,
     phone_number_id: str = "group_ipl_fans_1",
+    sender_wa_id: str = "919988776655",
 ) -> dict:
     if message_id is None:
         message_id = f"wamid.test-{next(_wamid_counter)}"
@@ -36,10 +37,10 @@ def whatsapp_payload(
                                 "display_phone_number": "15551234567",
                                 "phone_number_id": phone_number_id,
                             },
-                            "contacts": [{"wa_id": "919988776655"}],
+                            "contacts": [{"wa_id": sender_wa_id}],
                             "messages": [
                                 {
-                                    "from": "919988776655",
+                                    "from": sender_wa_id,
                                     "id": message_id,
                                     "timestamp": "1782489000",
                                     "type": "text",
@@ -390,7 +391,7 @@ def business_chat_settings() -> Settings:
     )
 
 
-def test_business_chat_history_question_gets_graceful_reply_without_session() -> None:
+def test_business_chat_history_question_without_sessions_gets_graceful_reply() -> None:
     sender = app.state.whatsapp_sender
     agent_service = app.state.agent_service
     sessions_before = len(agent_service.store.sessions)
@@ -403,6 +404,7 @@ def test_business_chat_history_question_gets_graceful_reply_without_session() ->
             json=whatsapp_payload(
                 "what was my last order?",
                 phone_number_id="business-42",
+                sender_wa_id="919900000001",
             ),
         )
     finally:
@@ -416,8 +418,71 @@ def test_business_chat_history_question_gets_graceful_reply_without_session() ->
     reply = sender.sent_messages[messages_before:]
     assert len(reply) == 1
     assert reply[0].channel == "private"
-    assert reply[0].recipient_id == "919988776655"
-    assert "coming soon" in reply[0].text
+    assert reply[0].recipient_id == "919900000001"
+    assert "don't have any orders" in reply[0].text
+
+
+def test_business_chat_history_question_summarizes_own_last_session() -> None:
+    sender = app.state.whatsapp_sender
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        created = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "get biryani for 4 under 2000",
+                phone_number_id="business-42",
+                sender_wa_id="919900000002",
+            ),
+        )
+        assert created.json()["status"] == "created"
+        messages_before = len(sender.sent_messages)
+
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "what was my last order?",
+                phone_number_id="business-42",
+                sender_wa_id="919900000002",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "routed"
+    reply = sender.sent_messages[messages_before:]
+    assert len(reply) == 1
+    text = reply[0].text
+    assert "Your last order" in text
+    assert "item(s)" in text
+    assert "/api/r/" in text
+    assert "token=" not in text
+    assert "host_" not in text
+    assert "guest_" not in text
+
+
+def test_business_chat_history_never_leaks_other_users_sessions() -> None:
+    sender = app.state.whatsapp_sender
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        messages_before = len(sender.sent_messages)
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "what was my last order?",
+                phone_number_id="business-42",
+                sender_wa_id="919900000003",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    reply = sender.sent_messages[messages_before:]
+    assert len(reply) == 1
+    assert "don't have any orders" in reply[0].text
 
 
 def test_business_chat_discovery_question_routes_to_discovery() -> None:
