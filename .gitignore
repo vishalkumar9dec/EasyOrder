@@ -28,3 +28,7 @@ coverage/
 # Docker
 *.pid
 docker-compose.override.yml
+
+# Claude Code local state
+.claude/worktrees/
+.claude/settings.local.json

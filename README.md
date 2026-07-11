@@ -237,3 +237,13 @@ and LLM behavior.
 - Domain glossary: `CONTEXT.md`
 - Local demo runbook: `docs/runbooks/local-demo.md`
 - Operations runbook: `docs/runbooks/operations.md`
+
+## Live WhatsApp Tunnel Helpers
+
+Localtunnel may return a different URL even when a subdomain is requested. Use
+the URL printed by localtunnel when configuring the Meta webhook callback.
+
+```bash
+npx -y localtunnel --port 8000 --subdomain easyorder-api-dev
+npx -y localtunnel --port 5173 --subdomain easyorder-web-dev
+```

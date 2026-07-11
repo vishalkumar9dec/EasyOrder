@@ -453,3 +453,156 @@ def test_checkout_confirm_reports_partial_failure() -> None:
         params={"token": result.host_token},
     )
     assert refreshed.json()["status"] == "CHECKOUT_PARTIAL"
+
+
+# ---------------------------------------------------------------------------
+# Timeline (Task 10.1) tests
+# ---------------------------------------------------------------------------
+
+
+def test_bootstrap_includes_empty_timeline_when_no_events_recorded() -> None:
+    """Bootstrap response must include a timeline field (empty list is valid)."""
+    app, result = create_initialized_session()
+
+    response = TestClient(app).get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.session.guest_token},
+    )
+
+    body = response.json()
+    assert "timeline" in body
+    assert isinstance(body["timeline"], list)
+
+
+def test_bootstrap_timeline_includes_persisted_events() -> None:
+    """Events inserted via db.insert_session_event must appear in the bootstrap timeline."""
+    import asyncio
+
+    from app.models.session import EventType, SessionEvent
+    from app.services.memory_db import InMemoryDBAdapter
+
+    app, result = create_initialized_session()
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+
+    asyncio.run(
+        db.insert_session_event(
+            SessionEvent(
+                session_id=result.session.session_id,
+                event_type=EventType.WHATSAPP_INBOUND,
+                message_text="@EasyOrder get biryani for 4",
+                sender_wa_id="919988776655",
+                message_id="wamid.test-timeline",
+            )
+        )
+    )
+
+    response = TestClient(app).get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.session.guest_token},
+    )
+
+    body = response.json()
+    assert len(body["timeline"]) >= 1
+    event = next(e for e in body["timeline"] if e["event_type"] == "whatsapp_inbound")
+    assert event["message_text"] == "@EasyOrder get biryani for 4"
+    assert event["sender_wa_id"] == "919988776655"
+
+
+def test_bootstrap_timeline_excludes_idempotency_ledger_events() -> None:
+    """whatsapp_tagged_message ledger entries are internal and never user-facing."""
+    import asyncio
+
+    from app.models.session import EventType, SessionEvent
+    from app.services.memory_db import InMemoryDBAdapter
+
+    app, result = create_initialized_session()
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+
+    asyncio.run(
+        db.insert_session_event(
+            SessionEvent(
+                session_id=result.session.session_id,
+                event_type=EventType.WHATSAPP_TAGGED_MESSAGE,
+                message_id="wamid.test-ledger",
+                sender_wa_id="919988776655",
+            )
+        )
+    )
+
+    response = TestClient(app).get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.session.guest_token},
+    )
+
+    event_types = [e["event_type"] for e in response.json()["timeline"]]
+    assert "whatsapp_tagged_message" not in event_types
+
+
+def test_timeline_does_not_expose_host_tokens_or_secrets() -> None:
+    """Timeline events must never surface host token or secrets in any field."""
+    import asyncio
+
+    from app.models.session import EventType, SessionEvent
+    from app.services.memory_db import InMemoryDBAdapter
+
+    app, result = create_initialized_session()
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+
+    asyncio.run(
+        db.insert_session_event(
+            SessionEvent(
+                session_id=result.session.session_id,
+                event_type=EventType.LINKS_SENT,
+                mode="mock",
+            )
+        )
+    )
+
+    response = TestClient(app).get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.session.guest_token},
+    )
+
+    raw = str(response.json())
+    assert result.host_token not in raw, "host token leaked into timeline response"
+    assert result.session.host_token_hash not in raw, "host token hash leaked"
+    assert "host_token" not in raw, "host_token key present in response"
+
+
+def test_cart_mutation_responses_preserve_timeline_events() -> None:
+    """Cart mutation bootstrap responses should not make the UI Activity strip disappear."""
+    from app.models.session import EventType, SessionEvent
+    from app.services.memory_db import InMemoryDBAdapter
+
+    app, result = create_initialized_session()
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    run(
+        db.insert_session_event(
+            SessionEvent(
+                session_id=result.session.session_id,
+                event_type=EventType.WHATSAPP_INBOUND,
+                message_text="@EasyOrder get biryani for 4",
+                sender_wa_id="919988776655",
+                message_id="wamid.timeline-mutation",
+            )
+        )
+    )
+
+    response = TestClient(app).post(
+        f"/api/session/{result.session.session_id}/cart-items",
+        params={"token": result.session.guest_token},
+        json={
+            "name": "Paper plates",
+            "quantity": 1,
+            "price": "80.00",
+            "dietary_tag": "ANY",
+            "vertical": "instamart",
+            "brand_name": "EasyServe",
+            "source_label": "Instamart Mock Store",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["timeline"]
+    assert body["timeline"][0]["event_type"] == "whatsapp_inbound"

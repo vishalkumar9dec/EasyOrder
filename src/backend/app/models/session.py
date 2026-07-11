@@ -41,6 +41,40 @@ class Vertical(StrEnum):
     INSTAMART = "instamart"
 
 
+class EventType(StrEnum):
+    """Event types stored in the session timeline."""
+
+    WHATSAPP_INBOUND = "whatsapp_inbound"
+    SESSION_CREATED = "session_created"
+    LINKS_SENT = "links_sent"
+    # Idempotency ledger entry recorded after a successful handoff; excluded
+    # from the user-facing timeline.
+    WHATSAPP_TAGGED_MESSAGE = "whatsapp_tagged_message"
+
+
+class SessionEvent(BaseModel):
+    """A redacted activity event shown in the session timeline.
+
+    Rules:
+    - ``message_text`` must never contain raw host tokens or app secrets.
+    - ``sender_wa_id`` is the WhatsApp sender identifier, safe to surface.
+    - ``request_id`` correlates the event to backend logs.
+    """
+
+    id: int | None = None
+    session_id: str | None = None
+    event_type: EventType
+    message_text: str | None = None
+    intent_label: str | None = None
+    message_id: str | None = None
+    sender_wa_id: str | None = None
+    mode: str | None = None
+    request_id: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
 class SessionWarning(BaseModel):
     """A non-blocking warning shown to collaborators."""
 
@@ -134,16 +168,6 @@ class Session(BaseModel):
         return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
-class SessionEvent(BaseModel):
-    """Ledger entry marking an inbound message as processed, for idempotent webhooks."""
-
-    id: int | None = None
-    message_id: str
-    event_type: str
-    session_id: str | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-
-
 class SessionInitResponse(BaseModel):
     """Response returned after a tagged prompt initializes a session."""
 
@@ -199,6 +223,7 @@ class SessionBootstrapResponse(BaseModel):
     warnings: list[SessionWarning]
     cart_items: list[CartItemResponse]
     checkout_eligible: bool
+    timeline: list[SessionEvent] = Field(default_factory=list)
 
     model_config = ConfigDict(use_enum_values=True)
 

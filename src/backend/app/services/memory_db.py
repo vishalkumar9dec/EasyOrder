@@ -13,8 +13,9 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
 
     def __init__(self) -> None:
         self.sessions: dict[str, Session] = {}
-        self.session_events: dict[tuple[str, str], SessionEvent] = {}
+        self.events: list[SessionEvent] = []
         self.next_cart_id = 1
+        self._next_event_id = 1
 
     async def create_session(
         self,
@@ -58,16 +59,30 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
         if session := self.sessions.get(session_id):
             session.status = status  # type: ignore[assignment]
 
-    async def get_session_event(self, message_id: str, event_type: str) -> SessionEvent | None:
-        return self.session_events.get((message_id, event_type))
-
     async def insert_session_event(self, event: SessionEvent) -> SessionEvent | None:
-        key = (event.message_id, event.event_type)
-        if key in self.session_events:
+        from datetime import UTC, datetime
+
+        # Mirror the unique (message_id, event_type) index: reject duplicates
+        # so webhook retries cannot double-record ledger events.
+        if event.message_id is not None and await self.get_session_event(
+            event.message_id, str(event.event_type)
+        ):
             return None
-        stored = event.model_copy(update={"id": len(self.session_events) + 1})
-        self.session_events[key] = stored
+        stored = event.model_copy(
+            update={"id": self._next_event_id, "created_at": datetime.now(UTC)}
+        )
+        self._next_event_id += 1
+        self.events.append(stored)
         return stored
+
+    async def get_session_event(self, message_id: str, event_type: str) -> SessionEvent | None:
+        for event in self.events:
+            if event.message_id == message_id and str(event.event_type) == str(event_type):
+                return event
+        return None
+
+    async def get_session_events(self, session_id: str) -> list[SessionEvent]:
+        return [e for e in self.events if e.session_id == session_id]
 
     def _assign_cart(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
         assigned: list[CartItem] = []

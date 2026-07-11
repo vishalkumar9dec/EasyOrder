@@ -59,9 +59,10 @@ def test_session_events_migration_defines_dedupe_table_and_unique_index() -> Non
     sql = EVENTS_MIGRATION.read_text()
 
     assert "CREATE TABLE IF NOT EXISTS session_events" in sql
-    assert "message_id TEXT NOT NULL" in sql
-    assert "event_type TEXT NOT NULL" in sql
-    assert "REFERENCES sessions(session_id) ON DELETE SET NULL" in sql
+    assert "message_id   TEXT" in sql
+    assert "event_type  TEXT NOT NULL" in sql
+    assert "REFERENCES sessions(session_id) ON DELETE CASCADE" in sql
+    assert "'whatsapp_tagged_message'" in sql
     assert "CREATE UNIQUE INDEX IF NOT EXISTS idx_session_events_message_id_event_type" in sql
     assert "ON session_events (message_id, event_type)" in sql
     assert "ALTER TABLE session_events ENABLE ROW LEVEL SECURITY" in sql

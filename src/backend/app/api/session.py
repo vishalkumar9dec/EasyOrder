@@ -16,8 +16,10 @@ from app.models.session import (
     CheckoutStepResult,
     CheckoutValidationResponse,
     DietaryTag,
+    EventType,
     Session,
     SessionBootstrapResponse,
+    SessionEvent,
     SessionRole,
     SessionStatus,
     Vertical,
@@ -77,7 +79,8 @@ async def get_session_bootstrap(
             detail="Invalid session token",
         )
 
-    return build_session_bootstrap_response(session, role)
+    timeline = await db.get_session_events(session_id)
+    return build_session_bootstrap_response(session, role, timeline=timeline)
 
 
 @router.post("/{session_id}/checkout")
@@ -218,7 +221,8 @@ async def create_cart_item(
         session.session_id,
         [*session.cart_items, cart_item],
     )
-    return build_session_bootstrap_response(session, role)
+    timeline = await db.get_session_events(session.session_id)
+    return build_session_bootstrap_response(session, role, timeline=timeline)
 
 
 @router.patch("/{session_id}/cart-items/{cart_item_id}")
@@ -241,7 +245,8 @@ async def update_cart_item(
     else:
         next_items[index] = updated
     session.cart_items = await db.update_cart_items(session.session_id, next_items)
-    return build_session_bootstrap_response(session, role)
+    timeline = await db.get_session_events(session.session_id)
+    return build_session_bootstrap_response(session, role, timeline=timeline)
 
 
 @router.delete("/{session_id}/cart-items/{cart_item_id}")
@@ -256,7 +261,8 @@ async def delete_cart_item(
     next_items = [*session.cart_items]
     next_items.pop(index)
     session.cart_items = await db.update_cart_items(session.session_id, next_items)
-    return build_session_bootstrap_response(session, role)
+    timeline = await db.get_session_events(session.session_id)
+    return build_session_bootstrap_response(session, role, timeline=timeline)
 
 
 async def get_authorized_session(
@@ -305,6 +311,8 @@ def authorize_session_role(session: Session, token: str) -> SessionRole | None:
 def build_session_bootstrap_response(
     session: Session,
     role: SessionRole,
+    *,
+    timeline: list[SessionEvent] | None = None,
 ) -> SessionBootstrapResponse:
     return SessionBootstrapResponse(
         session_id=session.session_id,
@@ -318,6 +326,12 @@ def build_session_bootstrap_response(
         warnings=session.warnings,
         cart_items=[cart_item_response(item) for item in session.cart_items],
         checkout_eligible=is_checkout_eligible(session, role),
+        # Ledger events are internal idempotency records, never user-facing.
+        timeline=[
+            event
+            for event in (timeline or [])
+            if event.event_type != EventType.WHATSAPP_TAGGED_MESSAGE
+        ],
     )
 
 
