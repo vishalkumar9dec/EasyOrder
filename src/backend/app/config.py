@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     app_env: str = "local"
     backend_cors_origins: str = "http://localhost:5173"
     database_url: str = "postgresql://easyorder:easyorder@localhost:5432/easyorder"
+    # "memory" keeps process-local stores; "postgres" persists sessions,
+    # timeline events, and short links across restarts via DATABASE_URL.
+    persistence_mode: str = "memory"
     public_app_base_url: str = "http://localhost:5173"
 
     # WhatsApp
