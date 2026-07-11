@@ -13,7 +13,12 @@ export interface ApiSessionWarning {
 export interface ApiSessionEvent {
   id?: number | null;
   session_id?: string | null;
-  event_type: 'whatsapp_inbound' | 'session_created' | 'links_sent';
+  event_type:
+    | 'whatsapp_inbound'
+    | 'session_created'
+    | 'links_sent'
+    | 'handoff_delivered'
+    | 'handoff_failed';
   message_text?: string | null;
   intent_label?: string | null;
   message_id?: string | null;

@@ -15,7 +15,7 @@ def test_security_smoke_passes_release_blocking_checks() -> None:
         "request_id_header",
         "untagged_privacy",
         "prompt_injection_guardrail",
-        "group_message_guest_only",
+        "group_message_short_link_only",
         "guest_bootstrap_redacted",
         "invalid_token_read",
         "cross_session_write_blocked",

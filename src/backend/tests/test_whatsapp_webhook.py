@@ -149,14 +149,17 @@ def test_tagged_message_creates_mock_session() -> None:
     group_message, private_message = sent_messages
     assert group_message.channel == "group"
     assert group_message.recipient_id == "group_ipl_fans_1"
-    assert "guest_" in group_message.text
+    # Task 10.2: outbound copy carries opaque short links, never raw tokens.
+    assert "/api/r/" in group_message.text
+    assert "guest_" not in group_message.text
     assert "host_" not in group_message.text
     assert private_message.channel == "private"
     assert private_message.recipient_id == "919988776655"
-    assert "host_" in private_message.text
-    assert "host_" not in group_message.text
+    assert "/api/r/" in private_message.text
+    assert "host_" not in private_message.text
     assert "host_" not in str(body)
     assert "host_link" not in body["sessions"][0]
+    assert "token=" not in body["sessions"][0]["guest_short_link"]
 
 
 def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
@@ -183,13 +186,19 @@ def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "created"
-    assert len(sender.sent_messages) == 1
-    handoff_message = sender.sent_messages[0]
-    assert handoff_message.channel == "private"
-    assert handoff_message.recipient_id == "919988776655"
-    assert handoff_message.recipient_id != "group_ipl_fans_1"
-    assert "host_" in handoff_message.text
-    assert "guest_" in handoff_message.text
+    # Meta mode uses the capability-aware handoff (CTA/template with fallback).
+    assert len(sender.sent_handoffs) == 1
+    recipient_id, handoff = sender.sent_handoffs[0]
+    assert recipient_id == "919988776655"
+    assert recipient_id != "group_ipl_fans_1"
+    assert "/api/r/" in handoff.host_short_url
+    assert "/api/r/" in handoff.guest_short_url
+    assert "token=" not in handoff.host_short_url
+    assert "token=" not in handoff.guest_short_url
+    assert "host_" not in handoff.host_body_text
+    assert "host_" not in handoff.guest_body_text
+    assert "guest_" not in handoff.host_body_text
+    assert "guest_" not in handoff.guest_body_text
     assert "host_" not in str(response.json())
     assert "host_link" not in response.json()["sessions"][0]
 
@@ -237,11 +246,24 @@ def test_failed_handoff_is_not_marked_duplicate_so_retry_can_deliver() -> None:
     finally:
         app.state.whatsapp_sender = original_sender
 
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    failed_session_events = [
+        e.event_type for e in db.events if e.message_id == "wamid.retry-after-502"
+    ]
+    assert "handoff_failed" in failed_session_events
+    assert "handoff_delivered" not in failed_session_events
+
     retried = TestClient(app).post("/api/whatsapp/webhook", json=payload)
 
     assert failed.status_code == 502
     assert retried.status_code == 200
     assert retried.json()["status"] == "created"
+    retried_session_events = [
+        e.event_type for e in db.events if e.message_id == "wamid.retry-after-502"
+    ]
+    assert "handoff_delivered" in retried_session_events
 
 
 def test_mock_sender_keeps_template_placeholders_disabled() -> None:
@@ -292,7 +314,10 @@ def test_tagged_message_persists_inbound_and_links_sent_events() -> None:
     assert "whatsapp_inbound" in event_types
     assert "session_created" in event_types
     assert "links_sent" in event_types
+    assert "handoff_delivered" in event_types
+    assert "handoff_failed" not in event_types
     assert event_types.index("whatsapp_inbound") < event_types.index("session_created")
+    assert event_types.index("links_sent") < event_types.index("handoff_delivered")
 
 
 def test_inbound_event_contains_message_text_and_sender() -> None:

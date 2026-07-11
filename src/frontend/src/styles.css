@@ -1841,6 +1841,16 @@ ul, ol {
   background: color-mix(in srgb, var(--accent-gold) 20%, transparent);
 }
 
+.timeline-item--handoff_delivered .timeline-dot {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+.timeline-item--handoff_failed .timeline-dot {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
 .timeline-content {
   flex: 1;
   min-width: 0;

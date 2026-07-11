@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
-      allowedHosts: ['.loca.lt', 'localhost', '127.0.0.1'],
+      allowedHosts: ['.ngrok-free.app', '.loca.lt', 'localhost', '127.0.0.1'],
       proxy: {
         '/api': {
           target: env.VITE_API_BASE_URL || 'http://localhost:8000',

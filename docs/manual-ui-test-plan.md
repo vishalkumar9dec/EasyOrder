@@ -602,3 +602,94 @@ curl -s -X POST http://localhost:8000/api/whatsapp/webhook \
 - `timeline` array is present.
 - Each event object has: `event_type`, `message_text` (inbound only), `sender_wa_id`, `created_at`, `mode`.
 - **No field contains** `host_token`, `host_token_hash`, or any bearer credential.
+
+---
+
+## Task 10.2 — CTA And Short-Link Handoff Manual Verification
+
+Last verified: 2026-07-11 (mock mode, automated + local API drive).
+
+Behavior change: WhatsApp handoff messages no longer contain raw tokenized
+session URLs. Copy carries opaque short links (`…/api/r/{code}`); Meta mode
+sends an interactive CTA message (button `Review order`) with the guest short
+link in the body, falling back to concise text if Graph rejects the payload.
+See [whatsapp-handoff-templates.md](runbooks/whatsapp-handoff-templates.md).
+
+### MT-10.2-A: Handset receives CTA handoff, not raw URLs (meta mode)
+
+**Steps:**
+
+1. Ensure the backend runs with `WHATSAPP_PROVIDER_MODE=meta` and tunnels are up.
+2. Send `@EasyOrder get biryani for 4 under 2000` from the handset.
+3. Inspect the reply in WhatsApp.
+
+**Expected:**
+
+- **Two replies**: one with a **Review order** button (host view) and one with
+  a **Share with group** button (guest view). On fallback, one short text
+  message with two `…/api/r/…` links.
+- **No visible URL in either message body** — buttons only.
+
+### MT-10.2-B: Short links open the correct views
+
+**Steps:**
+
+1. Tap the **Review order** button.
+2. Separately tap **Share with group** in another browser.
+
+**Expected:**
+
+- The button/host link lands on the planning canvas with role **Host**
+  (checkout controls visible).
+- The guest short link lands on the same session with role **Guest**
+  (no checkout button).
+- The browser address bar ends up on the tokenized `/session/{id}?token=…`
+  URL after the redirect — tokens exist only after the click, never in chat.
+
+### MT-10.2-C: Unknown or expired short code fails closed
+
+**Steps:**
+
+1. Open `{PUBLIC_APP_BASE_URL}/api/r/doesnotexist` in a browser.
+2. Restart the backend, then re-open a short link from before the restart.
+
+**Expected:**
+
+- Both return `404` with `{"detail": "Unknown or expired link"}` — codes are
+  process-scoped, matching in-memory session lifetime.
+
+### MT-10.2-D: Webhook response exposes short guest link only
+
+**Steps:**
+
+1. POST a signed tagged fixture (see `scripts/replay_whatsapp_webhook.py`).
+2. Inspect the JSON response.
+
+**Expected:**
+
+- `sessions[0].guest_short_link` is present and contains no `token=`.
+- `sessions[0].guest_link` (tokenized, host's own response) is unchanged.
+- No `host_` material anywhere in the response.
+
+### MT-10.2-E: Timeline is a verifiable record of WhatsApp activity
+
+Every WhatsApp interaction must appear in the PWA Activity timeline with a
+timestamp, so UI state can be checked against what actually happened in chat.
+
+**Steps:**
+
+1. Send `@EasyOrder get biryani for 4 under 2000` from the handset.
+2. Note the WhatsApp message times (inbound send, reply arrival).
+3. Open the session (Review order button) and scroll to **Activity**.
+
+**Expected:**
+
+- Events in order, each with a time matching the WhatsApp chat within ~a minute:
+  1. *WhatsApp message received* — your exact (redacted) message text
+  2. *Session created*
+  3. *Session links created*
+  4. *Links delivered on WhatsApp* (solid green dot) — present **only if** the
+     reply actually arrived on the handset
+- If the reply never arrived, the timeline instead shows
+  *WhatsApp delivery failed* (red dot) — a delivered reply with a "failed"
+  event, or a missing reply with a "delivered" event, is a real bug.
