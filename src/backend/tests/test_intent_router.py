@@ -92,11 +92,19 @@ def test_saved_list_command_routes_to_saved_list_intent() -> None:
         assert routed.creates_session is False
 
 
-def test_share_request_routes_to_share_intent() -> None:
+def test_share_request_routes_to_share_intent_unconfirmed() -> None:
     routed = route_business_chat_message("share the order details")
 
     assert routed.family == IntentFamily.SHARE_REQUEST
     assert routed.creates_session is False
+    assert routed.share_confirmed is False
+
+
+def test_share_confirmation_grammar_unlocks_confirmed_share() -> None:
+    for text in ("share yes", "yes share it", "confirm share", "share go ahead"):
+        routed = route_business_chat_message(text)
+        assert routed.family == IntentFamily.SHARE_REQUEST, text
+        assert routed.share_confirmed is True, text
 
 
 def test_order_request_creates_planning_session() -> None:

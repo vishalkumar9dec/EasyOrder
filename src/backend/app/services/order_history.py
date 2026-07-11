@@ -69,3 +69,45 @@ async def answer_order_history(
         f"/session/{session.session_id}?token={session.guest_token}",
     )
     return build_history_reply(session, guest_short_url)
+
+
+SHARE_PREVIEW_TEMPLATE = (
+    "I can prepare a shareable summary of your last order — {item_count} "
+    "item(s), about INR {total:.2f}. Reply \"share yes\" and I'll send a "
+    "message you can forward to the group."
+)
+
+SHARE_SUMMARY_TEMPLATE = (
+    "EasyOrder plan: {item_count} item(s), about INR {total:.2f}.\n"
+    "Join in and add your items here: {guest_short_url}"
+)
+
+
+async def answer_share_request(
+    db: IDBAdapter,
+    short_links: IShortLinkService,
+    *,
+    wa_id: str,
+    public_app_base_url: str,
+    confirmed: bool,
+) -> str:
+    """Answer a share request; the guest link is released only on confirmation.
+
+    The confirmed message is written to be forwarded: it carries the reusable
+    guest short link and never any host material (host tokens are hashed and
+    cannot be rebuilt into links).
+    """
+    session = await db.get_latest_session_for_host(wa_id)
+    if session is None:
+        return NO_HISTORY_REPLY
+    item_count = sum(item.quantity for item in session.cart_items)
+    total = session_cart_total(session)
+    if not confirmed:
+        return SHARE_PREVIEW_TEMPLATE.format(item_count=item_count, total=total)
+    guest_short_url = await short_links.create_short_url(
+        public_app_base_url,
+        f"/session/{session.session_id}?token={session.guest_token}",
+    )
+    return SHARE_SUMMARY_TEMPLATE.format(
+        item_count=item_count, total=total, guest_short_url=guest_short_url
+    )

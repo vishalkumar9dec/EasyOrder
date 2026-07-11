@@ -23,7 +23,7 @@ from app.services.intent_router import (
 )
 from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
-from app.services.order_history import answer_order_history
+from app.services.order_history import answer_order_history, answer_share_request
 from app.services.protocols import IAgentService, IDBAdapter, IShortLinkService, IWhatsAppSender
 from app.services.swiggy_mcp import create_swiggy_client
 from app.services.whatsapp_sender import SessionHandoff, WhatsAppSendError
@@ -192,6 +192,16 @@ async def ingest_webhook(
                 short_links,
                 wa_id=message.sender_id,
                 public_app_base_url=settings.public_app_base_url,
+            )
+        elif routed.family == IntentFamily.SHARE_REQUEST:
+            # Task 10.6 phase 2: preview first; the forwardable summary with
+            # the guest link is released only on explicit confirmation.
+            reply_text = await answer_share_request(
+                db,
+                short_links,
+                wa_id=message.sender_id,
+                public_app_base_url=settings.public_app_base_url,
+                confirmed=routed.share_confirmed,
             )
         if reply_text:
             try:
