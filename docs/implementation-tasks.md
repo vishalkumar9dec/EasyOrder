@@ -301,7 +301,20 @@ Debug strategy:
 
 ### Task 10.4: [ON HOLD] Saved Lists And Short Add Grammar
 
-Status: ON HOLD (commands are currently too arbitrary)
+Status: ON HOLD (product owner decision 2026-07-11 — revisit after 10.7 lands).
+
+Scope reductions agreed for when this resumes:
+
+- WhatsApp-only list management; no PWA list UI (that requires a browser
+  identity/auth story that does not exist yet).
+- Drop the bare `@EasyOrder vim bar` command — the mention must stay a
+  deterministic start-a-session trigger (ADR 0005), never a guessy list op.
+- Lists store raw item phrases plus optional hints; item resolution
+  (brand/vertical/product) happens at list-to-cart time in Task 10.5, where
+  substitution review already exists.
+- With these cuts the task is roughly 10.3-sized: two tables keyed by
+  `wa_id`, adapter CRUD, wiring the already-detected `saved_list_command`
+  intent to real operations with confirmations, and tests.
 
 Objective: Let users maintain named order lists through concise WhatsApp commands
 and PWA controls.
