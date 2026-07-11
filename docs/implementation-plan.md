@@ -14,7 +14,8 @@ This plan turns the EasyOrder PRD, HLD, LLD, ADRs, glossary, and diagrams into a
 - Accepted decisions:
   - [ADR 0001: PostgreSQL (Supabase) for Real-Time Session State Synchronization](adr/0001-firestore-realtime-sync.md)
   - [ADR 0002: Sequential Checkout Splits for Food and Grocery Carts](adr/0002-sequential-checkout-splits.md)
-  - [ADR 0003: Mention-Only Listening for the WhatsApp Group Bot](adr/0003-mention-only-webhook.md)
+  - [ADR 0003: Mention-Only Listening for WhatsApp Intake](adr/0003-mention-only-webhook.md)
+  - [ADR 0005: Host-Mediated Group Flow (No WhatsApp Group Bot)](adr/0005-host-mediated-group-flow.md)
   - [ADR 0004: Separate WhatsApp Operating Modes](adr/0004-whatsapp-operating-modes.md)
 
 ADR 0001 supersedes older Firestore/Firebase references in the PRD or README. The implementation should use PostgreSQL/Supabase for persistence, row-level security, and realtime collaboration.
