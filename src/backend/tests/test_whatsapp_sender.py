@@ -9,7 +9,7 @@ from app.services.whatsapp_sender import (
     MetaCloudWhatsAppSender,
     SessionHandoff,
     WhatsAppSendError,
-    build_cta_handoff_payload,
+    build_cta_handoff_payloads,
     build_template_handoff_payload,
     create_whatsapp_sender,
 )
@@ -92,19 +92,26 @@ def make_handoff() -> SessionHandoff:
     )
 
 
-def test_cta_handoff_payload_uses_short_links_only() -> None:
-    payload = build_cta_handoff_payload("919988776655", make_handoff())
+def test_cta_handoff_payloads_give_each_link_its_own_button() -> None:
+    host_payload, guest_payload = build_cta_handoff_payloads("919988776655", make_handoff())
 
-    assert payload["type"] == "interactive"
-    assert payload["interactive"]["type"] == "cta_url"
-    action = payload["interactive"]["action"]
-    assert action["parameters"]["display_text"] == "Review order"
-    assert action["parameters"]["url"] == "https://easyorder.example/api/r/h0stC0de"
-    body_text = payload["interactive"]["body"]["text"]
-    assert "https://easyorder.example/api/r/gu3stC0d" in body_text
-    assert "token=" not in str(payload)
-    assert "host_" not in str(payload)
-    assert "guest_" not in str(payload)
+    for payload in (host_payload, guest_payload):
+        assert payload["type"] == "interactive"
+        assert payload["interactive"]["type"] == "cta_url"
+        assert "token=" not in str(payload)
+        assert "host_" not in str(payload)
+        assert "guest_" not in str(payload)
+
+    host_action = host_payload["interactive"]["action"]
+    assert host_action["parameters"]["display_text"] == "Review order"
+    assert host_action["parameters"]["url"] == "https://easyorder.example/api/r/h0stC0de"
+
+    guest_action = guest_payload["interactive"]["action"]
+    assert guest_action["parameters"]["display_text"] == "Open planning canvas"
+    assert guest_action["parameters"]["url"] == "https://easyorder.example/api/r/gu3stC0d"
+    # The guest link stays copyable in the body for forwarding to the group.
+    guest_body = guest_payload["interactive"]["body"]["text"]
+    assert "https://easyorder.example/api/r/gu3stC0d" in guest_body
 
 
 def test_template_handoff_payload_maps_documented_variables() -> None:
@@ -119,10 +126,14 @@ def test_template_handoff_payload_maps_documented_variables() -> None:
     template = payload["template"]
     assert template["name"] == "easyorder_session_handoff"
     assert template["language"] == {"code": "en"}
-    body, button = template["components"]
+    body, host_button, guest_button = template["components"]
     assert body["parameters"][0]["text"] == "https://easyorder.example/api/r/gu3stC0d"
-    assert button["sub_type"] == "url"
-    assert button["parameters"][0]["text"] == "https://easyorder.example/api/r/h0stC0de"
+    assert host_button["sub_type"] == "url"
+    assert host_button["index"] == "0"
+    assert host_button["parameters"][0]["text"] == "https://easyorder.example/api/r/h0stC0de"
+    assert guest_button["sub_type"] == "url"
+    assert guest_button["index"] == "1"
+    assert guest_button["parameters"][0]["text"] == "https://easyorder.example/api/r/gu3stC0d"
     assert "token=" not in str(payload)
 
 
@@ -135,11 +146,11 @@ def test_handoff_fallback_text_is_concise_short_link_copy() -> None:
     assert len(handoff.fallback_text) < 300
 
 
-def test_meta_sender_sends_cta_handoff_by_default(monkeypatch) -> None:
-    captured = {}
+def test_meta_sender_sends_two_cta_messages_by_default(monkeypatch) -> None:
+    captured = []
 
     def fake_urlopen(request, timeout):
-        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        captured.append(json.loads(request.data.decode("utf-8")))
         return FakeResponse()
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
@@ -147,8 +158,10 @@ def test_meta_sender_sends_cta_handoff_by_default(monkeypatch) -> None:
 
     asyncio.run(sender.send_session_handoff("919988776655", make_handoff()))
 
-    assert captured["payload"]["type"] == "interactive"
-    assert captured["payload"]["to"] == "919988776655"
+    assert [p["type"] for p in captured] == ["interactive", "interactive"]
+    assert all(p["to"] == "919988776655" for p in captured)
+    display_texts = [p["interactive"]["action"]["parameters"]["display_text"] for p in captured]
+    assert display_texts == ["Review order", "Open planning canvas"]
 
 
 def test_meta_sender_uses_template_when_configured(monkeypatch) -> None:

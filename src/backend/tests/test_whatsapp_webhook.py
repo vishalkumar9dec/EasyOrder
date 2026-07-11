@@ -195,8 +195,10 @@ def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
     assert "/api/r/" in handoff.guest_short_url
     assert "token=" not in handoff.host_short_url
     assert "token=" not in handoff.guest_short_url
-    assert "host_" not in handoff.body_text
-    assert "guest_" not in handoff.body_text
+    assert "host_" not in handoff.host_body_text
+    assert "host_" not in handoff.guest_body_text
+    assert "guest_" not in handoff.host_body_text
+    assert "guest_" not in handoff.guest_body_text
     assert "host_" not in str(response.json())
     assert "host_link" not in response.json()["sessions"][0]
 

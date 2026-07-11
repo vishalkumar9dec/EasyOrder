@@ -48,14 +48,20 @@ class SessionHandoff:
     host_short_url: str
     guest_short_url: str
     cta_text: str = "Review order"
+    guest_cta_text: str = "Open planning canvas"
 
     @property
-    def body_text(self) -> str:
+    def host_body_text(self) -> str:
         return (
             "EasyOrder is ready. Tap the button to review and place the order "
-            "from your private host view.\n\n"
-            f"Share the planning canvas with the group: {self.guest_short_url}"
+            "from your private host view."
         )
+
+    @property
+    def guest_body_text(self) -> str:
+        # The guest short link stays in the body so it can be copied or
+        # forwarded to the group; the button opens the same URL.
+        return f"Share the planning canvas with the group: {self.guest_short_url}"
 
     @property
     def fallback_text(self) -> str:
@@ -65,7 +71,13 @@ class SessionHandoff:
         )
 
 
-def build_cta_handoff_payload(recipient_id: str, handoff: SessionHandoff) -> dict:
+def build_cta_url_payload(
+    recipient_id: str,
+    *,
+    body_text: str,
+    display_text: str,
+    url: str,
+) -> dict:
     """Interactive CTA-URL message: no template approval needed, valid in the
     24h customer-service window that the inbound message just opened."""
     return {
@@ -74,16 +86,32 @@ def build_cta_handoff_payload(recipient_id: str, handoff: SessionHandoff) -> dic
         "type": "interactive",
         "interactive": {
             "type": "cta_url",
-            "body": {"text": handoff.body_text},
+            "body": {"text": body_text},
             "action": {
                 "name": "cta_url",
-                "parameters": {
-                    "display_text": handoff.cta_text,
-                    "url": handoff.host_short_url,
-                },
+                "parameters": {"display_text": display_text, "url": url},
             },
         },
     }
+
+
+def build_cta_handoff_payloads(recipient_id: str, handoff: SessionHandoff) -> list[dict]:
+    """Two CTA messages: WhatsApp allows only one URL button per interactive
+    message, so host review and guest share each get their own button."""
+    return [
+        build_cta_url_payload(
+            recipient_id,
+            body_text=handoff.host_body_text,
+            display_text=handoff.cta_text,
+            url=handoff.host_short_url,
+        ),
+        build_cta_url_payload(
+            recipient_id,
+            body_text=handoff.guest_body_text,
+            display_text=handoff.guest_cta_text,
+            url=handoff.guest_short_url,
+        ),
+    ]
 
 
 def build_template_handoff_payload(
@@ -93,11 +121,12 @@ def build_template_handoff_payload(
     template_name: str,
     template_language: str,
 ) -> dict:
-    """Approved-template handoff for sends outside the 24h session window.
+    """Approved-template handoff: one message with two URL buttons.
 
     Contract documented in docs/runbooks/whatsapp-handoff-templates.md:
-    body variable {{1}} = guest short URL, URL button 0 suffix = host
-    short URL path so the approved base URL stays token-free.
+    body variable {{1}} = guest short URL, URL button 0 = host short URL
+    (Review order), URL button 1 = guest short URL (Open planning canvas).
+    The approved base URLs stay token-free; parameters supply the links.
     """
     return {
         "messaging_product": "whatsapp",
@@ -116,6 +145,12 @@ def build_template_handoff_payload(
                     "sub_type": "url",
                     "index": "0",
                     "parameters": [{"type": "text", "text": handoff.host_short_url}],
+                },
+                {
+                    "type": "button",
+                    "sub_type": "url",
+                    "index": "1",
+                    "parameters": [{"type": "text", "text": handoff.guest_short_url}],
                 },
             ],
         },
@@ -191,21 +226,26 @@ class MetaCloudWhatsAppSender:
     async def send_session_handoff(self, recipient_id: str, handoff: SessionHandoff) -> None:
         """Send the richest supported handoff, degrading to plain text.
 
-        Order: approved template when configured, interactive CTA otherwise,
-        concise short-link text if the rich payload is rejected by Graph.
+        Order: approved template (one message, two URL buttons) when
+        configured; otherwise two interactive CTA messages (WhatsApp allows
+        one URL button each). Any Graph rejection degrades to one concise
+        short-link text message carrying both links.
         """
         if self.handoff_template_name:
-            payload = build_template_handoff_payload(
-                recipient_id,
-                handoff,
-                template_name=self.handoff_template_name,
-                template_language=self.handoff_template_language,
-            )
+            payloads = [
+                build_template_handoff_payload(
+                    recipient_id,
+                    handoff,
+                    template_name=self.handoff_template_name,
+                    template_language=self.handoff_template_language,
+                )
+            ]
         else:
-            payload = build_cta_handoff_payload(recipient_id, handoff)
+            payloads = build_cta_handoff_payloads(recipient_id, handoff)
 
         try:
-            await asyncio.to_thread(self._post_message_payload, payload)
+            for payload in payloads:
+                await asyncio.to_thread(self._post_message_payload, payload)
         except WhatsAppSendError as error:
             logger.warning(
                 "whatsapp_handoff_rich_payload_failed session_id=%s payload_type=%s error=%s",
