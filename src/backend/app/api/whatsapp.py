@@ -11,6 +11,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import ValidationError
 
 from app.config import Settings, get_settings
+from app.db.adapter import AsyncPostgresDBAdapter
 from app.models.session import EventType, SessionEvent
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
 from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
@@ -272,11 +273,11 @@ async def ingest_webhook(
         )
 
         # --- Short-link aliases: handoff copy never carries raw tokenized URLs ---
-        host_short_url = short_links.create_short_url(
+        host_short_url = await short_links.create_short_url(
             settings.public_app_base_url,
             build_session_path(session.session_id, result.host_token),
         )
-        guest_short_url = short_links.create_short_url(
+        guest_short_url = await short_links.create_short_url(
             settings.public_app_base_url,
             build_session_path(session.session_id, session.guest_token),
         )
@@ -394,11 +395,19 @@ def create_mock_agent_service() -> MockAgentService:
     return MockAgentService()
 
 
-def create_agent_service(settings: Settings) -> IAgentService:
+def create_db_adapter_for_settings(settings: Settings) -> IDBAdapter:
+    """Select session persistence: durable Postgres or process-local memory."""
+    if settings.persistence_mode == "postgres":
+        return AsyncPostgresDBAdapter.from_database_url(settings.database_url)
+    return InMemoryDBAdapter()
+
+
+def create_agent_service(settings: Settings, db: IDBAdapter | None = None) -> IAgentService:
+    store = db if db is not None else InMemoryDBAdapter()
     if settings.swiggy_client_mode == "mock":
-        return MockAgentService()
+        return MockAgentService(store=store)
     return EasyOrderAgentService(
-        db=InMemoryDBAdapter(),
+        db=store,
         swiggy_client=create_swiggy_client(
             mode=settings.swiggy_client_mode,
             server_path=settings.swiggy_mcp_server_path,
