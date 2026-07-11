@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review HLD/LLD"
+  short_description: "Review architecture and LLD docs"
+  default_prompt: "Use $review-hld-lld to review this project's HLD and LLD against the requirements."

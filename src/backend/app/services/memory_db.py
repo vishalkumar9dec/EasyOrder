@@ -50,6 +50,12 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
     async def get_session(self, session_id: str) -> Session | None:
         return self.sessions.get(session_id)
 
+    async def get_latest_session_for_host(self, host_phone: str) -> Session | None:
+        candidates = [s for s in self.sessions.values() if s.host_phone == host_phone]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda s: (s.created_at, s.session_id))
+
     async def update_cart_items(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
         session = self.sessions[session_id]
         session.cart_items = self._assign_cart(session_id, items)
