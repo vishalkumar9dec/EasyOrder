@@ -670,3 +670,26 @@ See [whatsapp-handoff-templates.md](runbooks/whatsapp-handoff-templates.md).
 - `sessions[0].guest_short_link` is present and contains no `token=`.
 - `sessions[0].guest_link` (tokenized, host's own response) is unchanged.
 - No `host_` material anywhere in the response.
+
+### MT-10.2-E: Timeline is a verifiable record of WhatsApp activity
+
+Every WhatsApp interaction must appear in the PWA Activity timeline with a
+timestamp, so UI state can be checked against what actually happened in chat.
+
+**Steps:**
+
+1. Send `@EasyOrder get biryani for 4 under 2000` from the handset.
+2. Note the WhatsApp message times (inbound send, reply arrival).
+3. Open the session (Review order button) and scroll to **Activity**.
+
+**Expected:**
+
+- Events in order, each with a time matching the WhatsApp chat within ~a minute:
+  1. *WhatsApp message received* — your exact (redacted) message text
+  2. *Session created*
+  3. *Session links created*
+  4. *Links delivered on WhatsApp* (solid green dot) — present **only if** the
+     reply actually arrived on the handset
+- If the reply never arrived, the timeline instead shows
+  *WhatsApp delivery failed* (red dot) — a delivered reply with a "failed"
+  event, or a missing reply with a "delivered" event, is a real bug.

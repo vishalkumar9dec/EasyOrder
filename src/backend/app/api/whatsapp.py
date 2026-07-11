@@ -277,10 +277,34 @@ async def ingest_webhook(
                 recipient_id=message.sender_id,
                 error=error,
             )
+            # Timeline records the failure so the UI never claims a delivery
+            # that WhatsApp did not make; Meta's retry will attempt again.
+            await _try_insert_event(
+                db,
+                SessionEvent(
+                    session_id=session.session_id,
+                    event_type=EventType.HANDOFF_FAILED,
+                    message_id=message.message_id,
+                    sender_wa_id=message.sender_id,
+                    mode=settings.whatsapp_provider_mode,
+                    request_id=request_id,
+                ),
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Session was created but WhatsApp handoff failed",
             ) from error
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.HANDOFF_DELIVERED,
+                message_id=message.message_id,
+                sender_wa_id=message.sender_id,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
         # Recorded only after a successful handoff: a failed send returns 502
         # without a ledger entry, so Meta's retry can still deliver the links.
         await db.insert_session_event(

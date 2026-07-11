@@ -406,7 +406,9 @@ function MessageTimeline({ events }: { events: ApiSessionEvent[] }) {
   function eventLabel(type: ApiSessionEvent['event_type']): string {
     if (type === 'whatsapp_inbound') return 'WhatsApp message received';
     if (type === 'session_created') return 'Session created';
-    if (type === 'links_sent') return 'Session links sent';
+    if (type === 'links_sent') return 'Session links created';
+    if (type === 'handoff_delivered') return 'Links delivered on WhatsApp';
+    if (type === 'handoff_failed') return 'WhatsApp delivery failed';
     return type;
   }
 

@@ -47,6 +47,10 @@ class EventType(StrEnum):
     WHATSAPP_INBOUND = "whatsapp_inbound"
     SESSION_CREATED = "session_created"
     LINKS_SENT = "links_sent"
+    # Delivery outcome of the WhatsApp handoff send, so the UI timeline is a
+    # verifiable record of what actually reached WhatsApp.
+    HANDOFF_DELIVERED = "handoff_delivered"
+    HANDOFF_FAILED = "handoff_failed"
     # Idempotency ledger entry recorded after a successful handoff; excluded
     # from the user-facing timeline.
     WHATSAPP_TAGGED_MESSAGE = "whatsapp_tagged_message"

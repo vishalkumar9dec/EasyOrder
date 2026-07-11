@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS session_events (
                         'whatsapp_inbound',
                         'session_created',
                         'links_sent',
+                        'handoff_delivered',
+                        'handoff_failed',
                         'whatsapp_tagged_message'
                     )),
     -- Redacted inbound message text (PII stripped by guardrails before storage)
