@@ -28,6 +28,22 @@ class SessionNotFoundError(DatabaseAdapterError):
 ConnectionFactory = Callable[[], Awaitable[Any]]
 
 
+def asyncpg_connection_factory(database_url: str) -> ConnectionFactory:
+    """Per-operation asyncpg connection factory shared by Postgres-backed services."""
+
+    async def get_connection() -> Any:
+        try:
+            import asyncpg
+        except ImportError as error:  # pragma: no cover - environment guard
+            raise DatabaseAdapterError(
+                "asyncpg is required for PostgreSQL persistence"
+            ) from error
+
+        return await asyncpg.connect(database_url)
+
+    return get_connection
+
+
 class AsyncPostgresDBAdapter:
     """PostgreSQL implementation of the session persistence boundary.
 
@@ -41,18 +57,7 @@ class AsyncPostgresDBAdapter:
     @classmethod
     def from_database_url(cls, database_url: str) -> AsyncPostgresDBAdapter:
         """Build an adapter backed by per-operation ``asyncpg`` connections."""
-
-        async def get_connection() -> Any:
-            try:
-                import asyncpg
-            except ImportError as error:  # pragma: no cover - environment guard
-                raise DatabaseAdapterError(
-                    "asyncpg is required for PostgreSQL persistence"
-                ) from error
-
-            return await asyncpg.connect(database_url)
-
-        return cls(get_connection)
+        return cls(asyncpg_connection_factory(database_url))
 
     async def create_session(
         self,

@@ -9,10 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.session import router as session_router
 from app.api.short_links import router as short_links_router
-from app.api.whatsapp import create_agent_service
+from app.api.whatsapp import create_agent_service, create_db_adapter_for_settings
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
-from app.services.short_links import InMemoryShortLinkService
+from app.services.short_links import create_short_link_service
 from app.services.whatsapp_sender import create_whatsapp_sender
 
 logger = logging.getLogger("easyorder.api")
@@ -22,8 +22,9 @@ SESSION_PATH_RE = re.compile(r"/session/(?P<session_id>[^/?]+)")
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name)
-    app.state.agent_service = create_agent_service(settings)
-    app.state.db_adapter = app.state.agent_service.db
+    db_adapter = create_db_adapter_for_settings(settings)
+    app.state.agent_service = create_agent_service(settings, db=db_adapter)
+    app.state.db_adapter = db_adapter
     app.state.swiggy_client = app.state.agent_service.swiggy_client
     app.state.whatsapp_sender = create_whatsapp_sender(
         provider_mode=settings.whatsapp_provider_mode,
@@ -33,7 +34,7 @@ def create_app() -> FastAPI:
         handoff_template_name=settings.whatsapp_handoff_template_name,
         handoff_template_language=settings.whatsapp_handoff_template_language,
     )
-    app.state.short_links = InMemoryShortLinkService()
+    app.state.short_links = create_short_link_service(settings)
 
     app.add_middleware(
         CORSMiddleware,
@@ -88,9 +89,23 @@ def create_app() -> FastAPI:
 
     @app.get("/readyz")
     async def readyz() -> dict[str, str]:
+        database_state = "memory"
+        if settings.persistence_mode == "postgres":
+            try:
+                connection = await create_db_adapter_for_settings(
+                    settings
+                )._connection_factory()
+                try:
+                    await connection.fetchrow("SELECT 1 AS ok")
+                    database_state = "postgres_ok"
+                finally:
+                    await connection.close()
+            except Exception:
+                logger.exception("readyz_database_check_failed")
+                database_state = "postgres_error"
         return {
             "status": "ready",
-            "database": "not_checked",
+            "database": database_state,
             "whatsapp": settings.whatsapp_provider_mode,
             "swiggy": settings.swiggy_client_mode,
             "llm": settings.llm_mode,

@@ -733,3 +733,34 @@ untagged message in a (mock) group fixture via
 
 **Expected:** Tagged message still creates a session. The untagged group
 fixture still returns `{"status": "ignored"}` — passive listening stays off.
+
+---
+
+## Task 10.7 — Durable Postgres Persistence Manual Verification
+
+### MT-10.7-A: Sessions and links survive a backend restart
+
+**Steps:**
+
+1. `make db-up && make db-migrate`
+2. Start the backend with `PERSISTENCE_MODE=postgres` in `src/backend/.env`.
+3. Send `@EasyOrder get biryani for 4 under 2000` (or replay a fixture) and
+   open the session; note the Activity timeline.
+4. Stop the backend entirely, start it again.
+5. Reload the same session link and click the short link from WhatsApp.
+
+**Expected:**
+
+- The session loads with the same cart and full timeline after the restart.
+- The short link still 307-redirects to the session.
+- Re-delivering the same webhook (Meta retry) returns `{"status":"duplicate"}`
+  even though the backend restarted — the dedup ledger is durable.
+- `curl localhost:8000/readyz` shows `"database": "postgres_ok"`.
+
+### MT-10.7-B: Memory mode unchanged
+
+**Steps:** Remove/unset `PERSISTENCE_MODE` (or set `memory`), restart, create a
+session, restart again, open the old link.
+
+**Expected:** Old links 404/unauthorized after restart (process-local stores),
+exactly as before this task; `readyz` shows `"database": "memory"`.

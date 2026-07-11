@@ -62,15 +62,15 @@ class IWhatsAppSender(Protocol):
 class IShortLinkService(Protocol):
     """Interface for short-link aliases of tokenized session URLs."""
 
-    def create(self, target_path: str) -> str:
+    async def create(self, target_path: str) -> str:
         """Return an opaque short code for a relative target path."""
         ...
 
-    def resolve(self, code: str) -> str | None:
+    async def resolve(self, code: str) -> str | None:
         """Return the target path for a code, or None when unknown."""
         ...
 
-    def create_short_url(self, base_url: str, target_path: str) -> str:
+    async def create_short_url(self, base_url: str, target_path: str) -> str:
         """Return the absolute short URL for a relative target path."""
         ...
 

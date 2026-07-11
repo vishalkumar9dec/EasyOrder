@@ -95,10 +95,17 @@ db-up:
 	docker compose -f infra/docker-compose.yml up -d db
 
 db-migrate:
-	docker compose -f infra/docker-compose.yml exec -T db psql -U easyorder -d easyorder -v ON_ERROR_STOP=1 -f - < infra/migrations/0001_session_persistence.sql
+	@for migration in infra/migrations/0*.sql; do \
+		case "$$migration" in *.down.sql) continue ;; esac; \
+		echo "applying $$migration"; \
+		docker compose -f infra/docker-compose.yml exec -T db psql -U easyorder -d easyorder -v ON_ERROR_STOP=1 -f - < "$$migration" || exit 1; \
+	done
 
 db-rollback:
-	docker compose -f infra/docker-compose.yml exec -T db psql -U easyorder -d easyorder -v ON_ERROR_STOP=1 -f - < infra/migrations/0001_session_persistence.down.sql
+	@for migration in $$(ls -r infra/migrations/0*.down.sql); do \
+		echo "applying $$migration"; \
+		docker compose -f infra/docker-compose.yml exec -T db psql -U easyorder -d easyorder -v ON_ERROR_STOP=1 -f - < "$$migration" || exit 1; \
+	done
 
 db-down:
 	docker compose -f infra/docker-compose.yml down

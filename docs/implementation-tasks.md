@@ -116,12 +116,13 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Closed |
 | 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Closed |
 | 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Closed |
-| 15 | TBD | Task 10.1: WhatsApp message timeline in PWA | Done |
-| 16 | TBD | Task 10.2: WhatsApp-native CTA/template handoff | In Review |
-| 17 | TBD | Task 10.3: Dedicated business-chat intent router | In Review |
+| 15 | [#26](https://github.com/vishalkumar9dec/EasyOrder/pull/26) | Task 10.1: WhatsApp message timeline in PWA | Merged |
+| 16 | [#27](https://github.com/vishalkumar9dec/EasyOrder/pull/27) | Task 10.2: WhatsApp-native CTA/template handoff | Merged |
+| 17 | [#28](https://github.com/vishalkumar9dec/EasyOrder/pull/28) | Task 10.3: Dedicated business-chat intent router | Merged |
 | 18 | TBD | Task 10.4: Saved lists and short add grammar | On Hold |
-| 19 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
-| 20 | TBD | Task 10.6: Order history/status and group-share commands | Proposed |
+| 19 | TBD | Task 10.7: Durable Postgres persistence wiring | In Review |
+| 20 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
+| 21 | TBD | Task 10.6: Order history/status and group-share commands | Proposed |
 
 ## PRD Traceability
 
@@ -337,6 +338,58 @@ Manual test:
 Debug strategy:
 
 - If commands misroute, inspect deterministic parser before LLM fallback.
+
+### Task 10.7: Durable Postgres Persistence Wiring
+
+Objective: Switch the running app from process-local in-memory stores to the
+already-built PostgreSQL layer so sessions, cart items, timeline events, wamid
+dedup, and short links survive backend restarts.
+
+Dependencies: Tasks 1.3, 1.4, 2.1 (built the layer); precedes 10.4/10.5/10.6,
+which need durable data to be meaningful.
+
+Context: Tasks 1.3/2.1 delivered migrations and `AsyncPostgresDBAdapter`, but
+no task ever wired them into `create_app` — both wiring sites constructed
+`InMemoryDBAdapter` unconditionally, and `make db-migrate` applied only
+migration 0001.
+
+Implementation:
+
+- `PERSISTENCE_MODE=memory|postgres` setting (default memory, zero behavior
+  change for existing setups).
+- Wire `AsyncPostgresDBAdapter` and a Postgres-backed short-link service into
+  app assembly when postgres mode is selected; agent service accepts any
+  `IDBAdapter` store.
+- New migrations: `0003_short_links`, `0004_cart_source_attribution_backfill`
+  (converges databases initialized before source attribution existed —
+  `CREATE TABLE IF NOT EXISTS` silently skips stale tables).
+- `make db-migrate`/`db-rollback` apply every migration in order.
+- `/readyz` reports `memory`, `postgres_ok`, or `postgres_error`.
+
+Acceptance criteria:
+
+- With postgres mode: tokenized links, short links, timeline events, and wamid
+  dedup all survive a backend restart.
+- With memory mode (default): behavior is byte-for-byte unchanged.
+- A stale local database converges to the current schema via `make db-migrate`.
+
+Automated tests:
+
+- Persistence-mode wiring selection tests.
+- Postgres short-link service tests against a fake connection.
+- Opt-in integration test against local Postgres (auto-skips when unreachable).
+
+Manual test:
+
+- `make db-up && make db-migrate`, start backend with
+  `PERSISTENCE_MODE=postgres`, create a session via webhook, restart the
+  backend, confirm the same links and timeline still work.
+
+Debug strategy:
+
+- `/readyz` distinguishes connection failures from memory mode.
+- `UndefinedColumnError` on cart writes means an old volume: rerun
+  `make db-migrate` (0004 converges it).
 
 ### Task 10.5: List-To-Cart Review And Offer Optimization
 
