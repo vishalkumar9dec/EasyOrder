@@ -182,8 +182,12 @@ class AsyncPostgresDBAdapter:
         finally:
             await self._close_connection(connection)
 
-    async def insert_session_event(self, event: SessionEvent) -> SessionEvent:
-        """Persist one session timeline event and return it with id and created_at."""
+    async def insert_session_event(self, event: SessionEvent) -> SessionEvent | None:
+        """Persist one session timeline event and return it with id and created_at.
+
+        Returns None when the (message_id, event_type) pair was already
+        recorded, so webhook retries cannot double-record ledger events.
+        """
 
         connection = await self._connection_factory()
         try:
@@ -194,6 +198,7 @@ class AsyncPostgresDBAdapter:
                     message_id, sender_wa_id, mode, request_id
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                ON CONFLICT (message_id, event_type) DO NOTHING
                 RETURNING *
                 """,
                 event.session_id,
@@ -205,7 +210,24 @@ class AsyncPostgresDBAdapter:
                 event.mode,
                 event.request_id,
             )
-            return self._session_event_from_row(row)
+            return self._session_event_from_row(row) if row is not None else None
+        finally:
+            await self._close_connection(connection)
+
+    async def get_session_event(self, message_id: str, event_type: str) -> SessionEvent | None:
+        """Return the recorded event for a processed message, or None."""
+
+        connection = await self._connection_factory()
+        try:
+            row = await connection.fetchrow(
+                """
+                SELECT * FROM session_events
+                WHERE message_id = $1 AND event_type = $2
+                """,
+                message_id,
+                str(event_type),
+            )
+            return self._session_event_from_row(row) if row is not None else None
         finally:
             await self._close_connection(connection)
 

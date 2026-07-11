@@ -161,7 +161,20 @@ async def ingest_webhook(
         }
 
     created_sessions = []
+    duplicate_message_ids = []
     for message in tagged_messages:
+        existing_event = await db.get_session_event(
+            message.message_id,
+            EventType.WHATSAPP_TAGGED_MESSAGE,
+        )
+        if existing_event is not None:
+            log_webhook_event(
+                "whatsapp_webhook_duplicate",
+                message_id=message.message_id,
+                session_id=existing_event.session_id,
+            )
+            duplicate_message_ids.append(message.message_id)
+            continue
         try:
             result = await agent_service.initialize_tagged_message(message)
         except AgentRejectedPromptError as error:
@@ -260,7 +273,18 @@ async def ingest_webhook(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Session was created but WhatsApp handoff failed",
             ) from error
-
+        # Recorded only after a successful handoff: a failed send returns 502
+        # without a ledger entry, so Meta's retry can still deliver the links.
+        await db.insert_session_event(
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.WHATSAPP_TAGGED_MESSAGE,
+                message_id=message.message_id,
+                sender_wa_id=message.sender_id,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            )
+        )
         log_webhook_event(
             "whatsapp_session_created",
             message_id=message.message_id,
@@ -275,10 +299,19 @@ async def ingest_webhook(
             }
         )
 
-    return {
+    if not created_sessions:
+        return {
+            "status": "duplicate",
+            "duplicates": duplicate_message_ids,
+        }
+
+    response: dict[str, object] = {
         "status": "created",
         "sessions": created_sessions,
     }
+    if duplicate_message_ids:
+        response["duplicates"] = duplicate_message_ids
+    return response
 
 
 async def _try_insert_event(db: IDBAdapter, event: SessionEvent) -> None:

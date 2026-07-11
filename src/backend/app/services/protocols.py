@@ -130,8 +130,16 @@ class IDBAdapter(Protocol):
         """Update session lifecycle status."""
         ...
 
-    async def insert_session_event(self, event: SessionEvent) -> SessionEvent:
-        """Persist one session timeline event."""
+    async def insert_session_event(self, event: SessionEvent) -> SessionEvent | None:
+        """Persist one session timeline event.
+
+        Returns None when an event with the same (message_id, event_type)
+        was already recorded, mirroring ON CONFLICT DO NOTHING semantics.
+        """
+        ...
+
+    async def get_session_event(self, message_id: str, event_type: str) -> SessionEvent | None:
+        """Return the recorded event for a processed message, or None."""
         ...
 
     async def get_session_events(self, session_id: str) -> list[SessionEvent]:

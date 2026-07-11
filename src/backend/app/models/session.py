@@ -47,6 +47,9 @@ class EventType(StrEnum):
     WHATSAPP_INBOUND = "whatsapp_inbound"
     SESSION_CREATED = "session_created"
     LINKS_SENT = "links_sent"
+    # Idempotency ledger entry recorded after a successful handoff; excluded
+    # from the user-facing timeline.
+    WHATSAPP_TAGGED_MESSAGE = "whatsapp_tagged_message"
 
 
 class SessionEvent(BaseModel):

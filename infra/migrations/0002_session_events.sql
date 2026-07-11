@@ -1,5 +1,8 @@
--- EasyOrder session events — persisted activity timeline for the PWA.
+-- EasyOrder session events — persisted activity timeline for the PWA and
+-- idempotency ledger for processed WhatsApp webhook messages.
 -- Events are written server-side and never expose host tokens or secrets.
+-- Meta's Cloud API retries webhook deliveries with the same wamid; the unique
+-- index guarantees each (message_id, event_type) pair is recorded exactly once.
 
 CREATE TABLE IF NOT EXISTS session_events (
     id          BIGSERIAL PRIMARY KEY,
@@ -8,7 +11,8 @@ CREATE TABLE IF NOT EXISTS session_events (
                     CHECK (event_type IN (
                         'whatsapp_inbound',
                         'session_created',
-                        'links_sent'
+                        'links_sent',
+                        'whatsapp_tagged_message'
                     )),
     -- Redacted inbound message text (PII stripped by guardrails before storage)
     message_text TEXT,
@@ -27,6 +31,9 @@ CREATE TABLE IF NOT EXISTS session_events (
 
 CREATE INDEX IF NOT EXISTS idx_session_events_session_id
     ON session_events (session_id, created_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_events_message_id_event_type
+    ON session_events (message_id, event_type);
 
 ALTER TABLE session_events ENABLE ROW LEVEL SECURITY;
 
