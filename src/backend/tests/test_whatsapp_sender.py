@@ -107,11 +107,11 @@ def test_cta_handoff_payloads_give_each_link_its_own_button() -> None:
     assert host_action["parameters"]["url"] == "https://easyorder.example/api/r/h0stC0de"
 
     guest_action = guest_payload["interactive"]["action"]
-    assert guest_action["parameters"]["display_text"] == "Open planning canvas"
+    assert guest_action["parameters"]["display_text"] == "Share with group"
     assert guest_action["parameters"]["url"] == "https://easyorder.example/api/r/gu3stC0d"
-    # The guest link stays copyable in the body for forwarding to the group.
+    # Button-only message: no URL in the visible copy.
     guest_body = guest_payload["interactive"]["body"]["text"]
-    assert "https://easyorder.example/api/r/gu3stC0d" in guest_body
+    assert "http" not in guest_body
 
 
 def test_template_handoff_payload_maps_documented_variables() -> None:
@@ -161,7 +161,7 @@ def test_meta_sender_sends_two_cta_messages_by_default(monkeypatch) -> None:
     assert [p["type"] for p in captured] == ["interactive", "interactive"]
     assert all(p["to"] == "919988776655" for p in captured)
     display_texts = [p["interactive"]["action"]["parameters"]["display_text"] for p in captured]
-    assert display_texts == ["Review order", "Open planning canvas"]
+    assert display_texts == ["Review order", "Share with group"]
 
 
 def test_meta_sender_uses_template_when_configured(monkeypatch) -> None:

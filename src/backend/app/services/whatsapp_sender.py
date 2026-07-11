@@ -48,7 +48,7 @@ class SessionHandoff:
     host_short_url: str
     guest_short_url: str
     cta_text: str = "Review order"
-    guest_cta_text: str = "Open planning canvas"
+    guest_cta_text: str = "Share with group"
 
     @property
     def host_body_text(self) -> str:
@@ -59,15 +59,14 @@ class SessionHandoff:
 
     @property
     def guest_body_text(self) -> str:
-        # The guest short link stays in the body so it can be copied or
-        # forwarded to the group; the button opens the same URL.
-        return f"Share the planning canvas with the group: {self.guest_short_url}"
+        # Button-only message: no URL in the visible copy.
+        return "Share the order details with the group."
 
     @property
     def fallback_text(self) -> str:
         return (
             f"EasyOrder is ready. Review and place the order: {self.host_short_url}\n\n"
-            f"Share the planning canvas with the group: {self.guest_short_url}"
+            f"Share with the group: {self.guest_short_url}"
         )
 
 
