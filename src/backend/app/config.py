@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     # Approved handoff template; empty means use the interactive CTA message.
     whatsapp_handoff_template_name: str = ""
     whatsapp_handoff_template_language: str = "en"
+    # Route untagged direct messages to the business number by intent.
+    whatsapp_business_chat_enabled: bool = True
 
     # External integrations
     swiggy_client_mode: str = "mock"

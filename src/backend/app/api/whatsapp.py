@@ -14,6 +14,7 @@ from app.config import Settings, get_settings
 from app.models.session import EventType, SessionEvent
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
 from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
+from app.services.intent_router import ChatMode, classify_chat_mode, route_business_chat_message
 from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
 from app.services.protocols import IAgentService, IDBAdapter, IShortLinkService, IWhatsAppSender
@@ -153,7 +154,42 @@ async def ingest_webhook(
         tagged_messages=len(tagged_messages),
     )
 
-    if not tagged_messages:
+    # --- Dedicated business chat: route untagged direct messages by intent ---
+    planning_messages = list(tagged_messages)
+    routed_intents: list[dict[str, str]] = []
+    for message in incoming_messages:
+        if message.is_easyorder_tagged:
+            continue
+        mode = classify_chat_mode(
+            message,
+            business_phone_number_id=settings.whatsapp_phone_number_id,
+            business_chat_enabled=settings.whatsapp_business_chat_enabled,
+        )
+        if mode != ChatMode.BUSINESS_CHAT:
+            continue
+        routed = route_business_chat_message(message.message_text)
+        log_webhook_event(
+            "whatsapp_business_chat_routed",
+            message_id=message.message_id,
+            intent=routed.family,
+            creates_session=routed.creates_session,
+        )
+        if routed.creates_session:
+            planning_messages.append(message)
+            continue
+        if routed.reply_text:
+            try:
+                await whatsapp_sender.send_private_message(message.sender_id, routed.reply_text)
+            except WhatsAppSendError as error:
+                log_webhook_event(
+                    "whatsapp_business_chat_reply_failed",
+                    message_id=message.message_id,
+                    intent=routed.family,
+                    error=error,
+                )
+        routed_intents.append({"message_id": message.message_id, "intent": str(routed.family)})
+
+    if not planning_messages and not routed_intents:
         log_webhook_event("whatsapp_webhook_ignored", reason="no_easyorder_mention")
         return {
             "status": "ignored",
@@ -163,7 +199,7 @@ async def ingest_webhook(
 
     created_sessions = []
     duplicate_message_ids = []
-    for message in tagged_messages:
+    for message in planning_messages:
         existing_event = await db.get_session_event(
             message.message_id,
             EventType.WHATSAPP_TAGGED_MESSAGE,
@@ -332,16 +368,15 @@ async def ingest_webhook(
             }
         )
 
-    if not created_sessions:
-        return {
-            "status": "duplicate",
-            "duplicates": duplicate_message_ids,
-        }
-
-    response: dict[str, object] = {
-        "status": "created",
-        "sessions": created_sessions,
-    }
+    response: dict[str, object]
+    if created_sessions:
+        response = {"status": "created", "sessions": created_sessions}
+    elif routed_intents:
+        response = {"status": "routed"}
+    else:
+        response = {"status": "duplicate"}
+    if routed_intents:
+        response["intents"] = routed_intents
     if duplicate_message_ids:
         response["duplicates"] = duplicate_message_ids
     return response
