@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.account import router as account_router
+from app.api.dev_tools import router as dev_tools_router
 from app.api.session import router as session_router
 from app.api.short_links import router as short_links_router
 from app.api.whatsapp import create_agent_service, create_db_adapter_for_settings
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(account_router)
+    app.include_router(dev_tools_router)
     app.include_router(session_router)
     app.include_router(short_links_router)
     app.include_router(whatsapp_router)
