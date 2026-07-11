@@ -124,7 +124,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 20 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
 | 21 | TBD | Task 10.6: Order history/status and group-share commands | Phases 1-2 In Review |
 | 22 | TBD | Task 11.1: WhatsApp OTP login and account API | In Review |
-| 23 | TBD | Task 11.2: PWA login screen and My Orders view | Proposed |
+| 23 | TBD | Task 11.2: PWA login screen and My Orders view | In Review |
 
 ### Task 11.1: WhatsApp OTP Login And Account API
 
@@ -167,7 +167,10 @@ served by `/api/me/orders`.
 
 Dependencies: Task 11.1.
 
-Status: Proposed (next after 11.1).
+Status: In Review. Delivered: /login and /orders routes with WhatsApp OTP
+login, My Orders list (status chips, totals, Open via short link), logout,
+navbar entries, and a local-mock-only /api/dev/whatsapp-outbox helper so the
+flow is testable in a browser without a handset.
 
 ## PRD Traceability
 

@@ -863,3 +863,34 @@ The PWA login screen ships in Task 11.2; until then verify the API with curl.
 - `/api/me` and `/api/me/orders` without the cookie → 401.
 - `POST /api/auth/logout` then retry with the old cookie → 401.
 - A second phone number logging in sees an empty orders list, never yours.
+
+
+---
+
+## Task 11.2 — PWA Login And My Orders Manual Verification
+
+### MT-11.2-A: Log in and see your orders in the browser
+
+1. Open `http://localhost:5173/orders` (or tap **My Orders** in the navbar).
+   → Not logged in, so the WhatsApp login screen appears.
+2. Enter your WhatsApp number (`+91 …`), tap **Send code**
+   → a 6-digit code arrives on your WhatsApp (meta mode). In local mock
+   mode, read it from `curl -s localhost:8000/api/dev/whatsapp-outbox`.
+3. Enter the code → **Verify and log in** → the My Orders page shows
+   "Logged in as +<your number>" and your sessions with status chips,
+   date, item count, total — the **same history the chat answers with**.
+4. Tap **Open** on an order → lands on the planning canvas via the short
+   link (Guest view, timeline visible).
+5. Restart the backend (postgres mode) → reload `/orders` → still logged
+   in, same list (durable web session).
+6. **Log out** → back to the homepage; `/orders` now shows the login
+   screen again.
+
+### MT-11.2-B: Wrong inputs fail politely
+
+- Junk phone (`hello`) → inline validation error, no request sent.
+- Wrong code → "Invalid or expired code" shown, form stays usable.
+- 5 wrong codes → even the real code is rejected; request a fresh one.
+
+Note: `/api/dev/whatsapp-outbox` exists **only** when `APP_ENV=local` with
+the mock sender — any other configuration returns 404 (covered by tests).
