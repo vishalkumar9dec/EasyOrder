@@ -693,3 +693,43 @@ timestamp, so UI state can be checked against what actually happened in chat.
 - If the reply never arrived, the timeline instead shows
   *WhatsApp delivery failed* (red dot) — a delivered reply with a "failed"
   event, or a missing reply with a "delivered" event, is a real bug.
+
+
+---
+
+## Task 10.3 — Dedicated Business-Chat Intent Router Manual Verification
+
+Behavior: untagged messages sent **directly to the EasyOrder business number**
+are now routed by intent (no `@EasyOrder` needed). Untagged group messages
+remain ignored. Toggle with `WHATSAPP_BUSINESS_CHAT_ENABLED`.
+
+### MT-10.3-A: Business chat answers without the tag
+
+**Steps:** From the handset, send each of these directly to the EasyOrder
+number: `get started`, `nearest best chole bhature`, `what was my last order?`
+
+**Expected:**
+
+- `get started` → onboarding reply explaining how to order and the
+  `@EasyOrder` group flow.
+- `nearest best chole bhature` → discovery "coming soon" reply.
+- `what was my last order?` → order-history "coming soon" reply.
+- No sessions are created for any of the three (no new links arrive).
+
+### MT-10.3-B: Direct order request creates a session without the tag
+
+**Steps:** Send `get biryani for 4 under 2000` (no `@EasyOrder`) to the
+business number.
+
+**Expected:** Same handoff experience as the tagged flow — Review order +
+Share with group buttons, session opens with the Activity timeline showing
+the message and delivery events.
+
+### MT-10.3-C: Mention flow and group privacy unchanged
+
+**Steps:** Send `@EasyOrder get biryani for 4 under 2000`; then post an
+untagged message in a (mock) group fixture via
+`scripts/replay_whatsapp_webhook.py --fixture docs/api-test-data/whatsapp-untagged.json`.
+
+**Expected:** Tagged message still creates a session. The untagged group
+fixture still returns `{"status": "ignored"}` — passive listening stays off.

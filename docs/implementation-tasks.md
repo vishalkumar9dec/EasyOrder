@@ -118,7 +118,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Closed |
 | 15 | TBD | Task 10.1: WhatsApp message timeline in PWA | Done |
 | 16 | TBD | Task 10.2: WhatsApp-native CTA/template handoff | In Review |
-| 17 | TBD | Task 10.3: Dedicated business-chat intent router | Proposed |
+| 17 | TBD | Task 10.3: Dedicated business-chat intent router | In Review |
 | 18 | TBD | Task 10.4: Saved lists and short add grammar | On Hold |
 | 19 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
 | 20 | TBD | Task 10.6: Order history/status and group-share commands | Proposed |
