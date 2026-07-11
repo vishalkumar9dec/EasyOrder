@@ -7,7 +7,14 @@ from collections.abc import Awaitable, Callable, Sequence
 from decimal import Decimal
 from typing import Any
 
-from app.models.session import CartItem, Session, SessionCreate, SessionStatus
+from app.models.session import (
+    CartItem,
+    EventType,
+    Session,
+    SessionCreate,
+    SessionEvent,
+    SessionStatus,
+)
 
 
 class DatabaseAdapterError(RuntimeError):
@@ -175,6 +182,50 @@ class AsyncPostgresDBAdapter:
         finally:
             await self._close_connection(connection)
 
+    async def insert_session_event(self, event: SessionEvent) -> SessionEvent:
+        """Persist one session timeline event and return it with id and created_at."""
+
+        connection = await self._connection_factory()
+        try:
+            row = await connection.fetchrow(
+                """
+                INSERT INTO session_events (
+                    session_id, event_type, message_text, intent_label,
+                    message_id, sender_wa_id, mode, request_id
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING *
+                """,
+                event.session_id,
+                str(event.event_type),
+                event.message_text,
+                event.intent_label,
+                event.message_id,
+                event.sender_wa_id,
+                event.mode,
+                event.request_id,
+            )
+            return self._session_event_from_row(row)
+        finally:
+            await self._close_connection(connection)
+
+    async def get_session_events(self, session_id: str) -> list[SessionEvent]:
+        """Fetch all timeline events for a session, ordered oldest-first."""
+
+        connection = await self._connection_factory()
+        try:
+            rows = await connection.fetch(
+                """
+                SELECT * FROM session_events
+                WHERE session_id = $1
+                ORDER BY created_at
+                """,
+                session_id,
+            )
+            return [self._session_event_from_row(row) for row in rows]
+        finally:
+            await self._close_connection(connection)
+
     async def _replace_cart_items(
         self,
         connection: Any,
@@ -243,6 +294,22 @@ class AsyncPostgresDBAdapter:
         data = dict(row)
         data["price"] = Decimal(str(data["price"]))
         return CartItem(**data)
+
+    @staticmethod
+    def _session_event_from_row(row: Any) -> SessionEvent:
+        data = dict(row)
+        return SessionEvent(
+            id=data["id"],
+            session_id=data["session_id"],
+            event_type=EventType(data["event_type"]),
+            message_text=data.get("message_text"),
+            intent_label=data.get("intent_label"),
+            message_id=data.get("message_id"),
+            sender_wa_id=data.get("sender_wa_id"),
+            mode=data.get("mode"),
+            request_id=data.get("request_id"),
+            created_at=data.get("created_at"),
+        )
 
     @staticmethod
     async def _close_connection(connection: Any) -> None:

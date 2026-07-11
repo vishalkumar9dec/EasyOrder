@@ -10,6 +10,19 @@ export interface ApiSessionWarning {
   item_id?: string | null;
 }
 
+export interface ApiSessionEvent {
+  id?: number | null;
+  session_id?: string | null;
+  event_type: 'whatsapp_inbound' | 'session_created' | 'links_sent';
+  message_text?: string | null;
+  intent_label?: string | null;
+  message_id?: string | null;
+  sender_wa_id?: string | null;
+  mode?: string | null;
+  request_id?: string | null;
+  created_at?: string | null;
+}
+
 export interface ApiCartItem {
   id: number | null;
   item_id: string;
@@ -37,6 +50,7 @@ export interface ApiSessionBootstrap {
   warnings: ApiSessionWarning[];
   cart_items: ApiCartItem[];
   checkout_eligible: boolean;
+  timeline: ApiSessionEvent[];
 }
 
 export interface SessionBootstrapViewModel {
@@ -52,6 +66,7 @@ export interface SessionBootstrapViewModel {
   cart: CartItem[];
   checkoutEligible: boolean;
   total: number;
+  timeline: ApiSessionEvent[];
 }
 
 export interface CheckoutPreviewGroup {
@@ -84,6 +99,7 @@ export function adaptSessionBootstrap(payload: ApiSessionBootstrap): SessionBoot
     cart,
     checkoutEligible: payload.checkout_eligible,
     total: calculateCartTotal(cart),
+    timeline: payload.timeline ?? [],
   };
 }
 
