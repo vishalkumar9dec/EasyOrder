@@ -18,6 +18,7 @@ _wamid_counter = itertools.count(1)
 def whatsapp_payload(
     message_text: str = "@EasyOrder get biryani for 4",
     message_id: str | None = None,
+    phone_number_id: str = "group_ipl_fans_1",
 ) -> dict:
     if message_id is None:
         message_id = f"wamid.test-{next(_wamid_counter)}"
@@ -33,7 +34,7 @@ def whatsapp_payload(
                             "messaging_product": "whatsapp",
                             "metadata": {
                                 "display_phone_number": "15551234567",
-                                "phone_number_id": "group_ipl_fans_1",
+                                "phone_number_id": phone_number_id,
                             },
                             "contacts": [{"wa_id": "919988776655"}],
                             "messages": [
@@ -378,3 +379,101 @@ def test_inbound_event_redacts_obvious_pii_before_timeline_storage() -> None:
     assert "+919988776655" not in (inbound.message_text or "")
     assert "test@example.com" not in (inbound.message_text or "")
     assert (inbound.message_text or "").count("[redacted]") == 2
+
+
+def business_chat_settings() -> Settings:
+    return Settings(
+        app_env="local",
+        whatsapp_phone_number_id="business-42",
+        whatsapp_business_chat_enabled=True,
+        public_app_base_url="http://localhost:5173",
+    )
+
+
+def test_business_chat_history_question_gets_graceful_reply_without_session() -> None:
+    sender = app.state.whatsapp_sender
+    agent_service = app.state.agent_service
+    sessions_before = len(agent_service.store.sessions)
+    messages_before = len(sender.sent_messages)
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "what was my last order?",
+                phone_number_id="business-42",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "routed"
+    assert body["intents"][0]["intent"] == "order_history_status"
+    assert len(agent_service.store.sessions) == sessions_before
+    reply = sender.sent_messages[messages_before:]
+    assert len(reply) == 1
+    assert reply[0].channel == "private"
+    assert reply[0].recipient_id == "919988776655"
+    assert "coming soon" in reply[0].text
+
+
+def test_business_chat_discovery_question_routes_to_discovery() -> None:
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "nearest best chole bhature",
+                phone_number_id="business-42",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    assert response.json()["intents"][0]["intent"] == "discovery_offers"
+
+
+def test_business_chat_order_request_creates_session_without_tag() -> None:
+    agent_service = app.state.agent_service
+    sessions_before = len(agent_service.store.sessions)
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "get biryani for 4 under 2000",
+                phone_number_id="business-42",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "created"
+    assert len(agent_service.store.sessions) == sessions_before + 1
+    assert "token=" not in body["sessions"][0]["guest_short_link"]
+
+
+def test_untagged_group_message_still_ignored_with_business_chat_enabled() -> None:
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "what was my last order?",
+                phone_number_id="group_ipl_fans_1",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ignored"
