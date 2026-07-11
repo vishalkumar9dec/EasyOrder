@@ -122,7 +122,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 18 | TBD | Task 10.4: Saved lists and short add grammar | On Hold |
 | 19 | TBD | Task 10.7: Durable Postgres persistence wiring | In Review |
 | 20 | TBD | Task 10.5: List-to-cart review and offer optimization | Proposed |
-| 21 | TBD | Task 10.6: Order history/status and group-share commands | Phase 1 In Review |
+| 21 | TBD | Task 10.6: Order history/status and group-share commands | Phases 1-2 In Review |
 
 ## PRD Traceability
 
@@ -445,6 +445,11 @@ Debug strategy:
 
 Objective: Add returning-user assistant commands after identity, lists, and
 session history are stable.
+
+Phase 2 (delivered): `share the order details` returns a link-free preview
+(item count, approx total); the forwardable summary with the reusable guest
+short link is released only after explicit confirmation (`share yes`). Strict
+wa_id scoping; no host material can appear in shared copy.
 
 Phase 1 (delivered): `what was my last order?` / order-status questions in the
 dedicated business chat are answered from EasyOrder's own durable session

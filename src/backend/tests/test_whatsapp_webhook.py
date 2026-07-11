@@ -542,3 +542,94 @@ def test_untagged_group_message_still_ignored_with_business_chat_enabled() -> No
 
     assert response.status_code == 200
     assert response.json()["status"] == "ignored"
+
+
+def test_share_request_previews_without_link_until_confirmed() -> None:
+    sender = app.state.whatsapp_sender
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        created = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "get biryani for 4 under 2000",
+                phone_number_id="business-42",
+                sender_wa_id="919900000004",
+            ),
+        )
+        assert created.json()["status"] == "created"
+        messages_before = len(sender.sent_messages)
+
+        preview = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "share the order details",
+                phone_number_id="business-42",
+                sender_wa_id="919900000004",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert preview.status_code == 200
+    assert preview.json()["intents"][0]["intent"] == "share_request"
+    reply = sender.sent_messages[messages_before:]
+    assert len(reply) == 1
+    text = reply[0].text
+    assert "share yes" in text
+    # Preview must not release any link or token material yet.
+    assert "/api/r/" not in text
+    assert "token=" not in text
+    assert "host_" not in text
+    assert "guest_" not in text
+
+
+def test_confirmed_share_sends_forwardable_guest_summary() -> None:
+    sender = app.state.whatsapp_sender
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        messages_before = len(sender.sent_messages)
+        confirmed = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "share yes",
+                phone_number_id="business-42",
+                sender_wa_id="919900000004",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert confirmed.status_code == 200
+    reply = sender.sent_messages[messages_before:]
+    assert len(reply) == 1
+    text = reply[0].text
+    assert "EasyOrder plan" in text
+    assert "/api/r/" in text
+    assert "token=" not in text
+    assert "host_" not in text
+    assert "guest_" not in text
+
+
+def test_share_request_without_history_gets_graceful_reply() -> None:
+    sender = app.state.whatsapp_sender
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        messages_before = len(sender.sent_messages)
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "share the order details",
+                phone_number_id="business-42",
+                sender_wa_id="919900000005",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    reply = sender.sent_messages[messages_before:]
+    assert len(reply) == 1
+    assert "don't have any orders" in reply[0].text

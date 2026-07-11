@@ -815,3 +815,22 @@ edit, tunnels up.
 Set `PERSISTENCE_MODE=memory`, restart, ask `what was my last order?`
 → "I don't have any orders for you yet…" (fresh process, empty store), and
 old links are dead — the pre-10.7 behavior, unchanged by default.
+
+
+### MT-COMBINED-D: Share command — preview, confirm, forward (Task 10.6 phase 2)
+
+1. With at least one order in your history, message the EasyOrder number:
+   `share the order details`
+   → Expected: a **preview** — item count and approx total, ending with
+   "Reply \"share yes\" and I'll send a message you can forward to the
+   group." **No link of any kind in this message.**
+2. Reply: `share yes`
+   → Expected: a forwardable summary — "EasyOrder plan: <n> item(s), about
+   INR <total>. Join in and add your items here: <…/api/r/…>".
+   No `token=`, `host_`, or `guest_` text anywhere.
+3. **Forward that message** to any chat (or another phone), tap the link
+   there → opens the planning canvas as **Guest** (no checkout controls).
+4. Ask `share the order details` from a number with no orders
+   → "I don't have any orders for you yet…" — never someone else's order.
+5. Restart the backend between steps 1 and 2 → `share yes` still works and
+   reuses the same guest short link (durable, Task 10.7).
