@@ -246,11 +246,24 @@ def test_failed_handoff_is_not_marked_duplicate_so_retry_can_deliver() -> None:
     finally:
         app.state.whatsapp_sender = original_sender
 
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    failed_session_events = [
+        e.event_type for e in db.events if e.message_id == "wamid.retry-after-502"
+    ]
+    assert "handoff_failed" in failed_session_events
+    assert "handoff_delivered" not in failed_session_events
+
     retried = TestClient(app).post("/api/whatsapp/webhook", json=payload)
 
     assert failed.status_code == 502
     assert retried.status_code == 200
     assert retried.json()["status"] == "created"
+    retried_session_events = [
+        e.event_type for e in db.events if e.message_id == "wamid.retry-after-502"
+    ]
+    assert "handoff_delivered" in retried_session_events
 
 
 def test_mock_sender_keeps_template_placeholders_disabled() -> None:
@@ -301,7 +314,10 @@ def test_tagged_message_persists_inbound_and_links_sent_events() -> None:
     assert "whatsapp_inbound" in event_types
     assert "session_created" in event_types
     assert "links_sent" in event_types
+    assert "handoff_delivered" in event_types
+    assert "handoff_failed" not in event_types
     assert event_types.index("whatsapp_inbound") < event_types.index("session_created")
+    assert event_types.index("links_sent") < event_types.index("handoff_delivered")
 
 
 def test_inbound_event_contains_message_text_and_sender() -> None:
