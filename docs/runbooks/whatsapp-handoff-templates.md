@@ -23,9 +23,8 @@ WhatsApp allows only **one URL button per interactive message**, so the CTA
 handoff sends **two messages**:
 
 1. Body: session-ready copy; button `Review order` → **host short link**.
-2. Body: share copy including the **guest short link** as copyable text
-   (so it can be forwarded to the group); button `Open planning canvas` →
-   the same guest short link.
+2. Body: `Share the order details with the group.` (button-only, no visible
+   URL); button `Share with group` → **guest short link**.
 
 No approval process applies. Requires the 24h session window, which is always
 open for the initiating sender because they just messaged the business number.
@@ -42,7 +41,7 @@ The default template name we register is `easyorder_session_handoff`.
 | Language | `WHATSAPP_HANDOFF_TEMPLATE_LANGUAGE` (default `en`) |
 | Body variable `{{1}}` | Guest short URL (shareable planning canvas) |
 | URL button index 0 parameter | Host short URL (`Review order`, private review/checkout) |
-| URL button index 1 parameter | Guest short URL (`Open planning canvas`) |
+| URL button index 1 parameter | Guest short URL (`Share with group`) |
 | Category | `UTILITY` |
 
 Templates support up to two URL buttons, which is why the approved template is

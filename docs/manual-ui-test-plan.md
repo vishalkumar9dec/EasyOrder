@@ -626,19 +626,16 @@ See [whatsapp-handoff-templates.md](runbooks/whatsapp-handoff-templates.md).
 **Expected:**
 
 - **Two replies**: one with a **Review order** button (host view) and one with
-  an **Open planning canvas** button (guest view). On fallback, one short text
+  a **Share with group** button (guest view). On fallback, one short text
   message with two `…/api/r/…` links.
-- **No** visible URL contains `token=`, `host_`, or `guest_`.
-- The second message's body also shows the guest short link as copyable text
-  for forwarding to the group.
+- **No visible URL in either message body** — buttons only.
 
 ### MT-10.2-B: Short links open the correct views
 
 **Steps:**
 
 1. Tap the **Review order** button.
-2. Separately tap **Open planning canvas** (or copy the guest short link) in
-   another browser.
+2. Separately tap **Share with group** in another browser.
 
 **Expected:**
 
