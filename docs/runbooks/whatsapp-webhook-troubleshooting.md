@@ -622,6 +622,8 @@ whatsapp_session_created
 | Backend logs `tagged_messages=0` | Message lacks `@EasyOrder` | Backend logs | Include `@EasyOrder` in the message body |
 | Backend returns `502 Session was created but WhatsApp handoff failed` | Outbound text reply failed | Backend `whatsapp_handoff_failed` log | Refresh access token, verify recipient, test `--send-text` |
 | Guest/host links use wrong domain | Backend loaded stale `PUBLIC_APP_BASE_URL` | Inspect generated links and `.env` | Update `.env` and restart backend |
+| Guest/host link opens a blank page or Vite says host is blocked | Frontend tunnel host is not allowed by Vite | `curl -i https://<frontend-tunnel>/` | Add `.loca.lt` to `server.allowedHosts` in `src/frontend/vite.config.ts` and keep the frontend tunnel running |
+| Guest/host link opens but session never loads | Frontend cannot proxy `/api` to backend | `curl -i "https://<frontend-tunnel>/api/session/not-a-real-session?token=guest_test"` | Confirm it returns backend JSON, restart backend/frontend, and verify `VITE_API_BASE_URL`/proxy target |
 | Template send works but EasyOrder reply fails | Template and text-message permissions/windows differ | `--send-text` | Open service window by messaging test number, or use template for proactive messages |
 
 ## Final Known-Good State From The Incident

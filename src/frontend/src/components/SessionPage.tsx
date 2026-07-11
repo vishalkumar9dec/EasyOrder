@@ -14,6 +14,7 @@ import {
   getRoleLabel,
   getSessionHealthLabel,
   getWarningTitle,
+  type ApiSessionEvent,
   type ApiSessionWarning,
   type ApiSessionBootstrap,
   type SessionBootstrapViewModel,
@@ -393,7 +394,55 @@ function SessionCanvas({
           </div>
         </aside>
       </div>
+
+      {session.timeline.length > 0 && (
+        <MessageTimeline events={session.timeline} />
+      )}
     </section>
+  );
+}
+
+function MessageTimeline({ events }: { events: ApiSessionEvent[] }) {
+  function eventLabel(type: ApiSessionEvent['event_type']): string {
+    if (type === 'whatsapp_inbound') return 'WhatsApp message received';
+    if (type === 'session_created') return 'Session created';
+    if (type === 'links_sent') return 'Session links sent';
+    return type;
+  }
+
+  function formatTime(iso: string | null | undefined): string {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  }
+
+  return (
+    <div className="message-timeline" aria-label="WhatsApp activity timeline">
+      <p className="timeline-title">Activity</p>
+      <ol className="timeline-list">
+        {events.map((event, index) => (
+          <li
+            key={event.id ?? index}
+            className={`timeline-item timeline-item--${event.event_type}`}
+          >
+            <span className="timeline-dot" aria-hidden="true" />
+            <div className="timeline-content">
+              <p className="timeline-label">{eventLabel(event.event_type)}</p>
+              {event.message_text && (
+                <p className="timeline-message">{event.message_text}</p>
+              )}
+              <p className="timeline-meta">
+                {event.sender_wa_id && <span>{event.sender_wa_id}</span>}
+                {event.created_at && <span>{formatTime(event.created_at)}</span>}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

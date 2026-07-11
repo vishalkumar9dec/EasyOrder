@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import re
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -10,7 +11,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import ValidationError
 
 from app.config import Settings, get_settings
-from app.models.session import SessionEvent
+from app.models.session import EventType, SessionEvent
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
 from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
 from app.services.memory_db import InMemoryDBAdapter
@@ -23,7 +24,13 @@ router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
 logger = logging.getLogger("easyorder.api")
 terminal_logger = logging.getLogger("uvicorn.error")
 
-TAGGED_MESSAGE_EVENT_TYPE = "whatsapp_tagged_message"
+TIMELINE_REDACTION_PATTERNS = [
+    re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),
+    re.compile(r"\b(?:\+?91[-\s]?)?[6-9]\d{9}\b"),
+    re.compile(r"\b(?:\d[ -]*?){13,16}\b"),
+    re.compile(r"\bhost_[A-Za-z0-9_-]+\b"),
+    re.compile(r"\bguest_[A-Za-z0-9_-]+\b"),
+]
 
 
 def log_webhook_event(event: str, **fields: object) -> None:
@@ -65,6 +72,13 @@ def build_direct_user_session_message(guest_link: str, host_link: str) -> str:
         f"{host_link}\n\n"
         f"If you want others to review the planning canvas, share this guest link: {guest_link}"
     )
+
+
+def redact_timeline_message(message_text: str) -> str:
+    redacted = message_text
+    for pattern in TIMELINE_REDACTION_PATTERNS:
+        redacted = pattern.sub("[redacted]", redacted)
+    return redacted.strip()
 
 
 def verify_signature(raw_body: bytes, signature_header: str | None, settings: Settings) -> None:
@@ -111,7 +125,7 @@ async def ingest_webhook(
     settings: Settings = Depends(get_settings),
     agent_service: IAgentService = Depends(get_agent_service),
     whatsapp_sender: IWhatsAppSender = Depends(get_whatsapp_sender),
-    db_adapter: IDBAdapter = Depends(get_db_adapter),
+    db: IDBAdapter = Depends(get_db_adapter),
 ) -> dict[str, object]:
     raw_body = await request.body()
     log_webhook_event(
@@ -149,9 +163,9 @@ async def ingest_webhook(
     created_sessions = []
     duplicate_message_ids = []
     for message in tagged_messages:
-        existing_event = await db_adapter.get_session_event(
+        existing_event = await db.get_session_event(
             message.message_id,
-            TAGGED_MESSAGE_EVENT_TYPE,
+            EventType.WHATSAPP_TAGGED_MESSAGE,
         )
         if existing_event is not None:
             log_webhook_event(
@@ -184,6 +198,47 @@ async def ingest_webhook(
             session.session_id,
             result.host_token,
         )
+        # --- Persist inbound event ---
+        request_id = request.headers.get("x-request-id", "")
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.WHATSAPP_INBOUND,
+                message_text=redact_timeline_message(message.message_text),
+                intent_label="start_session",
+                message_id=message.message_id,
+                sender_wa_id=message.sender_id,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.SESSION_CREATED,
+                intent_label="start_session",
+                message_id=message.message_id,
+                sender_wa_id=message.sender_id,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
+
+        # --- Persist outbound links_sent event before attempting send ---
+        # Record that links exist regardless of whether the WhatsApp send succeeds,
+        # so the timeline is never missing LINKS_SENT due to a transient send failure.
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.LINKS_SENT,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
+
         try:
             if settings.whatsapp_provider_mode == "meta":
                 log_webhook_event(
@@ -219,12 +274,15 @@ async def ingest_webhook(
                 detail="Session was created but WhatsApp handoff failed",
             ) from error
         # Recorded only after a successful handoff: a failed send returns 502
-        # without an event, so Meta's retry can still deliver the links.
-        await db_adapter.insert_session_event(
+        # without a ledger entry, so Meta's retry can still deliver the links.
+        await db.insert_session_event(
             SessionEvent(
-                message_id=message.message_id,
-                event_type=TAGGED_MESSAGE_EVENT_TYPE,
                 session_id=session.session_id,
+                event_type=EventType.WHATSAPP_TAGGED_MESSAGE,
+                message_id=message.message_id,
+                sender_wa_id=message.sender_id,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
             )
         )
         log_webhook_event(
@@ -254,6 +312,14 @@ async def ingest_webhook(
     if duplicate_message_ids:
         response["duplicates"] = duplicate_message_ids
     return response
+
+
+async def _try_insert_event(db: IDBAdapter, event: SessionEvent) -> None:
+    """Best-effort event persistence — log on failure, never raise."""
+    try:
+        await db.insert_session_event(event)
+    except Exception:
+        logger.exception("session_event_insert_failed session_id=%s", event.session_id)
 
 
 def create_mock_agent_service() -> MockAgentService:

@@ -116,7 +116,7 @@ Use this table when choosing the next GitHub issue. The GitHub issue number is t
 | 12 | [#11](https://github.com/vishalkumar9dec/EasyOrder/issues/11) | Tasks 8.1, 8.2 | Closed |
 | 13 | [#12](https://github.com/vishalkumar9dec/EasyOrder/issues/12) | Tasks 9.1, 9.2 | Closed |
 | 14 | [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13) | Tasks 9.3, 9.4 | Closed |
-| 15 | TBD | Task 10.1: WhatsApp message timeline in PWA | Proposed |
+| 15 | TBD | Task 10.1: WhatsApp message timeline in PWA | Done |
 | 16 | TBD | Task 10.2: WhatsApp-native CTA/template handoff | Proposed |
 | 17 | TBD | Task 10.3: Dedicated business-chat intent router | Proposed |
 | 18 | TBD | Task 10.4: Saved lists and short add grammar | On Hold |

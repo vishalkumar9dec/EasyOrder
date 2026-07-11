@@ -50,7 +50,9 @@ const payload: ApiSessionBootstrap = {
       source_label: 'Instamart Mock Store',
     },
   ],
+  timeline: [],
 };
+
 
 describe('session bootstrap route and adapter', () => {
   it('detects session routes and token query params', () => {

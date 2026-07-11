@@ -1,6 +1,6 @@
 # EasyOrder Manual UI Test Plan
 
-Last verified: 2026-07-02.
+Last verified: 2026-07-06.
 
 This document reflects the current project state from `docs/easyorder-prd.md`,
 `docs/implementation-tasks.md`, the local worktree, and live GitHub issue status.
@@ -27,10 +27,13 @@ branch adds the repeatable local demo smoke, request-id logging, and runbooks.
 The issue [#13](https://github.com/vishalkumar9dec/EasyOrder/issues/13)
 branch adds the consolidated security smoke and final documentation hardening pass.
 
-The next proposed wave is not implemented yet. It covers:
+The `codex/issue-15-whatsapp-timeline` branch (Task 10.1) adds the
+WhatsApp activity timeline: inbound message events and links-sent events are
+persisted to a new `session_events` table and surfaced in the PWA session route
+as a compact "Activity" strip below the planning canvas.
 
-- Showing the initiating WhatsApp message and EasyOrder activity as a session
-  timeline in the PWA.
+The next proposed wave (not yet implemented) covers:
+
 - Replacing long visible WhatsApp handoff URLs with CTA/template messaging where
   supported, or short branded links as fallback.
 - Adding a dedicated EasyOrder business-chat assistant mode.
@@ -491,3 +494,111 @@ Then manually retest `UI-01` through `UI-07` in the playground and `API-01` thro
 `API-13a` plus `API-39` at the backend seams. The issue [#4](https://github.com/vishalkumar9dec/EasyOrder/issues/4)
 agent now produces session/cart states, and issue [#5](https://github.com/vishalkumar9dec/EasyOrder/issues/5)
 keeps mock guest/host channels for privacy tests while Meta mode uses direct-user handoff.
+
+---
+
+## Task 10.1 — WhatsApp Message Timeline Manual Verification
+
+Branch: `codex/issue-15-whatsapp-timeline`
+
+### MT-10.1-A: Timeline appears after webhook creates a session
+
+**Steps:**
+
+1. Start the backend: `make backend-dev` (or `APP_ENV=local uvicorn app.main:app --reload`).
+2. Start the frontend: `make frontend-dev`.
+3. Start public tunnels for both services. Use the URL printed by localtunnel:
+
+```bash
+npx -y localtunnel --port 8000 --subdomain easyorder-api-dev
+npx -y localtunnel --port 5173 --subdomain easyorder-web-dev
+```
+
+4. Set `PUBLIC_APP_BASE_URL` in `src/backend/.env` to the frontend tunnel URL
+   printed by localtunnel, then restart or reload the backend:
+
+```bash
+PUBLIC_APP_BASE_URL=https://<frontend-tunnel>.loca.lt
+```
+
+5. Verify the frontend tunnel serves the PWA and proxies API calls to the backend:
+
+```bash
+curl -i https://<frontend-tunnel>.loca.lt/
+curl -i "https://<frontend-tunnel>.loca.lt/api/session/not-a-real-session?token=guest_test"
+```
+
+Expected preflight:
+
+- The first command returns `200 OK` with the Vite HTML shell.
+- The second command returns the backend JSON `{"detail":"Session not found"}`.
+- It must not return `403 Blocked request...allowedHosts`, `408`, or `503`.
+
+6. For local mock verification, POST a tagged WhatsApp webhook using the fixture:
+
+```bash
+curl -s -X POST http://localhost:8000/api/whatsapp/webhook \
+  -H "Content-Type: application/json" \
+  -d @docs/api-test-data/whatsapp-tagged-normal.json | jq .
+```
+
+7. For live Meta verification, send this from the registered sandbox handset:
+
+```text
+@EasyOrder get biryani for 4 under 2000
+```
+
+8. Open the guest or private host link received in WhatsApp.
+
+**Expected:**
+
+- The PWA session canvas loads.
+- Below the planning canvas there is an **Activity** strip with at least two events:
+  - `WhatsApp message received` — shows the original tagged message text and the sender wa_id.
+  - `Session links sent` — shows a green dot.
+- No host token or hash appears anywhere on the page.
+- Live links use the frontend tunnel URL from `PUBLIC_APP_BASE_URL`, not a stale
+  or disconnected tunnel.
+
+---
+
+### MT-10.1-B: Guest and host both see the Activity strip
+
+**Steps:**
+
+1. After step 8 above, open the **guest link** in one browser tab and the **host link** in another.
+
+**Expected:**
+
+- Both tabs show the Activity strip with the same events.
+- Guest view does not expose any additional fields beyond what the host sees.
+
+---
+
+### MT-10.1-C: Empty timeline — no crash when no events
+
+**Steps:**
+
+1. Manually create a session via the session API without sending a webhook.
+2. Open the session URL.
+
+**Expected:**
+
+- The planning canvas renders normally.
+- The Activity strip is **not rendered** (the component is hidden when `timeline.length === 0`).
+
+---
+
+### MT-10.1-D: Timeline redaction — no token material in browser dev tools
+
+**Steps:**
+
+1. Open the session with a host token.
+2. Open browser DevTools → Network → find the `GET /api/session/{id}?token=...` request.
+3. Inspect the JSON response body.
+
+**Expected:**
+
+- `timeline` array is present.
+- Each event object has: `event_type`, `message_text` (inbound only), `sender_wa_id`, `created_at`, `mode`.
+- **No field contains** `host_token`, `host_token_hash`, or any bearer credential.

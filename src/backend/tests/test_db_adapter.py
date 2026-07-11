@@ -61,17 +61,22 @@ class FakeConnection:
             return self.sessions.get(args[0])
 
         if "INSERT INTO session_events" in sql:
-            already_recorded = any(
-                event["message_id"] == args[0] and event["event_type"] == args[1]
+            already_recorded = args[4] is not None and any(
+                event["message_id"] == args[4] and event["event_type"] == args[1]
                 for event in self.session_events
             )
             if already_recorded:
                 return None
             row = {
                 "id": len(self.session_events) + 1,
-                "message_id": args[0],
+                "session_id": args[0],
                 "event_type": args[1],
-                "session_id": args[2],
+                "message_text": args[2],
+                "intent_label": args[3],
+                "message_id": args[4],
+                "sender_wa_id": args[5],
+                "mode": args[6],
+                "request_id": args[7],
                 "created_at": datetime.now(UTC),
             }
             self.session_events.append(row)
