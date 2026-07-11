@@ -16,6 +16,7 @@ from app.models.session import (
     CheckoutStepResult,
     CheckoutValidationResponse,
     DietaryTag,
+    EventType,
     Session,
     SessionBootstrapResponse,
     SessionEvent,
@@ -325,7 +326,12 @@ def build_session_bootstrap_response(
         warnings=session.warnings,
         cart_items=[cart_item_response(item) for item in session.cart_items],
         checkout_eligible=is_checkout_eligible(session, role),
-        timeline=timeline or [],
+        # Ledger events are internal idempotency records, never user-facing.
+        timeline=[
+            event
+            for event in (timeline or [])
+            if event.event_type != EventType.WHATSAPP_TAGGED_MESSAGE
+        ],
     )
 
 

@@ -508,6 +508,36 @@ def test_bootstrap_timeline_includes_persisted_events() -> None:
     assert event["sender_wa_id"] == "919988776655"
 
 
+def test_bootstrap_timeline_excludes_idempotency_ledger_events() -> None:
+    """whatsapp_tagged_message ledger entries are internal and never user-facing."""
+    import asyncio
+
+    from app.models.session import EventType, SessionEvent
+    from app.services.memory_db import InMemoryDBAdapter
+
+    app, result = create_initialized_session()
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+
+    asyncio.run(
+        db.insert_session_event(
+            SessionEvent(
+                session_id=result.session.session_id,
+                event_type=EventType.WHATSAPP_TAGGED_MESSAGE,
+                message_id="wamid.test-ledger",
+                sender_wa_id="919988776655",
+            )
+        )
+    )
+
+    response = TestClient(app).get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.session.guest_token},
+    )
+
+    event_types = [e["event_type"] for e in response.json()["timeline"]]
+    assert "whatsapp_tagged_message" not in event_types
+
+
 def test_timeline_does_not_expose_host_tokens_or_secrets() -> None:
     """Timeline events must never surface host token or secrets in any field."""
     import asyncio
