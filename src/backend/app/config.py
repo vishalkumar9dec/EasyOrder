@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_waba_id: str = ""
     whatsapp_api_version: str = "v20.0"
+    # Approved handoff template; empty means use the interactive CTA message.
+    whatsapp_handoff_template_name: str = ""
+    whatsapp_handoff_template_language: str = "en"
 
     # External integrations
     swiggy_client_mode: str = "mock"

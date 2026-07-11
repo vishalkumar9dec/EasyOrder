@@ -8,9 +8,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.session import router as session_router
+from app.api.short_links import router as short_links_router
 from app.api.whatsapp import create_agent_service
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
+from app.services.short_links import InMemoryShortLinkService
 from app.services.whatsapp_sender import create_whatsapp_sender
 
 logger = logging.getLogger("easyorder.api")
@@ -28,7 +30,10 @@ def create_app() -> FastAPI:
         access_token=settings.whatsapp_access_token,
         phone_number_id=settings.whatsapp_phone_number_id,
         api_version=settings.whatsapp_api_version,
+        handoff_template_name=settings.whatsapp_handoff_template_name,
+        handoff_template_language=settings.whatsapp_handoff_template_language,
     )
+    app.state.short_links = InMemoryShortLinkService()
 
     app.add_middleware(
         CORSMiddleware,
@@ -92,6 +97,7 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(session_router)
+    app.include_router(short_links_router)
     app.include_router(whatsapp_router)
 
     return app

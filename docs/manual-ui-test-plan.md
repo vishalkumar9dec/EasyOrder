@@ -602,3 +602,71 @@ curl -s -X POST http://localhost:8000/api/whatsapp/webhook \
 - `timeline` array is present.
 - Each event object has: `event_type`, `message_text` (inbound only), `sender_wa_id`, `created_at`, `mode`.
 - **No field contains** `host_token`, `host_token_hash`, or any bearer credential.
+
+---
+
+## Task 10.2 — CTA And Short-Link Handoff Manual Verification
+
+Last verified: 2026-07-11 (mock mode, automated + local API drive).
+
+Behavior change: WhatsApp handoff messages no longer contain raw tokenized
+session URLs. Copy carries opaque short links (`…/api/r/{code}`); Meta mode
+sends an interactive CTA message (button `Review order`) with the guest short
+link in the body, falling back to concise text if Graph rejects the payload.
+See [whatsapp-handoff-templates.md](runbooks/whatsapp-handoff-templates.md).
+
+### MT-10.2-A: Handset receives CTA handoff, not raw URLs (meta mode)
+
+**Steps:**
+
+1. Ensure the backend runs with `WHATSAPP_PROVIDER_MODE=meta` and tunnels are up.
+2. Send `@EasyOrder get biryani for 4 under 2000` from the handset.
+3. Inspect the reply in WhatsApp.
+
+**Expected:**
+
+- The reply shows a **Review order** button (interactive CTA) or, on fallback,
+  short text with two `…/api/r/…` links.
+- **No** visible URL contains `token=`, `host_`, or `guest_`.
+- The body text includes a share line with the guest short link.
+
+### MT-10.2-B: Short links open the correct views
+
+**Steps:**
+
+1. Tap the **Review order** button (or the first short link).
+2. Separately open the guest short link from the share line in another browser.
+
+**Expected:**
+
+- The button/host link lands on the planning canvas with role **Host**
+  (checkout controls visible).
+- The guest short link lands on the same session with role **Guest**
+  (no checkout button).
+- The browser address bar ends up on the tokenized `/session/{id}?token=…`
+  URL after the redirect — tokens exist only after the click, never in chat.
+
+### MT-10.2-C: Unknown or expired short code fails closed
+
+**Steps:**
+
+1. Open `{PUBLIC_APP_BASE_URL}/api/r/doesnotexist` in a browser.
+2. Restart the backend, then re-open a short link from before the restart.
+
+**Expected:**
+
+- Both return `404` with `{"detail": "Unknown or expired link"}` — codes are
+  process-scoped, matching in-memory session lifetime.
+
+### MT-10.2-D: Webhook response exposes short guest link only
+
+**Steps:**
+
+1. POST a signed tagged fixture (see `scripts/replay_whatsapp_webhook.py`).
+2. Inspect the JSON response.
+
+**Expected:**
+
+- `sessions[0].guest_short_link` is present and contains no `token=`.
+- `sessions[0].guest_link` (tokenized, host's own response) is unchanged.
+- No `host_` material anywhere in the response.

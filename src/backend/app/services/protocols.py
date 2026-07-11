@@ -7,7 +7,10 @@ can be swapped for mocks in tests (AGENTS.md rule #23).
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from app.services.whatsapp_sender import SessionHandoff
 
 from app.models.session import (
     CartItem,
@@ -49,6 +52,26 @@ class IWhatsAppSender(Protocol):
 
     async def send_private_message(self, recipient_id: str, text: str) -> None:
         """Send a private message to one WhatsApp user."""
+        ...
+
+    async def send_session_handoff(self, recipient_id: str, handoff: SessionHandoff) -> None:
+        """Send the session handoff using the richest capability the provider supports."""
+        ...
+
+
+class IShortLinkService(Protocol):
+    """Interface for short-link aliases of tokenized session URLs."""
+
+    def create(self, target_path: str) -> str:
+        """Return an opaque short code for a relative target path."""
+        ...
+
+    def resolve(self, code: str) -> str | None:
+        """Return the target path for a code, or None when unknown."""
+        ...
+
+    def create_short_url(self, base_url: str, target_path: str) -> str:
+        """Return the absolute short URL for a relative target path."""
         ...
 
 
