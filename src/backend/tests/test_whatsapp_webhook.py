@@ -141,7 +141,9 @@ def test_tagged_message_creates_mock_session() -> None:
     assert private_message.channel == "private"
     assert private_message.recipient_id == "919988776655"
     assert "host_" in private_message.text
+    assert "host_" not in group_message.text
     assert "host_" not in str(body)
+    assert "host_link" not in body["sessions"][0]
 
 
 def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
@@ -173,6 +175,7 @@ def test_meta_mode_sends_direct_handoff_to_inbound_sender() -> None:
     assert "host_" in handoff_message.text
     assert "guest_" in handoff_message.text
     assert "host_" not in str(response.json())
+    assert "host_link" not in response.json()["sessions"][0]
 
 
 def test_mock_sender_keeps_template_placeholders_disabled() -> None:
@@ -203,3 +206,84 @@ def test_invalid_payload_returns_structured_error() -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Invalid WhatsApp webhook payload"
+
+
+def test_tagged_message_persists_inbound_and_links_sent_events() -> None:
+    """Webhook handler must write timeline events for inbound, session, and handoff."""
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    events_before = len(db.events)
+
+    response = TestClient(app).post(
+        "/api/whatsapp/webhook",
+        json=whatsapp_payload("@EasyOrder get biryani for 4"),
+    )
+
+    assert response.status_code == 200
+    new_events = db.events[events_before:]
+    event_types = [e.event_type for e in new_events]
+    assert "whatsapp_inbound" in event_types
+    assert "session_created" in event_types
+    assert "links_sent" in event_types
+    assert event_types.index("whatsapp_inbound") < event_types.index("session_created")
+
+
+def test_inbound_event_contains_message_text_and_sender() -> None:
+    """Inbound event must capture message text and sender wa_id."""
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    events_before = len(db.events)
+
+    TestClient(app).post(
+        "/api/whatsapp/webhook",
+        json=whatsapp_payload("@EasyOrder get coffee for 2"),
+    )
+
+    inbound = next(
+        (e for e in db.events[events_before:] if e.event_type == "whatsapp_inbound"),
+        None,
+    )
+    assert inbound is not None
+    assert inbound.message_text == "@EasyOrder get coffee for 2"
+    assert inbound.sender_wa_id == "919988776655"
+    assert inbound.message_id is not None
+
+
+def test_inbound_event_never_exposes_host_token_material() -> None:
+    """Inbound event must not contain host_, tokens, or secrets in message_text."""
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    events_before = len(db.events)
+
+    TestClient(app).post(
+        "/api/whatsapp/webhook",
+        json=whatsapp_payload("@EasyOrder biryani for 3"),
+    )
+
+    for event in db.events[events_before:]:
+        text = event.message_text or ""
+        assert "host_" not in text, "host_ prefix found in event message_text"
+        assert "token" not in text.lower(), "token material found in event message_text"
+
+
+def test_inbound_event_redacts_obvious_pii_before_timeline_storage() -> None:
+    """Inbound timeline text should be user-facing and redacted."""
+    from app.services.memory_db import InMemoryDBAdapter
+
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+    events_before = len(db.events)
+
+    TestClient(app).post(
+        "/api/whatsapp/webhook",
+        json=whatsapp_payload(
+            "@EasyOrder get biryani for 3 call +919988776655 test@example.com",
+        ),
+    )
+
+    inbound = next(e for e in db.events[events_before:] if e.event_type == "whatsapp_inbound")
+    assert "+919988776655" not in (inbound.message_text or "")
+    assert "test@example.com" not in (inbound.message_text or "")
+    assert (inbound.message_text or "").count("[redacted]") == 2
