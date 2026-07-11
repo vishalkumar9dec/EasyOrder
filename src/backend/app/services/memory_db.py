@@ -56,6 +56,11 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
             return None
         return max(candidates, key=lambda s: (s.created_at, s.session_id))
 
+    async def list_sessions_for_host(self, host_phone: str, *, limit: int = 10) -> list[Session]:
+        candidates = [s for s in self.sessions.values() if s.host_phone == host_phone]
+        candidates.sort(key=lambda s: (s.created_at, s.session_id), reverse=True)
+        return candidates[:limit]
+
     async def update_cart_items(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
         session = self.sessions[session_id]
         session.cart_items = self._assign_cart(session_id, items)
