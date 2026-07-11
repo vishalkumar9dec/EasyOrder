@@ -58,6 +58,10 @@ graph LR
 
 ### End-to-End Request → Response Lifecycle
 
+WhatsApp's Cloud API has no group-bot capability, so step 1 always happens in
+the host's direct chat with the business number; the group joins via the shared
+guest link after step 9 ([ADR 0005](adr/0005-host-mediated-group-flow.md)).
+
 | Step | What happens | Components involved |
 |------|-------------|-------------------|
 | 1 | After the group agrees on a menu, the host sends `@EasyOrder get biryani for 4, budget ₹2000` to the EasyOrder WhatsApp business/test number | WhatsApp → EasyOrder Server |
