@@ -507,16 +507,48 @@ Branch: `codex/issue-15-whatsapp-timeline`
 
 1. Start the backend: `make backend-dev` (or `APP_ENV=local uvicorn app.main:app --reload`).
 2. Start the frontend: `make frontend-dev`.
-3. POST a tagged WhatsApp webhook using the fixture:
+3. Start public tunnels for both services. Use the URL printed by localtunnel:
+
+```bash
+npx -y localtunnel --port 8000 --subdomain easyorder-api-dev
+npx -y localtunnel --port 5173 --subdomain easyorder-web-dev
+```
+
+4. Set `PUBLIC_APP_BASE_URL` in `src/backend/.env` to the frontend tunnel URL
+   printed by localtunnel, then restart or reload the backend:
+
+```bash
+PUBLIC_APP_BASE_URL=https://<frontend-tunnel>.loca.lt
+```
+
+5. Verify the frontend tunnel serves the PWA and proxies API calls to the backend:
+
+```bash
+curl -i https://<frontend-tunnel>.loca.lt/
+curl -i "https://<frontend-tunnel>.loca.lt/api/session/not-a-real-session?token=guest_test"
+```
+
+Expected preflight:
+
+- The first command returns `200 OK` with the Vite HTML shell.
+- The second command returns the backend JSON `{"detail":"Session not found"}`.
+- It must not return `403 Blocked request...allowedHosts`, `408`, or `503`.
+
+6. For local mock verification, POST a tagged WhatsApp webhook using the fixture:
 
 ```bash
 curl -s -X POST http://localhost:8000/api/whatsapp/webhook \
   -H "Content-Type: application/json" \
-  -d @docs/api-test-data/whatsapp_webhook_sample.json | jq .
+  -d @docs/api-test-data/whatsapp-tagged-normal.json | jq .
 ```
 
-4. Copy the `guest_link` or `host_link` from the response `sessions[0]`.
-5. Open the link in the browser.
+7. For live Meta verification, send this from the registered sandbox handset:
+
+```text
+@EasyOrder get biryani for 4 under 2000
+```
+
+8. Open the guest or private host link received in WhatsApp.
 
 **Expected:**
 
@@ -525,6 +557,8 @@ curl -s -X POST http://localhost:8000/api/whatsapp/webhook \
   - `WhatsApp message received` — shows the original tagged message text and the sender wa_id.
   - `Session links sent` — shows a green dot.
 - No host token or hash appears anywhere on the page.
+- Live links use the frontend tunnel URL from `PUBLIC_APP_BASE_URL`, not a stale
+  or disconnected tunnel.
 
 ---
 
@@ -532,7 +566,7 @@ curl -s -X POST http://localhost:8000/api/whatsapp/webhook \
 
 **Steps:**
 
-1. After step 4 above, open the **guest link** in one browser tab and the **host link** in another.
+1. After step 8 above, open the **guest link** in one browser tab and the **host link** in another.
 
 **Expected:**
 
@@ -568,4 +602,3 @@ curl -s -X POST http://localhost:8000/api/whatsapp/webhook \
 - `timeline` array is present.
 - Each event object has: `event_type`, `message_text` (inbound only), `sender_wa_id`, `created_at`, `mode`.
 - **No field contains** `host_token`, `host_token_hash`, or any bearer credential.
-

@@ -213,6 +213,19 @@ async def ingest_webhook(
             ),
         )
 
+        # --- Persist outbound links_sent event before attempting send ---
+        # Record that links exist regardless of whether the WhatsApp send succeeds,
+        # so the timeline is never missing LINKS_SENT due to a transient send failure.
+        await _try_insert_event(
+            db,
+            SessionEvent(
+                session_id=session.session_id,
+                event_type=EventType.LINKS_SENT,
+                mode=settings.whatsapp_provider_mode,
+                request_id=request_id,
+            ),
+        )
+
         try:
             if settings.whatsapp_provider_mode == "meta":
                 log_webhook_event(
@@ -247,17 +260,6 @@ async def ingest_webhook(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Session was created but WhatsApp handoff failed",
             ) from error
-
-        # --- Persist outbound links_sent event ---
-        await _try_insert_event(
-            db,
-            SessionEvent(
-                session_id=session.session_id,
-                event_type=EventType.LINKS_SENT,
-                mode=settings.whatsapp_provider_mode,
-                request_id=request_id,
-            ),
-        )
 
         log_webhook_event(
             "whatsapp_session_created",
