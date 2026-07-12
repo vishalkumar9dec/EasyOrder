@@ -137,3 +137,20 @@ def test_verify_cookie_flags_follow_environment() -> None:
     assert (
         Settings(app_env="staging").app_env != "local"
     )  # guard: env drives the Secure flag in the route
+
+
+def test_dev_outbox_available_only_in_local_mock_mode() -> None:
+    client = TestClient(app)
+    client.post("/api/auth/otp/request", json={"phone": "+91 99880 00016"})
+
+    local = client.get("/api/dev/whatsapp-outbox")
+    assert local.status_code == 200
+    assert any("login code" in m["text"] for m in local.json()["messages"])
+
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        app_env="staging", whatsapp_provider_mode="mock"
+    )
+    try:
+        assert client.get("/api/dev/whatsapp-outbox").status_code == 404
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
