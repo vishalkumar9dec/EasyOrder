@@ -29,6 +29,7 @@ import {
   type CheckoutValidationViewModel,
 } from '../sessionCartApi';
 import { useSupabaseCartRealtime } from '../useSupabaseCartRealtime';
+import { useOnlineStatus } from '../useOnlineStatus';
 
 type LoadState =
   | { status: 'loading' }
@@ -155,6 +156,8 @@ function SessionCanvas({
   const warnings = useMemo(() => session.warnings, [session.warnings]);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [isMutating, setIsMutating] = useState(false);
+  const online = useOnlineStatus();
+  const mutationsLocked = isMutating || !online;
   const [checkoutState, setCheckoutState] = useState<CheckoutPanelState>({ status: 'idle' });
   const checkoutPreviewGroups = useMemo(() => buildCheckoutPreviewGroups(session.cart), [session.cart]);
   const { connectionState } = useSupabaseCartRealtime({
@@ -271,6 +274,11 @@ function SessionCanvas({
         <span>Realtime {connectionState}</span>
         <span>Cart edits sync through the session API.</span>
       </div>
+      {!online && (
+        <div className="offline-strip" role="status">
+          You're offline — showing the last cart you saw. Edits are disabled.
+        </div>
+      )}
 
       <div className="score-strip session-score-strip">
         <ScoreCard label="Total" value={formatCurrency(session.total)} tone={session.total > session.budgetLimit ? 'danger' : 'good'} />
@@ -318,8 +326,8 @@ function SessionCanvas({
           <div className="cart-header">
             <h2 className="cart-title">Consolidated Cart</h2>
             <div className="session-cart-actions">
-              <button type="button" onClick={addFoodItem} disabled={isMutating}>+ Food</button>
-              <button type="button" onClick={addInstamartItem} disabled={isMutating}>+ Instamart</button>
+              <button type="button" onClick={addFoodItem} disabled={mutationsLocked}>+ Food</button>
+              <button type="button" onClick={addInstamartItem} disabled={mutationsLocked}>+ Instamart</button>
             </div>
           </div>
           {mutationError && <p className="session-error">{mutationError}</p>}
@@ -329,7 +337,7 @@ function SessionCanvas({
                 key={`${item.id}-${item.apiId ?? 'local'}`}
                 item={item}
                 session={session}
-                isMutating={isMutating}
+                isMutating={mutationsLocked}
                 onQuantityChange={(quantity) => {
                   if (item.apiId === undefined || !token) {
                     return;
@@ -383,6 +391,7 @@ function SessionCanvas({
                 session={session}
                 previewGroups={checkoutPreviewGroups}
                 checkoutState={checkoutState}
+                online={online}
                 onValidate={handleCheckoutValidation}
                 onConfirm={handleCheckoutConfirmation}
               />
@@ -452,12 +461,14 @@ function HostCheckoutPanel({
   session,
   previewGroups,
   checkoutState,
+  online,
   onValidate,
   onConfirm,
 }: {
   session: SessionBootstrapViewModel;
   previewGroups: ReturnType<typeof buildCheckoutPreviewGroups>;
   checkoutState: CheckoutPanelState;
+  online: boolean;
   onValidate: () => void;
   onConfirm: () => void;
 }) {
@@ -493,12 +504,12 @@ function HostCheckoutPanel({
         type="button"
         className="checkout-btn"
         onClick={onValidate}
-        disabled={!session.checkoutEligible || checkoutState.status === 'validating'}
+        disabled={!online || !session.checkoutEligible || checkoutState.status === 'validating'}
       >
         {checkoutState.status === 'validating' ? 'Validating...' : 'Validate checkout'}
       </button>
       {checkoutState.status === 'ready' && (
-        <button type="button" className="checkout-btn secondary" onClick={onConfirm}>
+        <button type="button" className="checkout-btn secondary" onClick={onConfirm} disabled={!online}>
           Create Swiggy carts
         </button>
       )}

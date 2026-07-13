@@ -345,6 +345,16 @@ ul, ol {
   color: var(--accent-gold);
 }
 
+.offline-strip {
+  border: 1px solid rgba(245, 200, 66, 0.45);
+  background: rgba(245, 200, 66, 0.12);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--accent-gold);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+
 .session-alert-strip {
   display: flex;
   flex-wrap: wrap;
