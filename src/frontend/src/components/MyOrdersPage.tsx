@@ -47,9 +47,7 @@ export function MyOrdersPage() {
     <section className="account-page" aria-label="My orders">
       <div className="account-card account-card--wide">
         <div className="account-header">
-          <a className="navbar-brand account-brand" href="/">
-            Easy<span>Order</span>
-          </a>
+          <h1 className="account-title">My orders</h1>
           {state.kind === 'ready' && (
             <button
               className="account-link-button"
@@ -64,7 +62,6 @@ export function MyOrdersPage() {
             </button>
           )}
         </div>
-        <h1 className="account-title">My orders</h1>
 
         {state.kind === 'loading' && <p className="account-subtitle">Loading your orders…</p>}
 

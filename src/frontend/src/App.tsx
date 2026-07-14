@@ -37,14 +37,29 @@ export function App() {
   }, [sessionRoute, accountRoute]);
 
   if (sessionRoute) {
-    return <SessionPage sessionId={sessionRoute.sessionId} token={sessionRoute.token} />;
+    return (
+      <>
+        <Navbar />
+        <SessionPage sessionId={sessionRoute.sessionId} token={sessionRoute.token} />
+      </>
+    );
   }
 
   if (accountRoute === 'login') {
-    return <LoginPage />;
+    return (
+      <>
+        <Navbar />
+        <LoginPage />
+      </>
+    );
   }
   if (accountRoute === 'orders') {
-    return <MyOrdersPage />;
+    return (
+      <>
+        <Navbar />
+        <MyOrdersPage />
+      </>
+    );
   }
 
   return (
