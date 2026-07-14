@@ -98,9 +98,6 @@ export function SessionPage({ sessionId, token }: { sessionId: string; token: st
   return (
     <main className="session-page">
       <div className="session-shell">
-        <a className="session-brand" href="/">
-          Easy<span>Order</span>
-        </a>
         {state.status === 'loading' && <SessionState title="Loading session" detail="Fetching the latest planning canvas." />}
         {state.status === 'unauthorized' && (
           <SessionState title="Link not authorized" detail="Use the latest EasyOrder link from WhatsApp." tone="danger" />

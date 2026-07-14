@@ -43,9 +43,6 @@ export function LoginPage() {
   return (
     <section className="account-page" aria-label="Log in to EasyOrder">
       <div className="account-card">
-        <a className="navbar-brand account-brand" href="/">
-          Easy<span>Order</span>
-        </a>
         <h1 className="account-title">Log in with WhatsApp</h1>
         <p className="account-subtitle">
           {step === 'phone'

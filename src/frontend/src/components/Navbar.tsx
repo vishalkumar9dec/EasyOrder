@@ -18,14 +18,14 @@ export function Navbar() {
         </a>
 
         <div className="navbar-links">
-          <a href="#how-it-works">How It Works</a>
-          <a href="#demo">Demo</a>
-          <a href="#testimonials">Reviews</a>
-          <a href="#footer">Contact</a>
+          <a href="/#how-it-works">How It Works</a>
+          <a href="/#demo">Demo</a>
+          <a href="/#testimonials">Reviews</a>
+          <a href="/#footer">Contact</a>
           <a href="/orders" id="nav-my-orders">My Orders</a>
         </div>
 
-        <a className="navbar-cta" href="#demo" id="nav-try-demo">
+        <a className="navbar-cta" href="/#demo" id="nav-try-demo">
           Try Demo
         </a>
 
@@ -47,10 +47,10 @@ export function Navbar() {
       />
 
       <div className={`mobile-menu ${menuOpen ? 'open' : ''}`} aria-label="Mobile navigation">
-        <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How It Works</a>
-        <a href="#demo" onClick={() => setMenuOpen(false)}>Demo</a>
-        <a href="#testimonials" onClick={() => setMenuOpen(false)}>Reviews</a>
-        <a href="#footer" onClick={() => setMenuOpen(false)}>Contact</a>
+        <a href="/#how-it-works" onClick={() => setMenuOpen(false)}>How It Works</a>
+        <a href="/#demo" onClick={() => setMenuOpen(false)}>Demo</a>
+        <a href="/#testimonials" onClick={() => setMenuOpen(false)}>Reviews</a>
+        <a href="/#footer" onClick={() => setMenuOpen(false)}>Contact</a>
         <a href="/orders" onClick={() => setMenuOpen(false)}>My Orders</a>
       </div>
     </>
