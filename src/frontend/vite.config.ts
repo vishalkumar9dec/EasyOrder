@@ -31,18 +31,32 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          // App shell: precache the build output.
+          // App shell: precache the build output, except the large landing
+          // page photos — precaching those all at once saturates tunnel
+          // proxies (localtunnel allows ~10 sockets) and starves the page's
+          // own CSS/API requests. They are cached lazily at runtime instead.
           globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+          globIgnores: ['**/assets/*.png'],
           // Session API must stay network-first: the cart is collaborative
           // state polled every 2.5s; a stale cache would show wrong carts.
+          // Workbox matches RegExp patterns against the full URL, not the
+          // pathname, so these must not be anchored with ^.
           runtimeCaching: [
             {
-              urlPattern: /^\/api\/session\/.*/,
+              urlPattern: /\/api\/session\//,
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'session-api',
                 networkTimeoutSeconds: 4,
                 expiration: { maxEntries: 10, maxAgeSeconds: 300 },
+              },
+            },
+            {
+              urlPattern: /\/assets\/.*\.png$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'landing-images',
+                expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 30 },
               },
             },
             {

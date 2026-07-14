@@ -119,14 +119,15 @@ ul, ol {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
+  background: var(--surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid transparent;
   transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .navbar.scrolled {
-  background: var(--surface-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border);
+  border-bottom-color: var(--border);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
 }
 
@@ -248,24 +249,13 @@ ul, ol {
   background:
     radial-gradient(circle at top left, rgba(232, 93, 44, 0.18), transparent 32%),
     var(--bg);
-  padding: 24px;
+  /* Top padding clears the fixed 72px navbar. */
+  padding: 96px 24px 24px;
 }
 
 .session-shell {
   width: min(1180px, 100%);
   margin: 0 auto;
-}
-
-.session-brand {
-  display: inline-block;
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 800;
-  margin-bottom: 24px;
-}
-
-.session-brand span {
-  color: var(--accent);
 }
 
 .session-state {
@@ -488,7 +478,7 @@ ul, ol {
 
 @media (max-width: 767px) {
   .session-page {
-    padding: 18px;
+    padding: 90px 18px 18px;
   }
 
   .session-hero-panel {
@@ -1918,11 +1908,6 @@ ul, ol {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.account-brand {
-  display: inline-block;
-  margin-bottom: 18px;
 }
 
 .account-title {
