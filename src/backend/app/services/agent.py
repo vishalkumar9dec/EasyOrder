@@ -41,7 +41,9 @@ class ParsedIntent:
     head_count: int
     dietary_preference: DietaryTag
     food_query: str
-    instamart_query: str
+    # None when the prompt never asked for Instamart items; the vertical is
+    # skipped entirely so the seeded cart only contains what was requested.
+    instamart_query: str | None
 
 
 @dataclass
@@ -162,7 +164,7 @@ class MockIntentParser:
             budget_limit=budget,
             head_count=max(1, min(head_count, 100)),
             dietary_preference=dietary_preference,
-            food_query=self._extract_query(normalized, Vertical.FOOD),
+            food_query=self._extract_query(normalized, Vertical.FOOD) or "food",
             instamart_query=self._extract_query(normalized, Vertical.INSTAMART),
         )
 
@@ -174,14 +176,14 @@ class MockIntentParser:
         return Decimal(match.group(1)).quantize(Decimal("0.01"))
 
     @staticmethod
-    def _extract_query(prompt: str, vertical: Vertical) -> str:
+    def _extract_query(prompt: str, vertical: Vertical) -> str | None:
         lowered = prompt.lower()
         if vertical == Vertical.INSTAMART:
             keywords = ["drinks", "cold drinks", "plates", "ice cream", "water", "dessert"]
-            return " ".join(keyword for keyword in keywords if keyword in lowered) or "drinks"
+            return " ".join(keyword for keyword in keywords if keyword in lowered) or None
         stopwords = {"get", "for", "under", "people", "person", "and", "with"}
         words = re.findall(r"[a-zA-Z][a-zA-Z-]*", lowered)
-        return " ".join(word for word in words if word not in stopwords) or "food"
+        return " ".join(word for word in words if word not in stopwords) or None
 
 
 class EasyOrderAgentService(IAgentService):
@@ -250,6 +252,11 @@ class EasyOrderAgentService(IAgentService):
                 state.intent.food_query,
             ),
         )
+        if state.intent.instamart_query is None:
+            food_result = await food_task
+            self._merge_worker_result(state, Vertical.FOOD, food_result)
+            return state
+
         instamart_task = self._run_worker(
             Vertical.INSTAMART,
             self.swiggy_client.search_instamart(

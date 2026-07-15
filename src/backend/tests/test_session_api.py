@@ -271,7 +271,7 @@ def test_checkout_validation_returns_price_change_conflict() -> None:
 
 
 def test_checkout_validation_groups_multiple_food_restaurants() -> None:
-    app, result = create_initialized_session("@EasyOrder get pizza for 3 under 3000")
+    app, result = create_initialized_session("@EasyOrder get pizza and drinks for 3 under 3000")
     client = TestClient(app)
     add_response = client.post(
         f"/api/session/{result.session.session_id}/cart-items",
@@ -340,7 +340,7 @@ def test_guest_cannot_confirm_checkout() -> None:
 
 
 def test_checkout_confirm_groups_multiple_food_restaurants_sequentially() -> None:
-    app, result = create_initialized_session("@EasyOrder get pizza for 3 under 3000")
+    app, result = create_initialized_session("@EasyOrder get pizza and drinks for 3 under 3000")
     client = TestClient(app)
     add_response = client.post(
         f"/api/session/{result.session.session_id}/cart-items",
@@ -506,6 +506,38 @@ def test_bootstrap_timeline_includes_persisted_events() -> None:
     event = next(e for e in body["timeline"] if e["event_type"] == "whatsapp_inbound")
     assert event["message_text"] == "@EasyOrder get biryani for 4"
     assert event["sender_wa_id"] == "919988776655"
+
+
+def test_bootstrap_exposes_order_subject_and_created_at() -> None:
+    """The bootstrap carries a subject derived from the inbound request plus the session date."""
+    import asyncio
+
+    from app.models.session import EventType, SessionEvent
+    from app.services.memory_db import InMemoryDBAdapter
+
+    app, result = create_initialized_session()
+    db: InMemoryDBAdapter = app.state.db_adapter  # type: ignore[assignment]
+
+    asyncio.run(
+        db.insert_session_event(
+            SessionEvent(
+                session_id=result.session.session_id,
+                event_type=EventType.WHATSAPP_INBOUND,
+                message_text="@EasyOrder get biryani and drinks for 4 under 2000",
+                sender_wa_id="919988776655",
+                message_id="wamid.test-subject",
+            )
+        )
+    )
+
+    response = TestClient(app).get(
+        f"/api/session/{result.session.session_id}",
+        params={"token": result.session.guest_token},
+    )
+
+    body = response.json()
+    assert body["subject"] == "Biryani for 4"
+    assert body["created_at"] is not None
 
 
 def test_bootstrap_timeline_excludes_idempotency_ledger_events() -> None:
