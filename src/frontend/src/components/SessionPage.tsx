@@ -9,6 +9,7 @@ import {
 import {
   adaptSessionBootstrap,
   buildCheckoutPreviewGroups,
+  formatSessionDate,
   getBudgetStatus,
   getItemWarnings,
   getRoleLabel,
@@ -260,17 +261,25 @@ function SessionCanvas({
       <div className="session-hero-panel">
         <div>
           <p className="section-eyebrow">Live Session</p>
-          <h1>Planning canvas</h1>
+          <h1>{session.subject ?? 'Planning canvas'}</h1>
+          {formatSessionDate(session.createdAt) && (
+            <p className="session-date">Started {formatSessionDate(session.createdAt)}</p>
+          )}
           <p className="session-subtitle">
             Review the cart, source context, and session status before checkout.
           </p>
         </div>
-        <div className="session-role-pill">{getRoleLabel(session.role)}</div>
+        <div className="session-hero-side">
+          <div className="session-role-pill">{getRoleLabel(session.role)}</div>
+          <a className="session-orders-link" href="/orders">View all my orders</a>
+        </div>
       </div>
-      <div className={`realtime-strip ${connectionState}`}>
-        <span>Realtime {connectionState}</span>
-        <span>Cart edits sync through the session API.</span>
-      </div>
+      {connectionState !== 'connected' && (
+        <div className={`realtime-strip ${connectionState}`}>
+          <span>Realtime {connectionState}</span>
+          <span>Cart edits sync through the session API.</span>
+        </div>
+      )}
       {!online && (
         <div className="offline-strip" role="status">
           You're offline — showing the last cart you saw. Edits are disabled.
@@ -398,13 +407,31 @@ function SessionCanvas({
               </p>
             )}
           </div>
+
+          {session.timeline.length > 0 && (
+            <CollapsibleActivity events={session.timeline} />
+          )}
         </aside>
       </div>
-
-      {session.timeline.length > 0 && (
-        <MessageTimeline events={session.timeline} />
-      )}
     </section>
+  );
+}
+
+function CollapsibleActivity({ events }: { events: ApiSessionEvent[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="activity-panel">
+      <button
+        type="button"
+        className="activity-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>WhatsApp activity ({events.length})</span>
+        <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && <MessageTimeline events={events} />}
+    </div>
   );
 }
 
@@ -429,7 +456,6 @@ function MessageTimeline({ events }: { events: ApiSessionEvent[] }) {
 
   return (
     <div className="message-timeline" aria-label="WhatsApp activity timeline">
-      <p className="timeline-title">Activity</p>
       <ol className="timeline-list">
         {events.map((event, index) => (
           <li

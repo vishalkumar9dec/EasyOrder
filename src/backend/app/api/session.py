@@ -25,6 +25,7 @@ from app.models.session import (
     Vertical,
     hash_host_token,
 )
+from app.services.agent import MockIntentParser
 from app.services.mock_swiggy import MockSwiggyItemUnavailableError
 from app.services.protocols import IDBAdapter, ISwiggyMcpClient
 
@@ -308,6 +309,29 @@ def authorize_session_role(session: Session, token: str) -> SessionRole | None:
     return None
 
 
+def derive_session_subject(
+    timeline: list[SessionEvent],
+    head_count: int,
+) -> str | None:
+    """Build an order subject like "Biryani for 4" from the originating message.
+
+    The parsed dish is not persisted on the session record, so it is
+    re-derived from the inbound WhatsApp event using the same extraction the
+    intent parser applies at session creation.
+    """
+    instamart_words = {"drinks", "cold", "plates", "ice", "cream", "water", "dessert"}
+    for event in timeline:
+        if event.event_type != EventType.WHATSAPP_INBOUND or not event.message_text:
+            continue
+        normalized = event.message_text.replace("@EasyOrder", "").strip()
+        dish = MockIntentParser._extract_query(normalized, Vertical.FOOD) or ""
+        dish = " ".join(word for word in dish.split() if word not in instamart_words)
+        if dish:
+            return f"{dish.title()} for {head_count}"
+        return f"Order for {head_count}"
+    return None
+
+
 def build_session_bootstrap_response(
     session: Session,
     role: SessionRole,
@@ -332,6 +356,8 @@ def build_session_bootstrap_response(
             for event in (timeline or [])
             if event.event_type != EventType.WHATSAPP_TAGGED_MESSAGE
         ],
+        subject=derive_session_subject(timeline or [], session.head_count),
+        created_at=session.created_at,
     )
 
 

@@ -51,6 +51,8 @@ const payload: ApiSessionBootstrap = {
     },
   ],
   timeline: [],
+  subject: 'Biryani for 4',
+  created_at: '2026-07-14T11:30:00Z',
 };
 
 
@@ -83,6 +85,16 @@ describe('session bootstrap route and adapter', () => {
     });
     expect(JSON.stringify(viewModel)).not.toContain('host_token');
     expect(JSON.stringify(viewModel)).not.toContain('guest_token');
+  });
+
+  it('carries the order subject and created date, defaulting to null when absent', () => {
+    const viewModel = adaptSessionBootstrap(payload);
+    expect(viewModel.subject).toBe('Biryani for 4');
+    expect(viewModel.createdAt).toBe('2026-07-14T11:30:00Z');
+
+    const legacy = adaptSessionBootstrap({ ...payload, subject: undefined, created_at: undefined });
+    expect(legacy.subject).toBeNull();
+    expect(legacy.createdAt).toBeNull();
   });
 
   it('labels host/guest and degraded session states', () => {
