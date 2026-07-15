@@ -67,6 +67,25 @@ def test_graph_compiles_and_invokes_end_to_end_with_mock_dependencies() -> None:
     assert created.budget_warning is False
 
 
+def test_food_only_prompt_seeds_only_requested_items() -> None:
+    agent = service()
+
+    created = run(agent.handle_tagged_message(message("@EasyOrder get biryani for 4 under 2000")))
+
+    assert created.status == SessionStatus.ACTIVE
+    assert {item.vertical for item in created.cart_items} == {Vertical.FOOD}
+    assert created.degraded_verticals == []
+
+
+def test_mock_intent_parser_skips_instamart_when_not_requested() -> None:
+    parser = MockIntentParser()
+
+    parsed = run(parser.parse("@EasyOrder get biryani for 4 under 2000"))
+
+    assert parsed.instamart_query is None
+    assert parsed.food_query == "biryani"
+
+
 def test_input_guardrails_block_injection_and_mask_pii() -> None:
     guardrails = InputGuardrails()
 

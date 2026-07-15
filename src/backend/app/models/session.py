@@ -228,6 +228,10 @@ class SessionBootstrapResponse(BaseModel):
     cart_items: list[CartItemResponse]
     checkout_eligible: bool
     timeline: list[SessionEvent] = Field(default_factory=list)
+    # Human-readable order subject derived from the originating WhatsApp
+    # request, e.g. "Biryani for 4". None when the request text is unknown.
+    subject: str | None = None
+    created_at: datetime | None = None
 
     model_config = ConfigDict(use_enum_values=True)
 

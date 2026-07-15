@@ -237,6 +237,8 @@ and LLM behavior.
 - Domain glossary: `CONTEXT.md`
 - Local demo runbook: `docs/runbooks/local-demo.md`
 - Operations runbook: `docs/runbooks/operations.md`
+- Tunnel 408/502 blank-page fix: `docs/runbooks/tunnel-408-502-blank-page.md`
+- ngrok stable dev tunnel: `docs/runbooks/ngrok-dev-tunnel.md`
 
 ## Live WhatsApp Tunnel Helpers
 
