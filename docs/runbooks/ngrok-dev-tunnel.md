@@ -1,5 +1,11 @@
 # ngrok Dev Tunnel Setup (Permanent Blank-Page Fix)
 
+> Related: [tunnel-408-502-blank-page.md](tunnel-408-502-blank-page.md) fixes the
+> same blank/unstyled-page failure by shrinking the payload (serve the
+> production build, trim the service-worker precache) so a free loca.lt tunnel
+> can still deliver it. This runbook fixes it by switching to a stabler tunnel.
+> They are complementary — apply either or both.
+
 ## Why
 
 loca.lt free tunnels repeatedly broke local WhatsApp testing:
