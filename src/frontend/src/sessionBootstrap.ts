@@ -56,6 +56,8 @@ export interface ApiSessionBootstrap {
   cart_items: ApiCartItem[];
   checkout_eligible: boolean;
   timeline: ApiSessionEvent[];
+  subject?: string | null;
+  created_at?: string | null;
 }
 
 export interface SessionBootstrapViewModel {
@@ -72,6 +74,8 @@ export interface SessionBootstrapViewModel {
   checkoutEligible: boolean;
   total: number;
   timeline: ApiSessionEvent[];
+  subject: string | null;
+  createdAt: string | null;
 }
 
 export interface CheckoutPreviewGroup {
@@ -105,7 +109,20 @@ export function adaptSessionBootstrap(payload: ApiSessionBootstrap): SessionBoot
     checkoutEligible: payload.checkout_eligible,
     total: calculateCartTotal(cart),
     timeline: payload.timeline ?? [],
+    subject: payload.subject ?? null,
+    createdAt: payload.created_at ?? null,
   };
+}
+
+export function formatSessionDate(iso: string | null): string | null {
+  if (!iso) {
+    return null;
+  }
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export function getBudgetStatus(session: SessionBootstrapViewModel): BudgetStatusViewModel {

@@ -255,7 +255,7 @@ ul, ol {
 
 .session-shell {
   width: min(1180px, 100%);
-  margin: 0 auto;
+  margin: 0;
 }
 
 .session-state {
@@ -310,6 +310,61 @@ ul, ol {
   padding: 9px 14px;
   font-size: var(--text-caption);
   font-weight: 800;
+}
+
+.session-hero-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.session-date {
+  color: var(--accent-gold);
+  font-size: var(--text-caption);
+  font-weight: 700;
+  margin: 4px 0 2px;
+}
+
+.session-orders-link {
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: var(--radius-pill);
+  padding: 9px 16px;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.session-orders-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.activity-panel {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.activity-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.activity-toggle:hover,
+.activity-toggle[aria-expanded='true'] {
+  color: var(--text);
 }
 
 .realtime-strip {
@@ -484,6 +539,11 @@ ul, ol {
   .session-hero-panel {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .session-hero-side {
+    flex-direction: row;
+    align-items: center;
   }
 
   .session-role-pill {
@@ -1767,21 +1827,7 @@ ul, ol {
    MESSAGE TIMELINE (Task 10.1)
    ============================================= */
 .message-timeline {
-  margin: 2rem auto;
-  max-width: 760px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  padding: 1.25rem 1.5rem;
-}
-
-.timeline-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin: 0 0 1rem;
+  padding: 0 14px 14px;
 }
 
 .timeline-list {
