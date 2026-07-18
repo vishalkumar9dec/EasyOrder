@@ -202,11 +202,21 @@ class PostgresAuthStore:
         await self._run(op)
 
 
-def create_auth_store(settings: Any) -> InMemoryAuthStore | PostgresAuthStore:
-    if settings.persistence_mode == "postgres":
-        from app.db.adapter import asyncpg_connection_factory
+def create_auth_store(
+    settings: Any,
+    connection_factory: Any | None = None,
+) -> InMemoryAuthStore | PostgresAuthStore:
+    """Select auth persistence to match the session store.
 
-        return PostgresAuthStore(asyncpg_connection_factory(settings.database_url))
+    When ``connection_factory`` is provided (the shared pool), it is used
+    instead of a per-operation connection factory.
+    """
+    if settings.persistence_mode == "postgres":
+        if connection_factory is None:
+            from app.db.adapter import asyncpg_connection_factory
+
+            connection_factory = asyncpg_connection_factory(settings.database_url)
+        return PostgresAuthStore(connection_factory)
     return InMemoryAuthStore()
 
 

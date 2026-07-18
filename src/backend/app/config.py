@@ -10,7 +10,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://easyorder:easyorder@localhost:5432/easyorder"
     # "memory" keeps process-local stores; "postgres" persists sessions,
     # timeline events, and short links across restarts via DATABASE_URL.
+    # Required outside local dev (enforced at startup in app.main).
     persistence_mode: str = "memory"
+    # Shared asyncpg pool sizing for postgres mode.
+    db_pool_min_size: int = 1
+    db_pool_max_size: int = 10
     public_app_base_url: str = "http://localhost:5173"
 
     # WhatsApp
