@@ -14,6 +14,7 @@ from app.api.short_links import router as short_links_router
 from app.api.whatsapp import create_agent_service, create_db_adapter_for_settings
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
+from app.services.rate_limit import OtpRateLimiter
 from app.services.short_links import create_short_link_service
 from app.services.web_auth import create_auth_store
 from app.services.whatsapp_sender import create_whatsapp_sender
@@ -24,6 +25,22 @@ SESSION_PATH_RE = re.compile(r"/session/(?P<session_id>[^/?]+)")
 
 def create_app() -> FastAPI:
     settings = get_settings()
+
+    # Fail closed: the real Meta provider must never run without an app secret,
+    # otherwise webhook signature verification cannot be enforced. This makes a
+    # production "meta" deploy without a secret impossible to boot, which in
+    # turn guarantees signature checks are only ever skipped in local mock dev.
+    if settings.whatsapp_provider_mode == "meta" and not settings.whatsapp_app_secret:
+        raise RuntimeError(
+            "WHATSAPP_APP_SECRET must be set when WHATSAPP_PROVIDER_MODE=meta"
+        )
+    if settings.skip_signature_verification:
+        logger.warning(
+            "webhook_signature_verification_disabled app_env=%s provider=%s",
+            settings.app_env,
+            settings.whatsapp_provider_mode,
+        )
+
     app = FastAPI(title=settings.app_name)
     db_adapter = create_db_adapter_for_settings(settings)
     app.state.agent_service = create_agent_service(settings, db=db_adapter)
@@ -39,6 +56,7 @@ def create_app() -> FastAPI:
     )
     app.state.short_links = create_short_link_service(settings)
     app.state.auth_store = create_auth_store(settings)
+    app.state.otp_rate_limiter = OtpRateLimiter()
 
     app.add_middleware(
         CORSMiddleware,
