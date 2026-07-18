@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from app.api.short_links import router as short_links_router
 from app.api.whatsapp import create_agent_service, create_db_adapter_for_settings
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
+from app.db.pool import AsyncpgConnectionPool
 from app.services.rate_limit import OtpRateLimiter
 from app.services.short_links import create_short_link_service
 from app.services.web_auth import create_auth_store
@@ -41,10 +43,40 @@ def create_app() -> FastAPI:
             settings.whatsapp_provider_mode,
         )
 
-    app = FastAPI(title=settings.app_name)
-    db_adapter = create_db_adapter_for_settings(settings)
+    # Durable persistence is required outside local dev: memory mode loses
+    # sessions, carts, timeline, OTPs, logins, and short links on restart and
+    # cannot be shared across instances.
+    if settings.app_env != "local" and settings.persistence_mode != "postgres":
+        raise RuntimeError(
+            "PERSISTENCE_MODE=postgres is required when app_env is not local "
+            f"(got app_env={settings.app_env!r}, persistence_mode={settings.persistence_mode!r})"
+        )
+
+    # One shared asyncpg pool for the whole process, threaded into every
+    # Postgres-backed store. None in memory mode.
+    db_pool: AsyncpgConnectionPool | None = None
+    connection_factory = None
+    if settings.persistence_mode == "postgres":
+        db_pool = AsyncpgConnectionPool(
+            settings.database_url,
+            min_size=settings.db_pool_min_size,
+            max_size=settings.db_pool_max_size,
+        )
+        connection_factory = db_pool.connection_factory()
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        try:
+            yield
+        finally:
+            if db_pool is not None:
+                await db_pool.close()
+
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    db_adapter = create_db_adapter_for_settings(settings, connection_factory)
     app.state.agent_service = create_agent_service(settings, db=db_adapter)
     app.state.db_adapter = db_adapter
+    app.state.db_pool = db_pool
     app.state.swiggy_client = app.state.agent_service.swiggy_client
     app.state.whatsapp_sender = create_whatsapp_sender(
         provider_mode=settings.whatsapp_provider_mode,
@@ -54,8 +86,8 @@ def create_app() -> FastAPI:
         handoff_template_name=settings.whatsapp_handoff_template_name,
         handoff_template_language=settings.whatsapp_handoff_template_language,
     )
-    app.state.short_links = create_short_link_service(settings)
-    app.state.auth_store = create_auth_store(settings)
+    app.state.short_links = create_short_link_service(settings, connection_factory)
+    app.state.auth_store = create_auth_store(settings, connection_factory)
     app.state.otp_rate_limiter = OtpRateLimiter()
 
     app.add_middleware(
@@ -112,11 +144,9 @@ def create_app() -> FastAPI:
     @app.get("/readyz")
     async def readyz() -> dict[str, str]:
         database_state = "memory"
-        if settings.persistence_mode == "postgres":
+        if settings.persistence_mode == "postgres" and connection_factory is not None:
             try:
-                connection = await create_db_adapter_for_settings(
-                    settings
-                )._connection_factory()
+                connection = await connection_factory()
                 try:
                     await connection.fetchrow("SELECT 1 AS ok")
                     database_state = "postgres_ok"

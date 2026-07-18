@@ -122,10 +122,19 @@ class PostgresShortLinkService:
         return f"{base_url.rstrip('/')}{SHORT_LINK_PATH_PREFIX}/{code}"
 
 
-def create_short_link_service(settings: Any) -> InMemoryShortLinkService | PostgresShortLinkService:
-    """Select short-link persistence to match the session store."""
-    if settings.persistence_mode == "postgres":
-        from app.db.adapter import asyncpg_connection_factory
+def create_short_link_service(
+    settings: Any,
+    connection_factory: Any | None = None,
+) -> InMemoryShortLinkService | PostgresShortLinkService:
+    """Select short-link persistence to match the session store.
 
-        return PostgresShortLinkService(asyncpg_connection_factory(settings.database_url))
+    When ``connection_factory`` is provided (the shared pool), it is used
+    instead of a per-operation connection factory.
+    """
+    if settings.persistence_mode == "postgres":
+        if connection_factory is None:
+            from app.db.adapter import asyncpg_connection_factory
+
+            connection_factory = asyncpg_connection_factory(settings.database_url)
+        return PostgresShortLinkService(connection_factory)
     return InMemoryShortLinkService()

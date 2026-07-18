@@ -5,6 +5,7 @@ import hmac
 import logging
 import re
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
@@ -420,9 +421,18 @@ def create_mock_agent_service() -> MockAgentService:
     return MockAgentService()
 
 
-def create_db_adapter_for_settings(settings: Settings) -> IDBAdapter:
-    """Select session persistence: durable Postgres or process-local memory."""
+def create_db_adapter_for_settings(
+    settings: Settings,
+    connection_factory: Any | None = None,
+) -> IDBAdapter:
+    """Select session persistence: durable Postgres or process-local memory.
+
+    When ``connection_factory`` is provided (the shared pool), the Postgres
+    adapter uses it instead of opening a fresh connection per operation.
+    """
     if settings.persistence_mode == "postgres":
+        if connection_factory is not None:
+            return AsyncPostgresDBAdapter(connection_factory)
         return AsyncPostgresDBAdapter.from_database_url(settings.database_url)
     return InMemoryDBAdapter()
 
