@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings, get_settings
 from app.main import app
+from app.services.rate_limit import OtpRateLimiter
 from app.services.web_auth import InvalidPhoneError, normalize_phone
 from tests.test_whatsapp_webhook import business_chat_settings, whatsapp_payload
 
@@ -137,6 +138,23 @@ def test_verify_cookie_flags_follow_environment() -> None:
     assert (
         Settings(app_env="staging").app_env != "local"
     )  # guard: env drives the Secure flag in the route
+
+
+def test_otp_request_is_rate_limited_per_phone() -> None:
+    client = TestClient(app)
+    original = app.state.otp_rate_limiter
+    # Tight phone budget, generous IP budget so the phone cap is what trips.
+    app.state.otp_rate_limiter = OtpRateLimiter(
+        per_phone_max=2, per_phone_window=600, per_ip_max=1000, per_ip_window=600
+    )
+    phone = "+91 99880 00020"
+    try:
+        assert client.post("/api/auth/otp/request", json={"phone": phone}).status_code == 200
+        assert client.post("/api/auth/otp/request", json={"phone": phone}).status_code == 200
+        blocked = client.post("/api/auth/otp/request", json={"phone": phone})
+        assert blocked.status_code == 429
+    finally:
+        app.state.otp_rate_limiter = original
 
 
 def test_dev_outbox_available_only_in_local_mock_mode() -> None:

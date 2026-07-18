@@ -58,6 +58,13 @@ def get_short_links(request: Request) -> IShortLinkService:
     return request.app.state.short_links
 
 
+def _client_ip(request: Request) -> str | None:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip() or None
+    return request.client.host if request.client else None
+
+
 async def require_wa_id(request: Request, token: str | None) -> str:
     wa_id = await resolve_web_session(get_auth_store(request), token)
     if wa_id is None:
@@ -76,6 +83,14 @@ async def request_otp(payload: OtpRequest, request: Request) -> dict[str, str]:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
         ) from error
+
+    limiter = getattr(request.app.state, "otp_rate_limiter", None)
+    if limiter is not None and not limiter.allow(wa_id, _client_ip(request)):
+        logger.warning("otp_rate_limited wa_id_suffix=%s", wa_id[-4:])
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login code requests. Try again in a few minutes.",
+        )
 
     code = await start_login(get_auth_store(request), wa_id)
     try:
