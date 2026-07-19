@@ -1,0 +1,1 @@
+Follow the instructions in agent/skills/easyorder-daily-status/SKILL.md exactly.
