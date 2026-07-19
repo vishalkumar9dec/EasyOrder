@@ -1,0 +1,1 @@
+Follow the instructions in agent/skills/easyorder-implement-task/SKILL.md exactly.
