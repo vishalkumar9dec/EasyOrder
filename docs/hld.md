@@ -113,7 +113,7 @@ FastAPI Application (main.py)
 ### 2.2 PostgreSQL Real-time Sync (Supabase Realtime)
 * **Direct Client Sync:** PWA clients use the Supabase JS SDK to subscribe to `postgres_changes` channels on the `cart_items` table. Inserts, updates, and deletes broadcast instantly to all connected devices via WebSocket.
 * **Backend Writes:** The FastAPI backend (and the LangGraph agent) write to PostgreSQL via the `supabase-py` SDK (service role key) for session initialization and status updates. LangGraph also uses `langgraph-checkpoint-postgres` for native agent state persistence.
-* **Row Level Security (RLS):** PostgreSQL RLS policies enforce that guests can only modify rows in `cart_items` where `session_id` matches their token, while session metadata (budget, status, address) is restricted to the host token.
+* **Row Level Security (RLS):** originally planned as above, but formally dropped (ADR 0007) — the implemented deployment connects as the table-owner role, so RLS policies were structurally inert regardless of their predicates. Guest/host access separation is enforced application-side by `authorize_session_role()` (`src/backend/app/api/session.py`), which every session-scoped endpoint already goes through.
 
 ### 2.3 Swiggy OAuth Checkout Handoff
 1. PWA triggers a pre-checkout validation via `POST /api/session/checkout` — the backend verifies stock and pricing against Swiggy MCP.
@@ -125,7 +125,7 @@ FastAPI Application (main.py)
 * **Host Token:** SHA-256 derived, sent privately to the initiating WhatsApp `wa_id`. Grants full session control and checkout privileges.
 * **Guest Token:** Random UUID, sent to the host as a shareable planning link. Grants cart item read/write only.
 * **WhatsApp User Identity:** Initially keyed by sender `wa_id` for sandbox/local use. Production identity must account for verified business contact, consent, and any Swiggy OAuth user link before exposing order history or saved lists.
-* **Supabase Auth:** PWA clients authenticate via Supabase Anonymous Auth (or magic link). The JWT is passed in API headers and evaluated by RLS policies on every database operation.
+* **Supabase Auth:** originally planned; the implemented PWA login is WhatsApp OTP instead (ADR 0006), issuing an HTTP-only session cookie. There is no Supabase JWT or RLS evaluation on database operations (ADR 0007) — the bearer token from that cookie/URL is checked in the API handler layer.
 
 ### 2.5 WhatsApp Message Timeline And Handoff
 * **Session Events:** The backend stores redacted timeline events for inbound

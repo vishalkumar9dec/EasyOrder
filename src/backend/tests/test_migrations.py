@@ -5,6 +5,23 @@ MIGRATION = MIGRATIONS_DIR / "0001_session_persistence.sql"
 DOWN_MIGRATION = MIGRATIONS_DIR / "0001_session_persistence.down.sql"
 EVENTS_MIGRATION = MIGRATIONS_DIR / "0002_session_events.sql"
 EVENTS_DOWN_MIGRATION = MIGRATIONS_DIR / "0002_session_events.down.sql"
+DROP_RLS_MIGRATION = MIGRATIONS_DIR / "0007_drop_rls.sql"
+DROP_RLS_DOWN_MIGRATION = MIGRATIONS_DIR / "0007_drop_rls.down.sql"
+
+RLS_TABLES = (
+    "sessions",
+    "cart_items",
+    "session_events",
+    "short_links",
+    "login_otps",
+    "web_sessions",
+)
+RLS_POLICIES = (
+    "sessions_read",
+    "sessions_host_update",
+    "cart_items_session_access",
+    "session_events_read",
+)
 
 
 def test_session_persistence_migration_defines_required_tables_constraints_and_indexes() -> None:
@@ -73,3 +90,24 @@ def test_session_events_down_migration_drops_owned_objects() -> None:
 
     assert "DROP INDEX IF EXISTS idx_session_events_message_id_event_type" in sql
     assert "DROP TABLE IF EXISTS session_events" in sql
+
+
+def test_drop_rls_migration_disables_rls_and_removes_every_policy() -> None:
+    """See docs/adr/0007-drop-rls-app-layer-authorization.md: RLS was inert
+    (app connects as the table-owner role) and never actually enforced
+    anything; authorize_session_role() is the real, tested boundary."""
+    sql = DROP_RLS_MIGRATION.read_text()
+
+    for table in RLS_TABLES:
+        assert f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY" in sql
+    for policy in RLS_POLICIES:
+        assert f"DROP POLICY IF EXISTS {policy}" in sql
+
+
+def test_drop_rls_down_migration_faithfully_restores_original_policies() -> None:
+    sql = DROP_RLS_DOWN_MIGRATION.read_text()
+
+    for table in RLS_TABLES:
+        assert f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY" in sql
+    for policy in RLS_POLICIES:
+        assert f"CREATE POLICY {policy}" in sql

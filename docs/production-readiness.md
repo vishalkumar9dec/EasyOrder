@@ -3,6 +3,18 @@
 _Assessment date: 2026-07-15. Basis: full audit of `src/backend`, `src/frontend`,
 `infra/`, and CI. This is a point-in-time snapshot; line references may drift._
 
+> **⚠️ Partially stale as of 2026-07-24.** A production-hardening pass on
+> 2026-07-23/24 resolved several 🔴 items below: a real (mock) Swiggy MCP
+> server now exists, real LLM intent parsing works, Dockerfiles + a
+> production Compose topology + a rehearsal script exist, structured
+> logging/metrics/Sentry were added, compliance docs were drafted, and RLS
+> was formally dropped in favor of the app-layer authorization that was
+> always the real boundary (`docs/adr/0007-drop-rls-app-layer-authorization.md`).
+> The scorecard, verdict, and effort-sizing table below have **not** been
+> fully re-audited against that work — treat the two Tier-0 blockers in
+> §1 (no real Swiggy partner access, no real production host/domain) as
+> still accurate; everything else needs a fresh pass before being trusted.
+
 ## 1. Verdict
 
 EasyOrder is a **cohesive, well-tested prototype** with one genuinely
@@ -30,7 +42,7 @@ answered, "go live" is blocked regardless of code quality.
 | Domain model & API design | 🟢 Solid | Clean Pydantic models, token roles, checkout grouping |
 | Automated tests | 🟡 Good unit, thin integration | 133 backend + 28 frontend unit tests; no load tests, real-dependency integration is mocked |
 | Security | 🔴 Blockers | OTP code printed to logs; no OTP rate limit; signature check auto-skips in `local` |
-| Data / persistence | 🔴 Not prod-shaped | Defaults to in-memory (state lost on restart); connect-per-query; RLS is dead code |
+| Data / persistence | 🟡 Improving | Postgres pooling + versioned migrations added; RLS formally dropped (ADR 0007) rather than left inert — see update note above |
 | Deployment / infra | 🔴 None | No Dockerfile, no host, no CD; frontend has no prod route to backend |
 | Observability | 🔴 Minimal | Access logs + health endpoints only; no metrics, no error tracking, logging unconfigured |
 | Swiggy (search + checkout) | 🔴 Mock / stub | Real MCP server binary absent; checkout & OAuth simulated |
@@ -70,12 +82,14 @@ Before sequencing engineering work, two questions gate everything:
 - **Switch to Postgres and make it prod-shaped.** Default is `memory`
   (`config.py:13`), which loses sessions, carts, timelines, OTPs, logins, and
   short links on restart — and wipes the webhook dedup ledger, so Meta retries
-  create **duplicate sessions**. Then: add **connection pooling**
-  (`db/adapter.py:31-44` opens a fresh connection per query) and either wire up
-  **Row-Level Security** (policies exist in migrations but `db/rls.py` has zero
-  callers and the app runs as the table owner, so RLS is inert) or stop
-  treating it as a control. Migrations are raw SQL via a shell loop with no
-  version tracking — replace with a real migration runner.
+  create **duplicate sessions**. ~~Then: add connection pooling and either
+  wire up RLS or stop treating it as a control. Migrations are raw SQL via a
+  shell loop with no version tracking — replace with a real migration
+  runner.~~ **Done as of 2026-07-24**: connection pooling
+  (`AsyncpgConnectionPool`, `db/pool.py`), RLS formally dropped rather than
+  left inert (`docs/adr/0007-drop-rls-app-layer-authorization.md`), and a
+  versioned migration runner (`scripts/run_migrations.py`, tracks applied
+  migrations in `schema_migrations`) replacing the shell loop.
 - **Secrets management.** A live-looking Meta token + app secret sit in
   plaintext `src/backend/.env` (gitignored, never committed — verified). Rotate
   them and move to a secrets manager.
@@ -159,7 +173,7 @@ is achievable without Swiggy access.
 real-dependency staging + smoke tests, error tracking, and a load test. This is
 the first launch where a real order can complete.
 
-**Phase 2 — GA.** Real LLM intent parser, RLS enforced, cost instrumentation,
+**Phase 2 — GA.** Real LLM intent parser (done 2026-07-24, `LLM_MODE=openai`), cost instrumentation,
 compliance (DPDP retention/consent, Terms/Privacy, WhatsApp policy sign-off),
 alerting, backups, and an incident process.
 
@@ -171,7 +185,7 @@ alerting, backups, and an incident process.
 | OTP rate limiting | 0 | 1–2 days |
 | Deploy path (backend image + static host + `/api` routing + migration runner) | 0/1 | ~1 week |
 | Postgres default + connection pooling | 1 | 2–3 days |
-| RLS enforcement (or formally drop it) | 1 | 3–5 days |
+| ~~RLS enforcement (or formally drop it)~~ | 1 | **Done 2026-07-24 — formally dropped, ~2 hours** |
 | Observability (structured logs, metrics, Sentry) | 1 | 3–5 days |
 | Swiggy MCP server + OAuth flow | 0 | **Large / unknown — gated on partner access** |
 | Real LLM intent parser | 2 | 3–5 days |

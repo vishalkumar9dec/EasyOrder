@@ -299,7 +299,16 @@ CREATE TABLE saved_list_items (
 );
 ```
 
-### 2.4 Row Level Security (RLS) Policies
+### 2.4 Row Level Security (RLS) Policies — superseded, see ADR 0007
+
+> **This design was formally dropped, not implemented as specified below.**
+> The deployed app connects to Postgres as the table-owner role, which
+> Postgres always exempts from RLS regardless of policy — these policies
+> would have been inert even if created exactly as written. `infra/migrations/0007_drop_rls.sql`
+> removes the (slightly different, but equally inert) versions of these
+> policies that were actually applied. The real, enforced authorization
+> boundary is `authorize_session_role()` in `src/backend/app/api/session.py`.
+> Kept below as a historical record of the original design intent.
 
 ```sql
 -- Enable RLS on both tables
