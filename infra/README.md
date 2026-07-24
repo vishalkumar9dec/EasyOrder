@@ -16,7 +16,9 @@ Check the connection:
 docker compose -f infra/docker-compose.yml exec db psql -U easyorder -d easyorder -c "SELECT 1;"
 ```
 
-Apply the session/cart schema, indexes, realtime publication hook, and RLS policies:
+Apply the session/cart schema, indexes, and realtime publication hook (RLS was
+formally dropped — see `docs/adr/0007-drop-rls-app-layer-authorization.md`;
+authorization is enforced application-side):
 
 ```bash
 make db-migrate
