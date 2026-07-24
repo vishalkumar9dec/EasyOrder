@@ -1,0 +1,87 @@
+# Production topology: db -> migrate (one-shot) -> backend + frontend/Caddy.
+# See docs/runbooks/deployment.md for the full operator runbook.
+#
+# Required env vars (pass via --env-file, never committed):
+#   POSTGRES_PASSWORD, APP_ENV, PUBLIC_APP_BASE_URL, WHATSAPP_VERIFY_TOKEN,
+#   WHATSAPP_APP_SECRET
+# Everything else has a safe mock-mode default so this also rehearses
+# end-to-end without any real Meta/Swiggy/OpenAI credentials.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: easyorder
+      POSTGRES_USER: easyorder
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - easyorder-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U easyorder -d easyorder"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/migrate.Dockerfile
+    environment:
+      DATABASE_URL: postgresql://easyorder:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/easyorder
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *default-logging
+
+  backend:
+    build:
+      context: ../src/backend
+    environment:
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      PERSISTENCE_MODE: postgres
+      DATABASE_URL: postgresql://easyorder:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/easyorder
+      PUBLIC_APP_BASE_URL: ${PUBLIC_APP_BASE_URL:?PUBLIC_APP_BASE_URL is required}
+      BACKEND_CORS_ORIGINS: ${PUBLIC_APP_BASE_URL:?PUBLIC_APP_BASE_URL is required}
+      WHATSAPP_PROVIDER_MODE: ${WHATSAPP_PROVIDER_MODE:-mock}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:?WHATSAPP_VERIFY_TOKEN is required}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:?WHATSAPP_APP_SECRET is required}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_WABA_ID: ${WHATSAPP_WABA_ID:-}
+      WHATSAPP_HANDOFF_TEMPLATE_NAME: ${WHATSAPP_HANDOFF_TEMPLATE_NAME:-}
+      SWIGGY_CLIENT_MODE: ${SWIGGY_CLIENT_MODE:-mock}
+      SWIGGY_MCP_SERVER_URL: ${SWIGGY_MCP_SERVER_URL:-}
+      SWIGGY_MCP_AUTH_TOKEN: ${SWIGGY_MCP_AUTH_TOKEN:-}
+      LLM_MODE: ${LLM_MODE:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: json
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging: *default-logging
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../src/frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    logging: *default-logging
+    restart: unless-stopped
+
+volumes:
+  easyorder-postgres-data:

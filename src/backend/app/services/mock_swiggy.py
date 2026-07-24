@@ -3,11 +3,54 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
 from app.models.session import DietaryTag, Vertical
+
+# Order lifecycle a mock order walks through on successive status polls.
+# Deterministic (call-count driven, not wall-clock) so tests never race.
+ORDER_STATUS_SEQUENCE: tuple[str, ...] = (
+    "placed",
+    "preparing",
+    "out_for_delivery",
+    "delivered",
+)
+
+# Static restaurant directory shared by get_restaurants/get_restaurant so IDs
+# stay consistent with the ones search_restaurants already returns.
+MOCK_RESTAURANTS: tuple[dict[str, Any], ...] = (
+    {
+        "restaurant_id": "rest-biryani-house",
+        "name": "Biryani House",
+        "cuisines": ["Biryani", "Mughlai"],
+        "rating": 4.3,
+        "eta_minutes": 35,
+    },
+    {
+        "restaurant_id": "rest-roll-house",
+        "name": "Roll House",
+        "cuisines": ["Rolls", "North Indian"],
+        "rating": 4.1,
+        "eta_minutes": 25,
+    },
+    {
+        "restaurant_id": "rest-dosa-corner",
+        "name": "Dosa Corner",
+        "cuisines": ["South Indian"],
+        "rating": 4.5,
+        "eta_minutes": 30,
+    },
+    {
+        "restaurant_id": "rest-pizza-yard",
+        "name": "Pizza Yard",
+        "cuisines": ["Pizza", "Italian"],
+        "rating": 4.0,
+        "eta_minutes": 40,
+    },
+)
 
 
 class MockSwiggyTimeoutError(TimeoutError):
@@ -24,6 +67,10 @@ class MockSwiggyOAuthError(RuntimeError):
 
 class MockSwiggyCartCreationError(RuntimeError):
     """Raised when mock cart creation fails after OAuth."""
+
+
+class MockSwiggyOrderNotFoundError(RuntimeError):
+    """Raised when an order_id is not known to this mock client instance."""
 
 
 @dataclass(frozen=True)
@@ -46,6 +93,12 @@ class MockSwiggyMcpClient:
 
     def __init__(self, scenario: MockSwiggyScenario | None = None) -> None:
         self.scenario = scenario or MockSwiggyScenario()
+        self._order_seq = itertools.count(1)
+        # order_id -> order record (customer_id, items, status polls, etc.)
+        self._orders: dict[str, dict[str, Any]] = {}
+        # order_id -> number of times get_current_order/get_delivery_update
+        # has been polled; drives the deterministic status progression.
+        self._order_polls: dict[str, int] = {}
 
     async def search_restaurants(
         self,
@@ -238,6 +291,80 @@ class MockSwiggyMcpClient:
                 brand_name="Mock Brand",
             )
         ]
+
+    async def get_restaurants(self, lat: float, lng: float) -> list[dict[str, Any]]:
+        del lat, lng
+        return [dict(restaurant) for restaurant in MOCK_RESTAURANTS]
+
+    async def get_restaurant(self, restaurant_id: str) -> dict[str, Any]:
+        for restaurant in MOCK_RESTAURANTS:
+            if restaurant["restaurant_id"] == restaurant_id:
+                return dict(restaurant)
+        # Unknown IDs still resolve, mirroring get_restaurant_menu's synthesis
+        # behavior so a restaurant seen only via search/menu can be looked up.
+        return {
+            "restaurant_id": restaurant_id,
+            "name": f"Mock Restaurant {restaurant_id}",
+            "cuisines": ["Multi-cuisine"],
+            "rating": 4.0,
+            "eta_minutes": 35,
+        }
+
+    async def place_order(
+        self,
+        auth_header: str,
+        vertical: str,
+        restaurant_id: str,
+        items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not auth_header.startswith("Bearer "):
+            raise MockSwiggyOAuthError("Missing Swiggy authorization")
+        order_id = f"order-{next(self._order_seq)}"
+        total = sum((Decimal(str(item["price"])) for item in items), Decimal("0.00"))
+        order = {
+            "order_id": order_id,
+            "customer_id": auth_header,
+            "vertical": vertical,
+            "restaurant_id": restaurant_id,
+            "items": list(items),
+            "total": str(total.quantize(Decimal("0.01"))),
+            "status": ORDER_STATUS_SEQUENCE[0],
+        }
+        self._orders[order_id] = order
+        self._order_polls[order_id] = 0
+        return dict(order)
+
+    async def get_order_history(self, auth_header: str) -> list[dict[str, Any]]:
+        orders = [order for order in self._orders.values() if order["customer_id"] == auth_header]
+        return [dict(order) for order in reversed(orders)]
+
+    async def get_current_order(self, auth_header: str, order_id: str) -> dict[str, Any]:
+        order = self._orders.get(order_id)
+        if order is None or order["customer_id"] != auth_header:
+            raise MockSwiggyOrderNotFoundError(f"{order_id} is not a known order")
+        status = self._advance_status(order_id)
+        return {**order, "status": status}
+
+    async def get_delivery_update(self, order_id: str) -> dict[str, Any]:
+        if order_id not in self._orders:
+            raise MockSwiggyOrderNotFoundError(f"{order_id} is not a known order")
+        status = self._advance_status(order_id)
+        remaining_steps = max(
+            0, len(ORDER_STATUS_SEQUENCE) - 1 - ORDER_STATUS_SEQUENCE.index(status)
+        )
+        return {
+            "order_id": order_id,
+            "status": status,
+            "eta_minutes": remaining_steps * 10,
+            "rider_name": "Mock Rider" if status == "out_for_delivery" else None,
+        }
+
+    def _advance_status(self, order_id: str) -> str:
+        poll_count = self._order_polls.get(order_id, 0)
+        status = ORDER_STATUS_SEQUENCE[min(poll_count, len(ORDER_STATUS_SEQUENCE) - 1)]
+        self._order_polls[order_id] = poll_count + 1
+        self._orders[order_id]["status"] = status
+        return status
 
     async def _sleep_or_timeout(self, latency_seconds: float) -> None:
         if latency_seconds <= 0:

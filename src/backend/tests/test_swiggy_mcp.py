@@ -5,13 +5,15 @@ import pytest
 from app.models.session import DietaryTag, Vertical
 from app.services.mock_swiggy import MockSwiggyMcpClient
 from app.services.swiggy_mcp import (
+    HttpMCPToolRunner,
     SwiggyMcpClient,
     SwiggyMcpConfigurationError,
     SwiggyMcpToolError,
     create_swiggy_client,
     normalize_food_item,
     normalize_instamart_item,
-    parse_server_env,
+    normalize_order,
+    normalize_restaurant,
 )
 
 
@@ -118,14 +120,132 @@ def test_swiggy_mcp_client_maps_tool_errors() -> None:
 
 def test_swiggy_client_factory_keeps_mock_default_and_validates_mcp_config() -> None:
     assert isinstance(
-        create_swiggy_client(mode="mock", server_path="", server_env="{}"),
+        create_swiggy_client(mode="mock", server_url=""),
         MockSwiggyMcpClient,
     )
     with pytest.raises(SwiggyMcpConfigurationError):
-        create_swiggy_client(mode="mcp", server_path="", server_env="{}")
+        create_swiggy_client(mode="mcp", server_url="")
+
+    real_client = create_swiggy_client(mode="mcp", server_url="http://localhost:9100/mcp")
+    assert isinstance(real_client, SwiggyMcpClient)
+    assert isinstance(real_client.runner, HttpMCPToolRunner)
 
 
-def test_parse_server_env_requires_json_object() -> None:
-    assert parse_server_env('{"SWIGGY_ENV":"sandbox"}') == {"SWIGGY_ENV": "sandbox"}
+def test_http_mcp_tool_runner_requires_server_url() -> None:
     with pytest.raises(SwiggyMcpConfigurationError):
-        parse_server_env("[]")
+        run(HttpMCPToolRunner(server_url="").call_tool("get_restaurants", {}))
+
+
+def test_normalize_restaurant_and_order() -> None:
+    restaurant = normalize_restaurant(
+        {
+            "id": "rest-1",
+            "name": "Test Kitchen",
+            "cuisines": ["Indian"],
+            "rating": 4.2,
+            "eta_minutes": 30,
+        }
+    )
+    assert restaurant == {
+        "restaurant_id": "rest-1",
+        "name": "Test Kitchen",
+        "cuisines": ["Indian"],
+        "rating": 4.2,
+        "eta_minutes": 30,
+    }
+
+    order = normalize_order(
+        {
+            "order_id": "order-1",
+            "vertical": "food",
+            "restaurant_id": "rest-1",
+            "items": [{"item_id": "food-1", "price": "100.00"}],
+            "total": "100.00",
+            "status": "placed",
+        }
+    )
+    assert order["order_id"] == "order-1"
+    assert order["status"] == "placed"
+    assert order["total"] == "100.00"
+
+
+def test_swiggy_mcp_client_order_lifecycle_tools() -> None:
+    runner = FakeRunner(
+        {
+            "get_restaurants": {
+                "items": [
+                    {
+                        "id": "rest-1",
+                        "name": "Test Kitchen",
+                        "cuisines": [],
+                        "rating": 4.0,
+                        "eta_minutes": 20,
+                    }
+                ]
+            },
+            "get_restaurant": {
+                "id": "rest-1",
+                "name": "Test Kitchen",
+                "cuisines": [],
+                "rating": 4.0,
+                "eta_minutes": 20,
+            },
+            "place_order": {
+                "order_id": "order-1",
+                "vertical": "food",
+                "restaurant_id": "rest-1",
+                "items": [],
+                "total": "100.00",
+                "status": "placed",
+            },
+            "get_order_history": {
+                "items": [
+                    {
+                        "order_id": "order-1",
+                        "vertical": "food",
+                        "restaurant_id": "rest-1",
+                        "items": [],
+                        "total": "100.00",
+                        "status": "delivered",
+                    }
+                ]
+            },
+            "get_current_order": {
+                "order_id": "order-1",
+                "vertical": "food",
+                "restaurant_id": "rest-1",
+                "items": [],
+                "total": "100.00",
+                "status": "preparing",
+            },
+            "get_delivery_update": {
+                "order_id": "order-1",
+                "status": "out_for_delivery",
+                "eta_minutes": 10,
+                "rider_name": "Mock Rider",
+            },
+        }
+    )
+    client = SwiggyMcpClient(runner)
+
+    restaurants = run(client.get_restaurants(12.9, 77.5))
+    restaurant = run(client.get_restaurant("rest-1"))
+    order = run(client.place_order("Bearer token", "food", "rest-1", []))
+    history = run(client.get_order_history("Bearer token"))
+    current = run(client.get_current_order("Bearer token", "order-1"))
+    delivery = run(client.get_delivery_update("order-1"))
+
+    assert restaurants[0]["restaurant_id"] == "rest-1"
+    assert restaurant["name"] == "Test Kitchen"
+    assert order["order_id"] == "order-1"
+    assert history[0]["status"] == "delivered"
+    assert current["status"] == "preparing"
+    assert delivery["rider_name"] == "Mock Rider"
+    assert [call[0] for call in runner.calls] == [
+        "get_restaurants",
+        "get_restaurant",
+        "place_order",
+        "get_order_history",
+        "get_current_order",
+        "get_delivery_update",
+    ]

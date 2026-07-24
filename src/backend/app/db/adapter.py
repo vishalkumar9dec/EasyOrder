@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable, Sequence
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -26,6 +27,14 @@ class SessionNotFoundError(DatabaseAdapterError):
 
 
 ConnectionFactory = Callable[[], Awaitable[Any]]
+
+
+def _deleted_row_count(execute_result: str) -> int:
+    """Parse asyncpg's ``execute()`` status tag, e.g. ``"DELETE 3"`` -> ``3``."""
+    try:
+        return int(execute_result.rsplit(" ", 1)[-1])
+    except (ValueError, AttributeError):
+        return 0
 
 
 def asyncpg_connection_factory(database_url: str) -> ConnectionFactory:
@@ -198,6 +207,32 @@ class AsyncPostgresDBAdapter:
                 session.cart_items = await self._fetch_cart_items(connection, session.session_id)
                 sessions.append(session)
             return sessions
+        finally:
+            await self._close_connection(connection)
+
+    async def delete_sessions_for_host(self, host_phone: str) -> int:
+        """Delete every session for a host wa_id; cart_items/session_events cascade."""
+
+        connection = await self._connection_factory()
+        try:
+            result = await connection.execute(
+                "DELETE FROM sessions WHERE host_phone = $1",
+                host_phone,
+            )
+            return _deleted_row_count(result)
+        finally:
+            await self._close_connection(connection)
+
+    async def delete_sessions_older_than(self, cutoff: datetime) -> int:
+        """Delete every session older than ``cutoff``; cascades to cart/timeline data."""
+
+        connection = await self._connection_factory()
+        try:
+            result = await connection.execute(
+                "DELETE FROM sessions WHERE created_at < $1",
+                cutoff,
+            )
+            return _deleted_row_count(result)
         finally:
             await self._close_connection(connection)
 

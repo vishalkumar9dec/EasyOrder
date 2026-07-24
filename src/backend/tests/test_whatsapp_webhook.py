@@ -526,6 +526,89 @@ def test_business_chat_order_request_creates_session_without_tag() -> None:
     assert "token=" not in body["sessions"][0]["guest_short_link"]
 
 
+def test_data_deletion_request_warns_before_deleting_anything() -> None:
+    agent_service = app.state.agent_service
+    sender = app.state.whatsapp_sender
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "get biryani for 4 under 2000",
+                phone_number_id="business-42",
+                sender_wa_id="919900000010",
+            ),
+        )
+        sessions_before = len(agent_service.store.sessions)
+        messages_before = len(sender.sent_messages)
+
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "delete my data",
+                phone_number_id="business-42",
+                sender_wa_id="919900000010",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    assert response.json()["intents"][0]["intent"] == "data_deletion_request"
+    assert len(agent_service.store.sessions) == sessions_before
+    reply = sender.sent_messages[messages_before:]
+    assert len(reply) == 1
+    assert "confirm" in reply[0].text.lower()
+    assert "cannot be undone" in reply[0].text
+
+
+def test_data_deletion_request_confirmed_deletes_only_that_senders_sessions() -> None:
+    agent_service = app.state.agent_service
+    sender = app.state.whatsapp_sender
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "get biryani for 4 under 2000",
+                phone_number_id="business-42",
+                sender_wa_id="919900000011",
+            ),
+        )
+        TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "get pizza for 2 under 1000",
+                phone_number_id="business-42",
+                sender_wa_id="919900000012",
+            ),
+        )
+        sessions_before = len(agent_service.store.sessions)
+        messages_before = len(sender.sent_messages)
+
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "delete my data confirm",
+                phone_number_id="business-42",
+                sender_wa_id="919900000011",
+            ),
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    assert len(agent_service.store.sessions) == sessions_before - 1
+    remaining = list(agent_service.store.sessions.values())
+    assert all(session.host_phone != "919900000011" for session in remaining)
+    assert any(session.host_phone == "919900000012" for session in remaining)
+    reply = sender.sent_messages[messages_before:]
+    assert len(reply) == 1
+    assert "deleted 1 EasyOrder session" in reply[0].text
+
+
 def test_untagged_group_message_still_ignored_with_business_chat_enabled() -> None:
     app.dependency_overrides[get_settings] = business_chat_settings
 

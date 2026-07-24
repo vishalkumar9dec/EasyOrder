@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 
 from app.models.session import CartItem, Session, SessionCreate, SessionEvent, SessionStatus
 from app.services.protocols import IDBAdapter, ISessionStore
@@ -60,6 +61,28 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
         candidates = [s for s in self.sessions.values() if s.host_phone == host_phone]
         candidates.sort(key=lambda s: (s.created_at, s.session_id), reverse=True)
         return candidates[:limit]
+
+    async def delete_sessions_for_host(self, host_phone: str) -> int:
+        to_delete = [
+            session_id
+            for session_id, session in self.sessions.items()
+            if session.host_phone == host_phone
+        ]
+        for session_id in to_delete:
+            del self.sessions[session_id]
+        self.events = [e for e in self.events if e.session_id not in to_delete]
+        return len(to_delete)
+
+    async def delete_sessions_older_than(self, cutoff: datetime) -> int:
+        to_delete = [
+            session_id
+            for session_id, session in self.sessions.items()
+            if session.created_at < cutoff
+        ]
+        for session_id in to_delete:
+            del self.sessions[session_id]
+        self.events = [e for e in self.events if e.session_id not in to_delete]
+        return len(to_delete)
 
     async def update_cart_items(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
         session = self.sessions[session_id]

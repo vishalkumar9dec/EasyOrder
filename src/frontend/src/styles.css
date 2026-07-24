@@ -1066,48 +1066,37 @@ ul, ol {
 .info-value.good { color: var(--success); }
 .info-value.warn { color: var(--warning); }
 
-.preference-control {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 20px;
-}
-
-.preference-title {
-  font-size: var(--text-caption);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--accent-gold);
-  margin-bottom: 12px;
-}
-
-.preference-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.preference-btn {
-  min-height: 42px;
-  padding: 10px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+.preference-toggle {
+  display: inline-flex;
   background: rgba(255, 255, 255, 0.04);
-  color: var(--text-muted);
-  font-size: var(--text-caption);
-  font-weight: 800;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+  gap: 2px;
 }
 
-.preference-btn:hover {
-  border-color: var(--accent-gold);
+.preference-toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.preference-toggle-btn:hover {
   color: var(--text);
 }
 
-.preference-btn.active {
-  border-color: var(--accent-gold);
-  background: rgba(246, 196, 83, 0.14);
-  color: var(--accent-gold);
+.preference-toggle-btn.active {
+  background: var(--accent-gold);
+  color: var(--bg);
 }
 
 /* Cart area */

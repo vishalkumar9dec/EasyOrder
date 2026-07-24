@@ -7,6 +7,7 @@ can be swapped for mocks in tests (AGENTS.md rule #23).
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -102,6 +103,14 @@ class ISwiggyMcpClient(Protocol):
         """Search Swiggy Food restaurants or dishes."""
         ...
 
+    async def get_restaurants(self, lat: float, lng: float) -> list[dict[str, Any]]:
+        """Browse nearby Swiggy Food restaurants without a search query."""
+        ...
+
+    async def get_restaurant(self, restaurant_id: str) -> dict[str, Any]:
+        """Return details for one restaurant."""
+        ...
+
     async def get_restaurant_menu(self, restaurant_id: str) -> list[dict[str, Any]]:
         """Return a normalized restaurant menu."""
         ...
@@ -125,6 +134,28 @@ class ISwiggyMcpClient(Protocol):
 
     async def get_substitute_items(self, item_id: str) -> list[dict[str, Any]]:
         """Return substitute candidates for an unavailable item."""
+        ...
+
+    async def place_order(
+        self,
+        auth_header: str,
+        vertical: str,
+        restaurant_id: str,
+        items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Place a finalized order and return its order record."""
+        ...
+
+    async def get_order_history(self, auth_header: str) -> list[dict[str, Any]]:
+        """Return past orders for the authenticated Swiggy customer, newest first."""
+        ...
+
+    async def get_current_order(self, auth_header: str, order_id: str) -> dict[str, Any]:
+        """Return the live status of one order."""
+        ...
+
+    async def get_delivery_update(self, order_id: str) -> dict[str, Any]:
+        """Return the delivery/rider tracking state for one order."""
         ...
 
 
@@ -151,6 +182,20 @@ class IDBAdapter(Protocol):
 
     async def list_sessions_for_host(self, host_phone: str, *, limit: int = 10) -> list[Session]:
         """Retrieve the most recent sessions created by a host wa_id, newest first."""
+        ...
+
+    async def delete_sessions_for_host(self, host_phone: str) -> int:
+        """Permanently delete every session (and cascading cart/timeline data)
+        created by a host wa_id. Returns the number of sessions deleted.
+
+        Backs the DPDP/data-erasure request flow: EasyOrder stores phone
+        numbers and order history, so users need a way to have it removed.
+        """
+        ...
+
+    async def delete_sessions_older_than(self, cutoff: datetime) -> int:
+        """Permanently delete every session older than ``cutoff``. Returns
+        the number of sessions deleted. Backs the data-retention script."""
         ...
 
     async def update_cart_items(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:

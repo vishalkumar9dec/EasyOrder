@@ -33,9 +33,20 @@ class Settings(BaseSettings):
 
     # External integrations
     swiggy_client_mode: str = "mock"
-    swiggy_mcp_server_path: str = ""
-    swiggy_mcp_server_env: str = "{}"
+    # URL of a real (or mock-but-networked) Swiggy MCP server, e.g.
+    # http://localhost:9100/mcp for the local mock-swiggy-mcp service.
+    swiggy_mcp_server_url: str = ""
+    swiggy_mcp_auth_token: str = ""
     llm_mode: str = "mock"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+
+    # Observability
+    log_level: str = "INFO"
+    # "text" is readable for local dev; use "json" in any hosted environment
+    # so log lines are one JSON object per line for aggregators to parse.
+    log_format: str = "text"
+    sentry_dsn: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

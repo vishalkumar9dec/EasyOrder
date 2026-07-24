@@ -107,6 +107,21 @@ def test_share_confirmation_grammar_unlocks_confirmed_share() -> None:
         assert routed.share_confirmed is True, text
 
 
+def test_data_deletion_request_routes_unconfirmed_by_default() -> None:
+    for text in ("delete my data", "erase my info", "forget me", "remove my data please"):
+        routed = route_business_chat_message(text)
+        assert routed.family == IntentFamily.DATA_DELETION_REQUEST, text
+        assert routed.creates_session is False
+        assert routed.deletion_confirmed is False, text
+
+
+def test_data_deletion_request_requires_explicit_confirm_word() -> None:
+    routed = route_business_chat_message("delete my data confirm")
+
+    assert routed.family == IntentFamily.DATA_DELETION_REQUEST
+    assert routed.deletion_confirmed is True
+
+
 def test_order_request_creates_planning_session() -> None:
     for text in ("get biryani for 4 under 2000", "order 2 pizzas", "need snacks for 6"):
         routed = route_business_chat_message(text)
