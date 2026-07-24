@@ -22,6 +22,7 @@ from app.models.session import (
     generate_session_tokens,
 )
 from app.models.whatsapp import IncomingMessage
+from app.observability import AGENT_ERRORS_TOTAL
 from app.services.protocols import IAgentService, IDBAdapter, ISwiggyMcpClient
 
 WORKER_TIMEOUT_SECONDS = 2.5
@@ -113,6 +114,7 @@ class EasyOrderGraph:
             except Exception as error:
                 state.errors.append(f"{name}: {error.__class__.__name__}")
                 state.status = SessionStatus.DEGRADED
+                AGENT_ERRORS_TOTAL.labels(node=name).inc()
                 return state
 
         return wrapped
@@ -144,6 +146,14 @@ class InputGuardrails:
         for pattern in self.pii_patterns:
             sanitized = pattern.sub("[redacted]", sanitized)
         return sanitized.strip()
+
+
+class IntentParser(Protocol):
+    """Interface for parsing a sanitized WhatsApp prompt into a ParsedIntent."""
+
+    async def parse(self, prompt: str) -> ParsedIntent:
+        """Extract budget, headcount, dietary preference, and search queries."""
+        ...
 
 
 class MockIntentParser:
@@ -193,7 +203,7 @@ class EasyOrderAgentService(IAgentService):
         self,
         db: IDBAdapter,
         swiggy_client: ISwiggyMcpClient,
-        parser: MockIntentParser | None = None,
+        parser: IntentParser | None = None,
         guardrails: InputGuardrails | None = None,
         worker_timeout_seconds: float = WORKER_TIMEOUT_SECONDS,
     ) -> None:

@@ -39,6 +39,7 @@ class IntentFamily(StrEnum):
     ORDER_HISTORY_STATUS = "order_history_status"
     DISCOVERY_OFFERS = "discovery_offers"
     SHARE_REQUEST = "share_request"
+    DATA_DELETION_REQUEST = "data_deletion_request"
     UNSUPPORTED = "unsupported"
 
 
@@ -54,13 +55,22 @@ class RoutedIntent:
     # SHARE_REQUEST only: True when the message itself carries explicit
     # confirmation ("share yes"), unlocking the forwardable summary.
     share_confirmed: bool = False
+    # DATA_DELETION_REQUEST only: True when the message itself carries
+    # explicit confirmation ("delete my data confirm"), triggering the
+    # actual (irreversible) erasure rather than just the warning/how-to reply.
+    deletion_confirmed: bool = False
 
 
 EXAMPLE_PROMPT = "get biryani for 4 under 2000"
 
+PRIVACY_NOTICE = (
+    "We store your phone number and order details to run your sessions. "
+    'Message "delete my data confirm" anytime to erase them.'
+)
 ONBOARDING_REPLY = (
     "Hi! I'm EasyOrder. Tell me what to order, for example: "
-    f"{EXAMPLE_PROMPT}. In a group chat, tag @EasyOrder with the same request."
+    f"{EXAMPLE_PROMPT}. In a group chat, tag @EasyOrder with the same request.\n\n"
+    f"{PRIVACY_NOTICE}"
 )
 ORDER_HISTORY_REPLY = (
     "I can't look up your Swiggy order history or delivery status yet — "
@@ -78,6 +88,11 @@ SAVED_LIST_REPLY = (
 SHARE_REPLY = (
     "To share an order, open your session from our earlier message and tap "
     "Share with group."
+)
+DATA_DELETION_WARNING_REPLY = (
+    "This permanently deletes every EasyOrder session, cart, and order "
+    "history stored for your number — it cannot be undone. Message "
+    '"delete my data confirm" to go ahead.'
 )
 UNSUPPORTED_REPLY = (
     "Sorry, I didn't catch that. Tell me what to order, for example: "
@@ -120,6 +135,12 @@ _DISCOVERY_PATTERNS = [
     re.compile(r"\bsuggest\b"),
 ]
 
+_DATA_DELETION_PATTERNS = [
+    re.compile(r"\b(delete|erase|remove|forget)\b.{0,20}\b(my)\b.{0,20}\b(data|info|information)\b"),
+    re.compile(r"\bforget me\b"),
+]
+_DELETION_CONFIRMATION = re.compile(r"\bconfirm\b")
+
 _SHARE_CONFIRMATION = re.compile(r"\b(yes|confirm|go ahead|haan)\b")
 
 _ORDER_REQUEST_PATTERNS = [
@@ -158,6 +179,13 @@ def route_business_chat_message(message_text: str) -> RoutedIntent:
 
     if normalized in _GREETINGS:
         return RoutedIntent(IntentFamily.START_SESSION, ONBOARDING_REPLY)
+    if any(pattern.search(normalized) for pattern in _DATA_DELETION_PATTERNS):
+        confirmed = _DELETION_CONFIRMATION.search(normalized) is not None
+        return RoutedIntent(
+            IntentFamily.DATA_DELETION_REQUEST,
+            DATA_DELETION_WARNING_REPLY,
+            deletion_confirmed=confirmed,
+        )
     if any(pattern.search(normalized) for pattern in _HISTORY_PATTERNS):
         return RoutedIntent(IntentFamily.ORDER_HISTORY_STATUS, ORDER_HISTORY_REPLY)
     if any(pattern.search(normalized) for pattern in _SAVED_LIST_PATTERNS):

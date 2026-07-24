@@ -139,7 +139,32 @@ class FakeConnection:
             self.sessions[session_id]["status"] = args[1]
             return "UPDATE 1"
 
+        if "DELETE FROM sessions WHERE host_phone" in sql:
+            host_phone = args[0]
+            to_delete = [
+                sid for sid, row in self.sessions.items() if row["host_phone"] == host_phone
+            ]
+            return self._delete_sessions(to_delete)
+
+        if "DELETE FROM sessions WHERE created_at" in sql:
+            cutoff = args[0]
+            to_delete = [
+                sid for sid, row in self.sessions.items() if row["created_at"] < cutoff
+            ]
+            return self._delete_sessions(to_delete)
+
         raise AssertionError(f"Unexpected execute SQL: {sql}")
+
+    def _delete_sessions(self, session_ids: list[str]) -> str:
+        for session_id in session_ids:
+            del self.sessions[session_id]
+        self.cart_items = [
+            item for item in self.cart_items if item["session_id"] not in session_ids
+        ]
+        self.session_events = [
+            event for event in self.session_events if event["session_id"] not in session_ids
+        ]
+        return f"DELETE {len(session_ids)}"
 
 
 def run(coro):
@@ -271,3 +296,61 @@ def test_adapter_gets_session_event_by_message_id_and_type() -> None:
     assert found.session_id == "session_abc123"
     assert missing is None
     assert wrong_type is None
+
+
+def test_adapter_deletes_sessions_for_host() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    run(
+        adapter.create_session(
+            SessionCreate(whatsapp_group_id="group_1", host_phone="919988776655"),
+            host_token_hash="h1",
+            guest_token="g1",
+        )
+    )
+    run(
+        adapter.create_session(
+            SessionCreate(whatsapp_group_id="group_2", host_phone="919988776655"),
+            host_token_hash="h2",
+            guest_token="g2",
+        )
+    )
+    run(
+        adapter.create_session(
+            SessionCreate(whatsapp_group_id="group_3", host_phone="911111111111"),
+            host_token_hash="h3",
+            guest_token="g3",
+        )
+    )
+
+    deleted = run(adapter.delete_sessions_for_host("919988776655"))
+
+    assert deleted == 2
+    assert len(connection.sessions) == 1
+    assert next(iter(connection.sessions.values()))["host_phone"] == "911111111111"
+
+
+def test_adapter_deletes_sessions_older_than_cutoff() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    run(
+        adapter.create_session(
+            SessionCreate(whatsapp_group_id="group_1", host_phone="919988776655"),
+            host_token_hash="h1",
+            guest_token="g1",
+        )
+    )
+    old_session_id = next(iter(connection.sessions))
+    connection.sessions[old_session_id]["created_at"] = datetime(2020, 1, 1, tzinfo=UTC)
+    run(
+        adapter.create_session(
+            SessionCreate(whatsapp_group_id="group_2", host_phone="911111111111"),
+            host_token_hash="h2",
+            guest_token="g2",
+        )
+    )
+
+    deleted = run(adapter.delete_sessions_older_than(datetime(2025, 1, 1, tzinfo=UTC)))
+
+    assert deleted == 1
+    assert len(connection.sessions) == 1

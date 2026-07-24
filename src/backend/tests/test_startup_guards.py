@@ -42,6 +42,22 @@ def test_meta_provider_requires_app_secret(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_openai_llm_mode_requires_api_key(monkeypatch) -> None:
+    try:
+        _set_env(
+            monkeypatch,
+            APP_ENV="local",
+            PERSISTENCE_MODE="memory",
+            WHATSAPP_PROVIDER_MODE="mock",
+            LLM_MODE="openai",
+            OPENAI_API_KEY="",
+        )
+        with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+            create_app()
+    finally:
+        get_settings.cache_clear()
+
+
 def test_non_local_postgres_boots_without_connecting(monkeypatch) -> None:
     try:
         _set_env(

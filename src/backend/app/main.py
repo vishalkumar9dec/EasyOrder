@@ -16,6 +16,12 @@ from app.api.whatsapp import create_agent_service, create_db_adapter_for_setting
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
 from app.db.pool import AsyncpgConnectionPool
+from app.observability import (
+    configure_logging,
+    init_error_tracking,
+    metrics_endpoint,
+    metrics_middleware,
+)
 from app.services.rate_limit import OtpRateLimiter
 from app.services.short_links import create_short_link_service
 from app.services.web_auth import create_auth_store
@@ -25,17 +31,29 @@ logger = logging.getLogger("easyorder.api")
 SESSION_PATH_RE = re.compile(r"/session/(?P<session_id>[^/?]+)")
 
 
+def _mode_is_configured(mode: str, credential_required_mode: str, has_credential: bool) -> bool:
+    """True if `mode` needs no external credential, or the credential it needs is present.
+
+    Startup guards already refuse to boot in the missing-credential case for
+    every integration below, so this is normally always True on a running
+    instance — reported explicitly here so /readyz never has to be taken on
+    faith (docs/production-readiness.md: "readyz reports mode strings
+    without validating that credentials are present").
+    """
+    return mode != credential_required_mode or has_credential
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
+    configure_logging(level=settings.log_level, log_format=settings.log_format)
+    init_error_tracking(dsn=settings.sentry_dsn, environment=settings.app_env)
 
     # Fail closed: the real Meta provider must never run without an app secret,
     # otherwise webhook signature verification cannot be enforced. This makes a
     # production "meta" deploy without a secret impossible to boot, which in
     # turn guarantees signature checks are only ever skipped in local mock dev.
     if settings.whatsapp_provider_mode == "meta" and not settings.whatsapp_app_secret:
-        raise RuntimeError(
-            "WHATSAPP_APP_SECRET must be set when WHATSAPP_PROVIDER_MODE=meta"
-        )
+        raise RuntimeError("WHATSAPP_APP_SECRET must be set when WHATSAPP_PROVIDER_MODE=meta")
     if settings.skip_signature_verification:
         logger.warning(
             "webhook_signature_verification_disabled app_env=%s provider=%s",
@@ -51,6 +69,13 @@ def create_app() -> FastAPI:
             "PERSISTENCE_MODE=postgres is required when app_env is not local "
             f"(got app_env={settings.app_env!r}, persistence_mode={settings.persistence_mode!r})"
         )
+
+    # Fail closed: LLM_MODE=openai without a key would silently fall back to
+    # the mock parser on every single message (LLMIntentParser's runtime
+    # fallback) rather than actually doing real parsing. Catch the
+    # misconfiguration at startup instead of discovering it in production logs.
+    if settings.llm_mode == "openai" and not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY must be set when LLM_MODE=openai")
 
     # One shared asyncpg pool for the whole process, threaded into every
     # Postgres-backed store. None in memory mode.
@@ -98,6 +123,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.middleware("http")(metrics_middleware)
+
     @app.middleware("http")
     async def request_logging(request, call_next):
         request_id = request.headers.get("x-request-id") or f"req_{uuid4().hex[:12]}"
@@ -141,8 +168,12 @@ def create_app() -> FastAPI:
             "environment": settings.app_env,
         }
 
+    @app.get("/metrics")
+    async def metrics():
+        return metrics_endpoint()
+
     @app.get("/readyz")
-    async def readyz() -> dict[str, str]:
+    async def readyz() -> dict[str, str | bool]:
         database_state = "memory"
         if settings.persistence_mode == "postgres" and connection_factory is not None:
             try:
@@ -159,8 +190,19 @@ def create_app() -> FastAPI:
             "status": "ready",
             "database": database_state,
             "whatsapp": settings.whatsapp_provider_mode,
+            "whatsapp_configured": _mode_is_configured(
+                settings.whatsapp_provider_mode,
+                "meta",
+                bool(settings.whatsapp_access_token and settings.whatsapp_phone_number_id),
+            ),
             "swiggy": settings.swiggy_client_mode,
+            "swiggy_configured": _mode_is_configured(
+                settings.swiggy_client_mode, "mcp", bool(settings.swiggy_mcp_server_url)
+            ),
             "llm": settings.llm_mode,
+            "llm_configured": _mode_is_configured(
+                settings.llm_mode, "openai", bool(settings.openai_api_key)
+            ),
         }
 
     app.include_router(account_router)

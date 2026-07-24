@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
-import os
-import subprocess
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Protocol
+
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 
 from app.models.session import DietaryTag, Vertical
 from app.services.mock_swiggy import MockSwiggyMcpClient
@@ -36,50 +34,43 @@ class MCPToolRunner(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class StdioMCPToolRunner:
-    """Runs a configured MCP stdio command once per tool call.
+class HttpMCPToolRunner:
+    """Calls tools on a real MCP server over Streamable HTTP.
 
-    The runner expects the command to accept a JSON object on stdin containing
-    ``tool`` and ``arguments``, then emit a JSON object on stdout.
+    This is how EasyOrder would consume a real vendor-hosted Swiggy MCP
+    endpoint: a URL plus a bearer token, nothing shared in-process. Opens one
+    MCP session per tool call — simple and correct for this call volume; a
+    persistent session can be introduced later if latency becomes an issue.
     """
 
-    server_path: str
-    environment: Mapping[str, str] = field(default_factory=dict)
-    timeout_seconds: float = 15
+    def __init__(self, server_url: str, auth_token: str = "", timeout_seconds: float = 15) -> None:
+        self.server_url = server_url
+        self.auth_token = auth_token
+        self.timeout_seconds = timeout_seconds
 
     async def call_tool(self, tool_name: str, arguments: Mapping[str, Any]) -> Mapping[str, Any]:
-        if not self.server_path:
-            raise SwiggyMcpConfigurationError("SWIGGY_MCP_SERVER_PATH is required")
-        request = {"tool": tool_name, "arguments": dict(arguments)}
-        return await asyncio.to_thread(self._run, request)
-
-    def _run(self, request: Mapping[str, Any]) -> Mapping[str, Any]:
-        environment = os.environ | dict(self.environment)
+        if not self.server_url:
+            raise SwiggyMcpConfigurationError("SWIGGY_MCP_SERVER_URL is required")
+        headers = {"Authorization": f"Bearer {self.auth_token}"} if self.auth_token else None
         try:
-            result = subprocess.run(
-                [self.server_path],
-                input=json.dumps(request),
-                capture_output=True,
-                check=False,
-                text=True,
-                timeout=self.timeout_seconds,
-                env=environment,
-            )
-        except OSError as error:
-            raise SwiggyMcpConfigurationError("Swiggy MCP server could not be started") from error
-        except subprocess.TimeoutExpired as error:
-            raise SwiggyMcpToolError("Swiggy MCP tool call timed out") from error
+            async with streamablehttp_client(
+                self.server_url, headers=headers, timeout=self.timeout_seconds
+            ) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    result = await session.call_tool(tool_name, dict(arguments))
+        except SwiggyMcpError:
+            raise
+        except Exception as error:
+            raise SwiggyMcpConfigurationError(
+                f"Swiggy MCP server at {self.server_url} could not be reached"
+            ) from error
 
-        if result.returncode != 0:
-            raise SwiggyMcpToolError("Swiggy MCP tool call failed")
-        try:
-            payload = json.loads(result.stdout or "{}")
-        except json.JSONDecodeError as error:
-            raise SwiggyMcpToolError("Swiggy MCP tool returned invalid JSON") from error
-        if not isinstance(payload, dict):
-            raise SwiggyMcpToolError("Swiggy MCP tool returned a non-object payload")
-        return payload
+        if result.isError:
+            raise SwiggyMcpToolError(f"Swiggy MCP tool {tool_name} reported an error")
+        if result.structuredContent is None:
+            raise SwiggyMcpToolError(f"Swiggy MCP tool {tool_name} returned no structured content")
+        return result.structuredContent
 
 
 class SwiggyMcpClient(ISwiggyMcpClient):
@@ -99,6 +90,14 @@ class SwiggyMcpClient(ISwiggyMcpClient):
             {"lat": lat, "lng": lng, "query": query},
         )
         return [normalize_food_item(item) for item in extract_items(response)]
+
+    async def get_restaurants(self, lat: float, lng: float) -> list[dict[str, Any]]:
+        response = await self._call("get_restaurants", {"lat": lat, "lng": lng})
+        return [normalize_restaurant(item) for item in extract_items(response)]
+
+    async def get_restaurant(self, restaurant_id: str) -> dict[str, Any]:
+        response = await self._call("get_restaurant", {"restaurant_id": restaurant_id})
+        return normalize_restaurant(response)
 
     async def get_restaurant_menu(self, restaurant_id: str) -> list[dict[str, Any]]:
         response = await self._call("get_restaurant_menu", {"restaurant_id": restaurant_id})
@@ -149,6 +148,44 @@ class SwiggyMcpClient(ISwiggyMcpClient):
     async def get_substitute_items(self, item_id: str) -> list[dict[str, Any]]:
         response = await self._call("get_substitute_items", {"item_id": item_id})
         return [normalize_instamart_item(item) for item in extract_items(response)]
+
+    async def place_order(
+        self,
+        auth_header: str,
+        vertical: str,
+        restaurant_id: str,
+        items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        response = await self._call(
+            "place_order",
+            {
+                "auth_header": auth_header,
+                "vertical": vertical,
+                "restaurant_id": restaurant_id,
+                "items": items,
+            },
+        )
+        return normalize_order(response)
+
+    async def get_order_history(self, auth_header: str) -> list[dict[str, Any]]:
+        response = await self._call("get_order_history", {"auth_header": auth_header})
+        return [normalize_order(item) for item in extract_items(response)]
+
+    async def get_current_order(self, auth_header: str, order_id: str) -> dict[str, Any]:
+        response = await self._call(
+            "get_current_order",
+            {"auth_header": auth_header, "order_id": order_id},
+        )
+        return normalize_order(response)
+
+    async def get_delivery_update(self, order_id: str) -> dict[str, Any]:
+        response = await self._call("get_delivery_update", {"order_id": order_id})
+        return {
+            "order_id": required_string(response, "order_id"),
+            "status": required_string(response, "status"),
+            "eta_minutes": int(response.get("eta_minutes") or 0),
+            "rider_name": first_string(response.get("rider_name")),
+        }
 
     async def _call(self, tool_name: str, arguments: Mapping[str, Any]) -> Mapping[str, Any]:
         try:
@@ -214,6 +251,27 @@ def normalize_instamart_item(item: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def normalize_restaurant(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "restaurant_id": required_string(item, "restaurant_id", "id"),
+        "name": required_string(item, "name", "title"),
+        "cuisines": [str(c) for c in item.get("cuisines") or []],
+        "rating": float(item.get("rating") or 0.0),
+        "eta_minutes": int(item.get("eta_minutes") or 0),
+    }
+
+
+def normalize_order(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "order_id": required_string(item, "order_id", "id"),
+        "vertical": required_string(item, "vertical"),
+        "restaurant_id": first_string(item.get("restaurant_id")),
+        "items": list(item.get("items") or []),
+        "total": normalize_price(item.get("total")),
+        "status": required_string(item, "status"),
+    }
+
+
 def required_string(item: Mapping[str, Any], *keys: str) -> str:
     value = first_string(*(item.get(key) for key in keys))
     if not value:
@@ -249,26 +307,11 @@ def normalize_dietary_tag(value: object) -> DietaryTag:
 def create_swiggy_client(
     *,
     mode: str,
-    server_path: str,
-    server_env: str = "{}",
+    server_url: str,
+    auth_token: str = "",
 ) -> ISwiggyMcpClient:
     if mode == "mcp":
-        if not server_path:
-            raise SwiggyMcpConfigurationError("SWIGGY_MCP_SERVER_PATH is required in mcp mode")
-        return SwiggyMcpClient(
-            StdioMCPToolRunner(
-                server_path=server_path,
-                environment=parse_server_env(server_env),
-            )
-        )
+        if not server_url:
+            raise SwiggyMcpConfigurationError("SWIGGY_MCP_SERVER_URL is required in mcp mode")
+        return SwiggyMcpClient(HttpMCPToolRunner(server_url=server_url, auth_token=auth_token))
     return MockSwiggyMcpClient()
-
-
-def parse_server_env(raw_env: str) -> dict[str, str]:
-    try:
-        payload = json.loads(raw_env or "{}")
-    except json.JSONDecodeError as error:
-        raise SwiggyMcpConfigurationError("SWIGGY_MCP_SERVER_ENV must be JSON") from error
-    if not isinstance(payload, dict):
-        raise SwiggyMcpConfigurationError("SWIGGY_MCP_SERVER_ENV must be a JSON object")
-    return {str(key): str(value) for key, value in payload.items()}

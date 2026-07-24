@@ -2,25 +2,51 @@
 
 ## Purpose
 
-This document explains how EasyOrder receives restaurant information from the
-local `MockSwiggyMcpClient`. It covers two use cases:
+This document explains how EasyOrder gets restaurant/Instamart information,
+covering **both** ways the app can be configured to do that:
 
-1. Searching for restaurants or dishes with `search_restaurants`.
-2. Fetching a restaurant menu with `get_restaurant_menu`.
+1. **In-process mock** (`SWIGGY_CLIENT_MODE=mock`, the default) — an in-process
+   Python object, `MockSwiggyMcpClient`. No network calls, no server to run.
+2. **Real MCP over HTTP** (`SWIGGY_CLIENT_MODE=mcp`) — the backend acts as a
+   real MCP client and talks to a real, separately-running MCP server
+   (`services/mock-swiggy-mcp/`, or eventually a real Swiggy-hosted endpoint)
+   over the network. This is what produces the `POST/GET/DELETE /mcp` log
+   lines you see in the mock server's terminal.
 
-The mock client is an in-process Python object. It does not make an HTTP request,
-start an MCP server, query a database, or contact Swiggy. It implements the same
-`ISwiggyMcpClient` interface used by the real integration and returns deterministic
-Python dictionaries from data defined in the source code.
+Both implement the same `ISwiggyMcpClient` interface, so the rest of the app
+(the agent, the Food/Instamart workers) doesn't know or care which one is
+active. It covers two operations: searching with `search_restaurants`, and
+fetching a menu with `get_restaurant_menu`.
+
+> **Not to be confused with `LLM_MODE`.** `SWIGGY_CLIENT_MODE` (this doc) and
+> `LLM_MODE` are two independent settings that happen to both run inside the
+> same agent graph:
+> - `LLM_MODE` controls **intent parsing** — turning your WhatsApp text into
+>   structured budget/headcount/dietary/query fields (`intent_parser` node).
+> - `SWIGGY_CLIENT_MODE` controls **item search** — the very next step
+>   (`swiggy_workers` node), which searches Swiggy Food/Instamart for items
+>   matching whatever the intent parser produced.
+>
+> Setting `SWIGGY_CLIENT_MODE=mcp` with `LLM_MODE=mock` (regex parser, no
+> OpenAI key needed) is a completely valid, common combination — real item
+> search against the mock MCP server, cheap deterministic intent parsing. The
+> MCP server logs you see are from the search step; nothing there requires
+> `OPENAI_API_KEY` to be set. See `src/backend/app/services/llm_intent.py`
+> for the LLM path and `src/backend/app/services/swiggy_mcp.py` for this one.
 
 ## Main components
 
 | Component | Responsibility |
 | --- | --- |
-| `EasyOrderAgentService` | Parses the user's request and invokes the Food worker. |
+| `EasyOrderAgentService` | Parses the user's request and invokes the Food/Instamart workers. |
+| `MockIntentParser` | In-process regex intent parsing (`LLM_MODE=mock`). Also the automatic fallback if the real LLM call fails. |
+| `LLMIntentParser` | Real intent parsing via OpenAI (`LLM_MODE=openai`). See [Real LLM intent parsing flow](#real-llm-intent-parsing-flow-llm_modeopenai) below. |
 | `ISwiggyMcpClient` | Defines the operations that both mock and real clients must implement. |
-| `MockSwiggyMcpClient` | Selects and returns fixed local results. |
+| `MockSwiggyMcpClient` | In-process: selects and returns fixed local results (`SWIGGY_CLIENT_MODE=mock`). |
 | `MockSwiggyScenario` | Optionally changes mock behavior, such as latency or empty results. |
+| `SwiggyMcpClient` | Real MCP mode: normalizes provider-shaped tool responses into EasyOrder's shape (`SWIGGY_CLIENT_MODE=mcp`). |
+| `HttpMCPToolRunner` | Real MCP mode: opens one MCP session per tool call over `SWIGGY_MCP_SERVER_URL`. |
+| `services/mock-swiggy-mcp/app/server.py` | A real, independent MCP server (official `mcp` SDK) — what `HttpMCPToolRunner` actually connects to locally. |
 | Session persistence | Converts returned dictionaries into cart items and saves the EasyOrder session. |
 
 ## How the request reaches the backend
@@ -174,6 +200,88 @@ input_guardrails
 For the example message, the intent parser produces a Food query such as
 `"biryani"`. The Food worker then calls `search_restaurants`, which begins Use
 Case 1 below.
+
+## Real LLM intent parsing flow (`LLM_MODE=openai`)
+
+The `intent_parser` node (step 5 above) is where `LLM_MODE` matters —
+independently of `SWIGGY_CLIENT_MODE`, which only affects the *next* node,
+`swiggy_workers` (see the [Real MCP flow](#real-mcp-flow-swiggy_client_modemcp)
+section below). `LLM_MODE=mock` (default) uses `MockIntentParser` — pure
+regex, no network call. `LLM_MODE=openai` uses `LLMIntentParser`, a real
+OpenAI Chat Completions call with a strict JSON schema for structured output.
+
+```mermaid
+sequenceDiagram
+    participant Agent as EasyOrderAgentService
+    participant Node as intent_parser node (agent.py)
+    participant LLM as LLMIntentParser
+    participant OpenAI as OpenAI API
+    participant Fallback as MockIntentParser
+
+    Agent->>Node: parse_intent(state)
+    Node->>LLM: parser.parse(sanitized_prompt)
+    LLM->>OpenAI: chat.completions.create(model, response_format=json_schema)
+    alt Call succeeds
+        OpenAI-->>LLM: JSON matching PARSED_INTENT_SCHEMA
+        LLM->>LLM: _to_parsed_intent(json.loads(content))
+        LLM-->>Node: ParsedIntent (budget, headcount, dietary, queries)
+    else Call fails, times out, or returns malformed JSON
+        OpenAI-->>LLM: exception
+        LLM->>LLM: logger.warning("llm_intent_parse_failed_falling_back_to_mock_parser")
+        LLM->>Fallback: MockIntentParser().parse(sanitized_prompt)
+        Fallback-->>LLM: ParsedIntent (regex-derived)
+        LLM-->>Node: ParsedIntent (silently degraded)
+    end
+    Node-->>Agent: state.intent = ParsedIntent
+```
+
+The fallback means a request **always** succeeds — an OpenAI outage or bad
+API key never breaks the WhatsApp flow, it just silently degrades to regex
+parsing for that message. That's deliberate (mirrors how `swiggy_workers`
+degrades gracefully on a Swiggy timeout), but it also means **"the webhook
+returned 200" is not proof the real LLM ran** — see the logging note below.
+
+### How to trigger it manually
+
+There's no standalone "test parsing" endpoint — the only trigger is a real
+tagged WhatsApp message (or a signed webhook replay, see
+`scripts/replay_whatsapp_webhook.py`), since `intent_parser` only runs during
+session creation. If `WHATSAPP_PROVIDER_MODE=meta`, sending a message from a
+real phone is the only way to trigger this that doesn't also send a real
+outbound WhatsApp message as a side effect of session creation — a signed
+webhook replay against a `meta`-mode backend does both. Use a message
+specific enough to tell the two parsers apart, e.g.:
+
+```
+@EasyOrder get biryani and cold drinks for 6 under 3000, mostly vegetarian
+```
+
+A regex parser catches `under 3000` / `for 6` fine but is unlikely to also
+resolve "mostly vegetarian" into `dietary_preference=VEG` or cleanly split
+"cold drinks" into a separate Instamart query — a correct split in the
+resulting cart is your practical signal that real parsing ran.
+
+### Which logs to check
+
+There is currently no explicit **success** log line for the LLM path — only
+a **failure** one, so confirmation is partly by absence:
+
+- **Failure signal** (backend terminal): grep for
+  `llm_intent_parse_failed_falling_back_to_mock_parser`. Its presence (with a
+  traceback, since it's logged with `exc_info=True`) means the real call
+  failed and the regex fallback silently took over for that message.
+  Its *absence* is your (indirect) confirmation the real call succeeded.
+- **Request-level confirmation**: the `request_complete` log line for the
+  `POST /api/whatsapp/webhook` request (same structured-log shape as every
+  other request) confirms the webhook was received and processed.
+- **Content-level confirmation**: open the resulting session and check
+  whether the parsed budget/headcount/dietary/cart reflect nuance a regex
+  couldn't have caught — the strongest signal, since the logs alone can't
+  distinguish "LLM succeeded" from "LLM never ran because nothing failed".
+
+`[TODO: add an explicit success-path log line (e.g. `llm_intent_parse_succeeded`
+with the model name) so this doesn't rely on the absence of a warning —
+tracked as a follow-up, not yet done.]`
 
 ### 6. The backend returns an acknowledgement and sends links
 
@@ -395,29 +503,97 @@ search_restaurants("biryani")
 That flow would require application orchestration to be added; the client
 method itself is already available.
 
-## Mock flow versus real MCP flow
+## Real MCP flow (`SWIGGY_CLIENT_MODE=mcp`)
 
-Both modes expose the same application-facing operations, but the execution is
-different:
+When `SWIGGY_CLIENT_MODE=mcp`, `create_swiggy_client()`
+(`src/backend/app/services/swiggy_mcp.py`) builds a `SwiggyMcpClient` wrapping
+an `HttpMCPToolRunner` instead of `MockSwiggyMcpClient`. The agent's
+`search_restaurants`/`search_instamart` calls are identical Python calls —
+only what's behind `ISwiggyMcpClient` changed.
 
-| Mock mode | Real MCP mode |
-| --- | --- |
-| Executes an in-process Python method | Invokes a configured MCP tool runner |
-| Returns fixed source-code data | Receives data from the configured Swiggy MCP server |
-| Ignores coordinates | Sends coordinates to the MCP tool |
-| Already returns EasyOrder's normalized shape | Normalizes varying MCP response fields into the same shape |
-| Requires no credentials or network | Requires MCP configuration and applicable authentication |
+```mermaid
+sequenceDiagram
+    participant Agent as EasyOrderAgentService
+    participant Contract as ISwiggyMcpClient
+    participant Client as SwiggyMcpClient
+    participant Runner as HttpMCPToolRunner
+    participant SDK as mcp SDK ClientSession
+    participant Server as mock-swiggy-mcp (:9100)
 
-This common shape is why the rest of EasyOrder can consume either implementation
-without changing the Food worker.
+    Agent->>Contract: search_restaurants(lat, lng, "biryani")
+    Contract->>Client: Dispatch to injected implementation
+    Client->>Runner: call_tool("search_restaurants", {...})
+    Runner->>SDK: streamablehttp_client(SWIGGY_MCP_SERVER_URL, Bearer token)
+    SDK->>Server: POST /mcp (initialize)
+    Server-->>SDK: 200 OK, new session ID
+    SDK->>Server: GET /mcp (open SSE stream for server->client messages)
+    SDK->>Server: POST /mcp (initialized notification)
+    Server-->>SDK: 202 Accepted
+    SDK->>Server: POST /mcp (tools/call — CallToolRequest)
+    Server->>Server: Run the search_restaurants tool handler
+    Server-->>SDK: structuredContent result
+    SDK->>SDK: call_tool() auto-validates the result's schema
+    SDK->>Server: POST /mcp (tools/list — ListToolsRequest, schema cache)
+    Server-->>SDK: Tool list + output schemas
+    SDK->>Server: DELETE /mcp (terminate session)
+    SDK-->>Runner: CallToolResult
+    Runner-->>Client: result.structuredContent (raw provider-shaped dict)
+    Client->>Client: normalize_food_item() per item
+    Client-->>Agent: EasyOrder-normalized item list
+```
+
+A few things worth calling out explicitly, since they're easy to miss reading
+the logs alone:
+
+- **One MCP session per tool call, not a persistent connection.** Every
+  `search_restaurants`/`search_instamart` call opens a fresh session
+  (`initialize` → ... → `DELETE`) and tears it down immediately after. If your
+  message triggers both a food and an Instamart search, they run concurrently
+  (`asyncio.gather` in `agent.py`'s `run_workers`) — that's why you'll see two
+  different session IDs in the mock server's log for one WhatsApp message.
+- **The paired `ListToolsRequest` is not something EasyOrder's code calls.**
+  It's the official `mcp` SDK's own `ClientSession.call_tool()` — it
+  automatically calls `list_tools()` after a successful call to fetch/cache
+  the tool's output schema and validate `structuredContent` against it. See
+  `ClientSession._validate_tool_result` in the `mcp` package if you want to
+  read it yourself (`python -c "import inspect; from mcp.client.session
+  import ClientSession; print(inspect.getsource(ClientSession.call_tool))"`).
+- **Auth** is a shared bearer token, not tied to anything external:
+  `SWIGGY_MCP_AUTH_TOKEN` (backend) must equal `MOCK_MCP_AUTH_TOKEN` (server).
+  A mismatch fails at the transport layer (401), before any MCP message is
+  even processed.
+- **Response shape.** The server returns *raw provider-shaped* JSON (e.g.
+  `id`/`title`/`diet`), matching what a real Swiggy MCP server would send.
+  `SwiggyMcpClient`'s `normalize_food_item`/`normalize_instamart_item`
+  functions do the shape translation into EasyOrder's canonical item dict —
+  the same translation the mock in-process client already does internally.
+  This is why the rest of the app (Food/Instamart workers, cart building)
+  never needs to know which mode is active.
+
+## Mock flow versus real MCP flow — summary
+
+| | Mock mode (`SWIGGY_CLIENT_MODE=mock`) | Real MCP mode (`SWIGGY_CLIENT_MODE=mcp`) |
+| --- | --- | --- |
+| Execution | In-process Python method call | Network call to a real MCP server over `SWIGGY_MCP_SERVER_URL` |
+| Data source | Fixed dictionaries in `mock_swiggy.py` | Whatever the MCP server returns (`services/mock-swiggy-mcp/`, or a real Swiggy endpoint later) |
+| Coordinates | Ignored | Sent to the tool (still ignored by the mock server today) |
+| Response shape | Already EasyOrder-normalized | Raw provider shape; normalized client-side by `swiggy_mcp.py` |
+| Auth | None | Bearer token (`SWIGGY_MCP_AUTH_TOKEN` / `SWIGGY_MCP_SERVER_URL`) |
+| Used by | Test suite, local demo, default dev setup | Anyone who ran `make mock-mcp-up` (or has real Swiggy MCP access) and set `SWIGGY_CLIENT_MODE=mcp` |
 
 ## Relevant source files
 
 - `src/backend/app/main.py` — FastAPI startup, service construction, and router registration.
-- `src/backend/app/api/whatsapp.py` — webhook verification, ingestion, routing, and handoff.
+- `src/backend/app/api/whatsapp.py` — webhook verification, ingestion, routing, handoff, and `create_agent_service()` (chooses mock vs real Swiggy/LLM clients from settings).
 - `src/backend/app/models/whatsapp.py` — Meta payload validation and message extraction.
-- `src/backend/app/services/mock_swiggy.py` — deterministic restaurant search and menu data.
+- `src/backend/app/services/agent.py` — the agent graph (`input_guardrails → intent_parser → swiggy_workers → output_guardrails → persistence`), Food/Instamart worker calls and timeout handling.
+- `src/backend/app/services/llm_intent.py` — `LLM_MODE` intent parsing: `LLMIntentParser`, `PARSED_INTENT_SCHEMA`, the OpenAI call, and the fallback-to-regex logic (independent of `SWIGGY_CLIENT_MODE`; see [Real LLM intent parsing flow](#real-llm-intent-parsing-flow-llm_modeopenai) above).
+- `src/backend/app/services/mock_swiggy.py` — in-process mock: deterministic restaurant/Instamart search, menu data, and order lifecycle.
 - `src/backend/app/services/protocols.py` — `ISwiggyMcpClient` contract.
-- `src/backend/app/services/agent.py` — current Food worker call and timeout handling.
-- `src/backend/app/services/swiggy_mcp.py` — real-client calls and response normalization.
+- `src/backend/app/services/swiggy_mcp.py` — real MCP client: `SwiggyMcpClient`, `HttpMCPToolRunner`, response normalization, `create_swiggy_client()` factory.
+- `services/mock-swiggy-mcp/app/server.py` — the standalone MCP server itself (tool handlers, bearer-token auth).
+- `scripts/replay_whatsapp_webhook.py` — signs a fixture with `WHATSAPP_APP_SECRET` and posts it to a running backend; in `meta` provider mode this also sends a real outbound WhatsApp message as a side effect of session creation.
 - `src/backend/tests/test_mock_swiggy.py` — mock contract and scenario tests.
+- `src/backend/tests/test_swiggy_mcp.py` — real-client normalization tests (fake runner, no network).
+- `src/backend/tests/test_swiggy_mcp_live_server.py` — end-to-end test against the actual running mock server.
+- `src/backend/tests/test_llm_intent.py` — `LLMIntentParser` mapping, clamping, and fallback-on-failure tests (fake OpenAI client, no network).

@@ -15,6 +15,7 @@ from app.config import Settings, get_settings
 from app.db.adapter import AsyncPostgresDBAdapter
 from app.models.session import EventType, SessionEvent
 from app.models.whatsapp import WhatsAppWebhookPayload, extract_incoming_messages
+from app.observability import WEBHOOK_EVENTS_TOTAL
 from app.services.agent import AgentRejectedPromptError, EasyOrderAgentService
 from app.services.intent_router import (
     ChatMode,
@@ -22,9 +23,11 @@ from app.services.intent_router import (
     classify_chat_mode,
     route_business_chat_message,
 )
+from app.services.llm_intent import create_intent_parser
 from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
 from app.services.order_history import answer_order_history, answer_share_request
+from app.services.privacy import answer_data_deletion_request
 from app.services.protocols import IAgentService, IDBAdapter, IShortLinkService, IWhatsAppSender
 from app.services.swiggy_mcp import create_swiggy_client
 from app.services.whatsapp_sender import SessionHandoff, WhatsAppSendError
@@ -49,6 +52,7 @@ def log_webhook_event(event: str, **fields: object) -> None:
     message = f"{event} {field_text}"
     logger.info(message, extra={"event": event, **event_fields})
     terminal_logger.info(message)
+    WEBHOOK_EVENTS_TOTAL.labels(event=event).inc()
 
 
 def get_agent_service(request: Request) -> IAgentService:
@@ -203,6 +207,15 @@ async def ingest_webhook(
                 wa_id=message.sender_id,
                 public_app_base_url=settings.public_app_base_url,
                 confirmed=routed.share_confirmed,
+            )
+        elif routed.family == IntentFamily.DATA_DELETION_REQUEST:
+            # DPDP erasure request: warning first, actual delete only when
+            # the same message also carried explicit confirmation.
+            reply_text = await answer_data_deletion_request(
+                db,
+                wa_id=message.sender_id,
+                confirmed=routed.deletion_confirmed,
+                warning_reply=routed.reply_text or "",
             )
         if reply_text:
             try:
@@ -439,13 +452,19 @@ def create_db_adapter_for_settings(
 
 def create_agent_service(settings: Settings, db: IDBAdapter | None = None) -> IAgentService:
     store = db if db is not None else InMemoryDBAdapter()
+    parser = create_intent_parser(
+        mode=settings.llm_mode,
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+    )
     if settings.swiggy_client_mode == "mock":
-        return MockAgentService(store=store)
+        return MockAgentService(store=store, parser=parser)
     return EasyOrderAgentService(
         db=store,
         swiggy_client=create_swiggy_client(
             mode=settings.swiggy_client_mode,
-            server_path=settings.swiggy_mcp_server_path,
-            server_env=settings.swiggy_mcp_server_env,
+            server_url=settings.swiggy_mcp_server_url,
+            auth_token=settings.swiggy_mcp_auth_token,
         ),
+        parser=parser,
     )

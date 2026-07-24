@@ -1,0 +1,26 @@
+{
+	admin off
+}
+
+:80 {
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# Same-origin API routing: the frontend's fetch() calls are all relative
+	# (/api/...), so this is the only thing that makes the static PWA build
+	# work in production at all — Vite's dev-server proxy does not exist here.
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

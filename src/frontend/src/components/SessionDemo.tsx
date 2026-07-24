@@ -193,7 +193,32 @@ export function SessionDemo() {
             <div className="session-info fade-up" style={{ marginTop: 12 }}>
               <div className="info-row">
                 <span className="info-label">Preference</span>
-                <span className="info-value">{dietaryPreference}</span>
+                <div className="preference-toggle" role="group" aria-label="Food preference">
+                  <button
+                    className={`preference-toggle-btn ${dietaryPreference === 'ANY' ? 'active' : ''}`}
+                    onClick={() => selectDietaryPreference('ANY')}
+                    aria-pressed={dietaryPreference === 'ANY'}
+                    id="preference-any"
+                  >
+                    Any
+                  </button>
+                  <button
+                    className={`preference-toggle-btn ${dietaryPreference === 'VEG' ? 'active' : ''}`}
+                    onClick={() => selectDietaryPreference('VEG')}
+                    aria-pressed={dietaryPreference === 'VEG'}
+                    id="preference-veg"
+                  >
+                    Veg
+                  </button>
+                  <button
+                    className={`preference-toggle-btn ${dietaryPreference === 'NON-VEG' ? 'active' : ''}`}
+                    onClick={() => selectDietaryPreference('NON-VEG')}
+                    aria-pressed={dietaryPreference === 'NON-VEG'}
+                    id="preference-non-veg"
+                  >
+                    Non-veg
+                  </button>
+                </div>
               </div>
               <div className="info-row">
                 <span className="info-label">Role</span>
@@ -204,36 +229,6 @@ export function SessionDemo() {
                 <span className={`info-value ${scenario.degradedVerticals.length ? 'warn' : 'good'}`}>
                   {scenario.degradedVerticals.length ? 'Degraded' : 'Healthy'}
                 </span>
-              </div>
-            </div>
-
-            <div className="preference-control fade-up" aria-label="Food preference" style={{ marginTop: 12 }}>
-              <p className="preference-title">Food preference</p>
-              <div className="preference-buttons">
-                <button
-                  className={`preference-btn ${dietaryPreference === 'ANY' ? 'active' : ''}`}
-                  onClick={() => selectDietaryPreference('ANY')}
-                  aria-pressed={dietaryPreference === 'ANY'}
-                  id="preference-any"
-                >
-                  Any
-                </button>
-                <button
-                  className={`preference-btn ${dietaryPreference === 'VEG' ? 'active' : ''}`}
-                  onClick={() => selectDietaryPreference('VEG')}
-                  aria-pressed={dietaryPreference === 'VEG'}
-                  id="preference-veg"
-                >
-                  Veg
-                </button>
-                <button
-                  className={`preference-btn ${dietaryPreference === 'NON-VEG' ? 'active' : ''}`}
-                  onClick={() => selectDietaryPreference('NON-VEG')}
-                  aria-pressed={dietaryPreference === 'NON-VEG'}
-                  id="preference-non-veg"
-                >
-                  Non-veg
-                </button>
               </div>
             </div>
           </div>
