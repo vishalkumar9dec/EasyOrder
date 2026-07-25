@@ -60,9 +60,7 @@ def test_graph_compiles_and_invokes_end_to_end_with_mock_dependencies() -> None:
         if item.vertical == Vertical.FOOD
     )
     assert all(
-        item.source_label
-        for item in created.cart_items
-        if item.vertical == Vertical.INSTAMART
+        item.source_label for item in created.cart_items if item.vertical == Vertical.INSTAMART
     )
     assert created.budget_warning is False
 
@@ -142,6 +140,31 @@ def test_all_workers_timeout_still_persists_degraded_session_with_warnings() -> 
     assert created.status == SessionStatus.DEGRADED
     assert set(created.degraded_verticals) == {Vertical.FOOD, Vertical.INSTAMART}
     assert len(created.cart_items) == 0
+
+
+class RaisingSwiggyClient(MockSwiggyMcpClient):
+    """Raises instead of returning, to exercise _run_worker's generic except branch."""
+
+    async def search_restaurants(self, lat, lng, query):
+        raise RuntimeError("simulated Swiggy MCP connection failure")
+
+
+def test_worker_failure_does_not_leak_exception_class_name_to_the_user(caplog) -> None:
+    agent = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=RaisingSwiggyClient())
+
+    with caplog.at_level("WARNING", logger="easyorder.api"):
+        created = run(
+            agent.handle_tagged_message(message("@EasyOrder get biryani for 4 under 2000"))
+        )
+
+    assert created.status == SessionStatus.DEGRADED
+    warning = next(w for w in created.warnings if w.code == "VERTICAL_FAILED")
+    assert warning.message == "Food search is temporarily unavailable. Add items manually."
+    assert "RuntimeError" not in warning.message
+
+    log_record = next(r for r in caplog.records if r.message == "swiggy_worker_failed")
+    assert log_record.vertical == "food"
+    assert log_record.exc_info is not None
 
 
 def test_output_guardrails_add_budget_and_dietary_warnings_and_filter_placeholders() -> None:

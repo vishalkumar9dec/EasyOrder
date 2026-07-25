@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from uuid import uuid4
 
@@ -30,6 +31,7 @@ from app.services.mock_swiggy import MockSwiggyItemUnavailableError
 from app.services.protocols import IDBAdapter, ISwiggyMcpClient
 
 router = APIRouter(prefix="/api/session", tags=["session"])
+logger = logging.getLogger("easyorder.api")
 
 
 class CartItemCreateRequest(BaseModel):
@@ -464,13 +466,18 @@ async def create_checkout_step(
             vertical=group.vertical,
             items=[checkout_payload_item(item) for item in group.items],
         )
-    except Exception as error:
+    except Exception:
+        logger.warning(
+            "checkout_cart_creation_failed",
+            extra={"vertical": str(group.vertical), "group_id": group.group_id},
+            exc_info=True,
+        )
         return CheckoutStepResult(
             group_id=group.group_id,
             vertical=group.vertical,
             source_label=group.source_label,
             status="failed",
-            error_message=f"{error.__class__.__name__}: checkout cart creation failed",
+            error_message="Checkout cart creation failed. Try again or add items manually.",
         )
 
     if result.get("status") != "created":

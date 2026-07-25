@@ -3,6 +3,41 @@
 This runbook verifies the MVP flow from a WhatsApp-style tagged prompt to mock
 sequential checkout without live WhatsApp or Swiggy credentials.
 
+## Before You Demo Live
+
+`make backend-dev` and `make frontend-dev` intentionally do **not** override
+`SWIGGY_CLIENT_MODE`, `LLM_MODE`, or `WHATSAPP_PROVIDER_MODE` — they run
+with whatever is currently in `src/backend/.env`, because that's exactly
+what you want when you're deliberately testing a real integration. The
+failure mode: if `.env` was last used to test something real (e.g.
+`SWIGGY_CLIENT_MODE=mcp` pointed at a mock-swiggy-mcp server that isn't
+running right now), a live demo silently gets an empty cart instead of the
+happy path — found exactly this way once already.
+
+Before demoing, check `src/backend/.env`:
+
+```bash
+grep -E "^SWIGGY_CLIENT_MODE|^LLM_MODE|^WHATSAPP_PROVIDER_MODE" src/backend/.env
+```
+
+- For the safe, always-works demo: `SWIGGY_CLIENT_MODE=mock`, `LLM_MODE=mock`.
+  (`make demo-smoke` and the `backend-verify-mock` preview config both pin
+  these explicitly regardless of `.env`, so they're safe to trust as-is.)
+- If you deliberately want to demo `SWIGGY_CLIENT_MODE=mcp`, confirm the
+  mock MCP server is actually running first: `make mock-mcp-up` (or check
+  `curl http://localhost:9100/mcp` isn't refused).
+- If `LLM_MODE=openai`, confirm `OPENAI_API_KEY` is set (the app fails to
+  boot without it, so this one can't drift silently — but do budget for
+  real API latency/cost during a live demo).
+- If `WHATSAPP_PROVIDER_MODE=meta`, you're demoing against real WhatsApp —
+  make sure that's intentional and you have a real device/number ready to
+  send from, not the `curl` fixture below (which won't have a valid
+  signature against a real `WHATSAPP_APP_SECRET`).
+
+When in doubt, run `make demo-smoke` right before you go live — it's
+hermetic (ignores `.env` for these three settings) and proves the golden
+path works independent of whatever state your `.env` is currently in.
+
 ## One-Command Smoke
 
 From the repository root:
