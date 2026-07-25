@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -24,6 +25,8 @@ from app.models.session import (
 from app.models.whatsapp import IncomingMessage
 from app.observability import AGENT_ERRORS_TOTAL
 from app.services.protocols import IAgentService, IDBAdapter, ISwiggyMcpClient
+
+logger = logging.getLogger("easyorder.api")
 
 WORKER_TIMEOUT_SECONDS = 2.5
 DEFAULT_LAT = 12.9716
@@ -294,12 +297,17 @@ class EasyOrderAgentService(IAgentService):
                 message=f"{self._vertical_label(vertical)} search timed out. Add items manually.",
                 vertical=vertical,
             )
-        except Exception as error:
+        except Exception:
+            logger.warning(
+                "swiggy_worker_failed",
+                extra={"vertical": str(vertical)},
+                exc_info=True,
+            )
             return [], SessionWarning(
                 code="VERTICAL_FAILED",
                 message=(
-                    f"{self._vertical_label(vertical)} search failed: "
-                    f"{error.__class__.__name__}."
+                    f"{self._vertical_label(vertical)} search is temporarily "
+                    "unavailable. Add items manually."
                 ),
                 vertical=vertical,
             )

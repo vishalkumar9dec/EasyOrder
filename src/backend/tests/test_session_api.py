@@ -234,9 +234,7 @@ def test_guest_cannot_validate_checkout() -> None:
 
 def test_checkout_validation_returns_unavailable_item_conflict() -> None:
     app, result = create_initialized_session()
-    app.state.swiggy_client = MockSwiggyMcpClient(
-        MockSwiggyScenario(unavailable_item_id="im-cola")
-    )
+    app.state.swiggy_client = MockSwiggyMcpClient(MockSwiggyScenario(unavailable_item_id="im-cola"))
 
     response = TestClient(app).post(
         f"/api/session/{result.session.session_id}/checkout",
@@ -376,9 +374,7 @@ def test_checkout_confirm_groups_multiple_food_restaurants_sequentially() -> Non
 
 def test_checkout_confirm_skips_empty_verticals() -> None:
     app, result = create_initialized_session()
-    food_only = [
-        item for item in result.session.cart_items if item.vertical == Vertical.FOOD
-    ]
+    food_only = [item for item in result.session.cart_items if item.vertical == Vertical.FOOD]
     run(app.state.db_adapter.update_cart_items(result.session.session_id, food_only))
 
     food_response = TestClient(app).post(
@@ -447,6 +443,13 @@ def test_checkout_confirm_reports_partial_failure() -> None:
     assert body["checkout_complete"] is False
     assert body["partial_success"] is True
     assert [step["status"] for step in body["steps"]] == ["created", "failed"]
+
+    failed_step = next(step for step in body["steps"] if step["status"] == "failed")
+    assert (
+        failed_step["error_message"]
+        == "Checkout cart creation failed. Try again or add items manually."
+    )
+    assert "MockSwiggyCartCreationError" not in failed_step["error_message"]
 
     refreshed = TestClient(app).get(
         f"/api/session/{result.session.session_id}",
