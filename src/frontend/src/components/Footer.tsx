@@ -12,7 +12,8 @@ export function Footer() {
         <div className="footer-col">
           <h4>Product</h4>
           <a href="#how-it-works">How It Works</a>
-          <a href="#demo">Interactive Demo</a>
+          <a href="/demo">Watch Demo</a>
+          <a href="/playground">Interactive Playground</a>
           <a href="#testimonials">Reviews</a>
         </div>
 

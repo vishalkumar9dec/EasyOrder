@@ -103,12 +103,12 @@ export function SessionDemo() {
   }
 
   return (
-    <section className="session-demo" id="demo" aria-label="Interactive demo">
+    <section className="session-demo" id="playground" aria-label="Interactive playground">
       <div className="section-container">
-        <div className="demo-header fade-up">
-          <p className="section-eyebrow">Interactive Demo</p>
-          <h2 className="section-title">See EasyOrder in action</h2>
-          <p className="demo-subtitle">
+        <div className="playground-header fade-up visible">
+          <p className="section-eyebrow">Interactive Playground</p>
+          <h1 className="section-title">Put EasyOrder through its paces</h1>
+          <p className="playground-subtitle">
             Switch between 7 real-world scenarios — budget limits, dietary mismatches, degraded services, stock changes — and watch the canvas adapt.
           </p>
         </div>

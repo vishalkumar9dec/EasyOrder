@@ -25,11 +25,11 @@ export function Hero() {
         </p>
 
         <div className="hero-actions">
-          <a className="btn-primary" href="#demo" id="hero-cta">
-            Try the Demo
+          <a className="btn-primary" href="/demo" id="hero-cta">
+            Watch the Demo
           </a>
-          <a className="btn-secondary" href="#how-it-works" id="hero-learn">
-            How It Works
+          <a className="btn-secondary" href="/playground" id="hero-learn">
+            Try the Playground
           </a>
         </div>
       </div>
