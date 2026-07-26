@@ -1,10 +1,11 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
 from app.db.adapter import AsyncPostgresDBAdapter, SessionNotFoundError
+from app.models.order import OrderCreate, OrderLineItem, OrderStatus
 from app.models.session import (
     CartItem,
     DietaryTag,
@@ -31,6 +32,7 @@ class FakeConnection:
         self.sessions: dict[str, dict] = {}
         self.cart_items: list[dict] = []
         self.session_events: list[dict] = []
+        self.orders: dict[str, dict] = {}
         self.transaction_depth = 0
         self.next_cart_id = 1
 
@@ -92,12 +94,69 @@ class FakeConnection:
                 None,
             )
 
+        if "INSERT INTO orders" in sql:
+            row = {
+                "order_id": args[0],
+                "wa_id": args[1],
+                "restaurant_id": args[2],
+                "restaurant_name": args[3],
+                "items": args[4],
+                "total": args[5],
+                "budget_limit": args[6],
+                "delivery_deadline": args[7],
+                "target_placement_at": args[8],
+                "status": args[9],
+                "source_message_id": args[10],
+                "swiggy_order_id": None,
+                "failure_reason": None,
+                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+            }
+            self.orders[row["order_id"]] = row
+            return row
+
+        if "SELECT * FROM orders WHERE order_id" in sql:
+            return self.orders.get(args[0])
+
+        if "SELECT * FROM orders WHERE source_message_id" in sql:
+            return next(
+                (o for o in self.orders.values() if o["source_message_id"] == args[0]), None
+            )
+
+        if "PENDING_CONFIRMATION" in sql and "SELECT" in sql:
+            return next(
+                (
+                    o
+                    for o in self.orders.values()
+                    if o["wa_id"] == args[0] and o["status"] == "PENDING_CONFIRMATION"
+                ),
+                None,
+            )
+
         raise AssertionError(f"Unexpected fetchrow SQL: {sql}")
 
     async def fetch(self, sql: str, *args):
         if "FROM cart_items" in sql:
             session_id = args[0]
             return [item for item in self.cart_items if item["session_id"] == session_id]
+
+        if "FROM orders" in sql and "WHERE wa_id" in sql:
+            matches = [o for o in self.orders.values() if o["wa_id"] == args[0]]
+            matches.sort(key=lambda o: o["created_at"], reverse=True)
+            return matches[: args[1]]
+
+        if "FROM orders" in sql and "status = 'SCHEDULED'" in sql:
+            as_of = args[0]
+            matches = [
+                o
+                for o in self.orders.values()
+                if o["status"] == "SCHEDULED"
+                and o["target_placement_at"] is not None
+                and o["target_placement_at"] <= as_of
+            ]
+            matches.sort(key=lambda o: o["target_placement_at"])
+            return matches[: args[1]]
+
         raise AssertionError(f"Unexpected fetch SQL: {sql}")
 
     async def fetchval(self, sql: str, *args):
@@ -152,6 +211,38 @@ class FakeConnection:
                 sid for sid, row in self.sessions.items() if row["created_at"] < cutoff
             ]
             return self._delete_sessions(to_delete)
+
+        if "UPDATE orders SET status = $2" in sql:
+            order_id = args[0]
+            if order_id not in self.orders:
+                return "UPDATE 0"
+            self.orders[order_id]["status"] = args[1]
+            return "UPDATE 1"
+
+        if "SET status = 'SCHEDULED'" in sql:
+            order_id = args[0]
+            self.orders[order_id]["status"] = "SCHEDULED"
+            self.orders[order_id]["target_placement_at"] = args[1]
+            return "UPDATE 1"
+
+        if "SET status = 'PLACED'" in sql:
+            order_id = args[0]
+            self.orders[order_id]["status"] = "PLACED"
+            self.orders[order_id]["swiggy_order_id"] = args[1]
+            return "UPDATE 1"
+
+        if "SET status = 'FAILED'" in sql:
+            order_id = args[0]
+            self.orders[order_id]["status"] = "FAILED"
+            self.orders[order_id]["failure_reason"] = args[1]
+            return "UPDATE 1"
+
+        if "SET status = 'PENDING_CONFIRMATION'" in sql:
+            order_id = args[0]
+            self.orders[order_id]["status"] = "PENDING_CONFIRMATION"
+            self.orders[order_id]["items"] = args[1]
+            self.orders[order_id]["total"] = args[2]
+            return "UPDATE 1"
 
         raise AssertionError(f"Unexpected execute SQL: {sql}")
 
@@ -354,3 +445,117 @@ def test_adapter_deletes_sessions_older_than_cutoff() -> None:
 
     assert deleted == 1
     assert len(connection.sessions) == 1
+
+
+def _order_create(**overrides) -> OrderCreate:
+    defaults = dict(
+        wa_id="919988776655",
+        restaurant_id="rest-moti-mahal",
+        restaurant_name="MotiMahal",
+        items=[OrderLineItem(item_id="food-mm-paneer-tikka", name="Paneer Tikka", price="260.00")],
+        total="260.00",
+    )
+    defaults.update(overrides)
+    return OrderCreate(**defaults)
+
+
+def test_adapter_creates_and_reads_back_an_order() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+
+    created = run(
+        adapter.create_order(_order_create(budget_limit="800.00", source_message_id="wamid.1"))
+    )
+    fetched = run(adapter.get_order(created.order_id))
+    by_message = run(adapter.get_order_by_source_message_id("wamid.1"))
+
+    assert fetched.order_id == created.order_id
+    assert fetched.items[0].name == "Paneer Tikka"
+    assert fetched.budget_limit == Decimal("800.00")
+    assert by_message.order_id == created.order_id
+    assert run(adapter.get_order_by_source_message_id("wamid.missing")) is None
+
+
+def test_adapter_pending_confirmation_lookup() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    run(adapter.create_order(_order_create(status=OrderStatus.PENDING_CONFIRMATION)))
+    run(adapter.create_order(_order_create(wa_id="911111111111", status=OrderStatus.PLACED)))
+
+    pending = run(adapter.get_pending_confirmation_order("919988776655"))
+    none_pending = run(adapter.get_pending_confirmation_order("911111111111"))
+
+    assert pending is not None
+    assert none_pending is None
+
+
+def test_adapter_order_status_transitions() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    created = run(adapter.create_order(_order_create(status=OrderStatus.PENDING_CONFIRMATION)))
+
+    target = datetime.now(UTC) + timedelta(hours=1)
+    run(adapter.set_order_scheduled(created.order_id, target_placement_at=target))
+    assert run(adapter.get_order(created.order_id)).status == "SCHEDULED"
+
+    run(adapter.set_order_placed(created.order_id, swiggy_order_id="order-42"))
+    placed = run(adapter.get_order(created.order_id))
+    assert placed.status == "PLACED"
+    assert placed.swiggy_order_id == "order-42"
+
+    run(adapter.set_order_failed(created.order_id, failure_reason="boom"))
+    failed = run(adapter.get_order(created.order_id))
+    assert failed.status == "FAILED"
+    assert failed.failure_reason == "boom"
+
+    run(adapter.update_order_status(created.order_id, OrderStatus.CANCELLED))
+    assert run(adapter.get_order(created.order_id)).status == "CANCELLED"
+
+
+def test_adapter_set_order_price_changed_resets_to_pending_confirmation() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    created = run(adapter.create_order(_order_create(status=OrderStatus.SCHEDULED)))
+
+    new_items = [OrderLineItem(item_id="food-mm-chicken-65", name="Chicken 65", price="345.00")]
+    run(adapter.set_order_price_changed(created.order_id, items=new_items, total=Decimal("345.00")))
+
+    updated = run(adapter.get_order(created.order_id))
+    assert updated.status == "PENDING_CONFIRMATION"
+    assert updated.total == Decimal("345.00")
+    assert updated.items[0].name == "Chicken 65"
+
+
+def test_adapter_list_orders_for_host_and_due_scheduled_orders() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    run(adapter.create_order(_order_create(wa_id="919988776655")))
+    run(adapter.create_order(_order_create(wa_id="919988776655")))
+    run(adapter.create_order(_order_create(wa_id="911111111111")))
+
+    now = datetime.now(UTC)
+    due = run(
+        adapter.create_order(
+            _order_create(
+                wa_id="919900000000",
+                status=OrderStatus.SCHEDULED,
+                target_placement_at=now - timedelta(minutes=1),
+            )
+        )
+    )
+    run(
+        adapter.create_order(
+            _order_create(
+                wa_id="919900000000",
+                status=OrderStatus.SCHEDULED,
+                target_placement_at=now + timedelta(hours=1),
+            )
+        )
+    )
+
+    listed = run(adapter.list_orders_for_host("919988776655"))
+    due_orders = run(adapter.get_due_scheduled_orders(as_of=now))
+
+    assert len(listed) == 2
+    assert all(order.wa_id == "919988776655" for order in listed)
+    assert [order.order_id for order in due_orders] == [due.order_id]

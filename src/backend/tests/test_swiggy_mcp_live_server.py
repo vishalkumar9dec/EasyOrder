@@ -102,6 +102,30 @@ def test_backend_client_talks_to_the_real_mock_mcp_server(server_url: str) -> No
     run(scenario())
 
 
+def test_backend_client_resolves_restaurant_by_name_against_the_real_mock_mcp_server(
+    server_url: str,
+) -> None:
+    """find_restaurant_by_name/match_menu_items are client-side only (no new
+    MCP tool) — this proves that still works over a real HTTP connection to
+    the independent mock-swiggy-mcp process, not just a FakeRunner double."""
+    client = SwiggyMcpClient(HttpMCPToolRunner(server_url=server_url, auth_token=AUTH_TOKEN))
+
+    async def scenario():
+        restaurant = await client.find_restaurant_by_name("motimahal")
+        assert restaurant is not None
+        assert restaurant["restaurant_id"] == "rest-moti-mahal"
+
+        missing = await client.find_restaurant_by_name("no such restaurant")
+        assert missing is None
+
+        matched = await client.match_menu_items(
+            "rest-moti-mahal", ["paneer tikka", "chicken 65", "nonexistent dish"]
+        )
+        assert {item["name"] for item in matched} == {"Paneer Tikka", "Chicken 65"}
+
+    run(scenario())
+
+
 def test_backend_client_rejects_wrong_auth_token(server_url: str) -> None:
     client = SwiggyMcpClient(HttpMCPToolRunner(server_url=server_url, auth_token="wrong-token"))
 

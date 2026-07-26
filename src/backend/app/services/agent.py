@@ -199,6 +199,96 @@ class MockIntentParser:
         return " ".join(word for word in words if word not in stopwords) or None
 
 
+@dataclass(frozen=True)
+class TargetedOrderIntent:
+    """Structured constraints extracted from a single-restaurant order prompt.
+
+    A deliberately different shape from ParsedIntent: this describes one
+    named restaurant and named dishes, not a multi-item group-session query.
+    """
+
+    restaurant_name: str
+    dish_names: list[str]
+    budget_limit: Decimal | None
+    # Minutes since midnight (e.g. 20*60 for 8PM), or None when the prompt
+    # never stated a delivery deadline.
+    delivery_deadline_minutes: int | None
+
+
+class TargetedOrderIntentParser(Protocol):
+    """Interface for parsing a targeted single-restaurant order prompt."""
+
+    async def parse(self, prompt: str) -> TargetedOrderIntent | None:
+        """Extract restaurant name, dish names, budget limit, and delivery deadline."""
+        ...
+
+
+_TARGETED_ORDER_VERB = r"\b(?:order|get|need|want|send)\b"
+_RESTAURANT_NAME_PATTERN = re.compile(
+    r"\bfrom\s+([A-Za-z][A-Za-z0-9&' -]*?)"
+    r"(?:\s+restaurant\b|\s*,|\s+and\b|\s+if\b|\s+it\b|\s*$)",
+    re.IGNORECASE,
+)
+_DISH_NAMES_PATTERN = re.compile(
+    _TARGETED_ORDER_VERB + r"\s+(.*?)\s+from\b",
+    re.IGNORECASE,
+)
+_DISH_FILLER_PATTERN = re.compile(r"\bfor\s+(me|us|myself)\b", re.IGNORECASE)
+_BUDGET_LIMIT_PATTERN = re.compile(
+    r"budget\s+exceeds?\s+(?:inr\s*)?(\d+)",
+    re.IGNORECASE,
+)
+_DELIVERY_DEADLINE_PATTERN = re.compile(
+    r"\breach(?:es)?\s+by\s+(\d{1,2})\s*(am|pm)\b",
+    re.IGNORECASE,
+)
+
+
+class MockTargetedOrderIntentParser:
+    """Deterministic parser for single-restaurant order prompts."""
+
+    async def parse(self, prompt: str) -> TargetedOrderIntent | None:
+        restaurant_match = _RESTAURANT_NAME_PATTERN.search(prompt)
+        if restaurant_match is None:
+            return None
+        restaurant_name = restaurant_match.group(1).strip()
+
+        dish_names = self._extract_dish_names(prompt)
+        if not restaurant_name and not dish_names:
+            return None
+
+        budget_match = _BUDGET_LIMIT_PATTERN.search(prompt)
+        budget_limit = Decimal(budget_match.group(1)) if budget_match else None
+
+        deadline_minutes = self._extract_deadline_minutes(prompt)
+
+        return TargetedOrderIntent(
+            restaurant_name=restaurant_name,
+            dish_names=dish_names,
+            budget_limit=budget_limit,
+            delivery_deadline_minutes=deadline_minutes,
+        )
+
+    @staticmethod
+    def _extract_dish_names(prompt: str) -> list[str]:
+        match = _DISH_NAMES_PATTERN.search(prompt)
+        if match is None:
+            return []
+        raw = _DISH_FILLER_PATTERN.sub("", match.group(1))
+        parts = re.split(r"\s*,\s*|\s+and\s+", raw, flags=re.IGNORECASE)
+        return [part.strip() for part in parts if part.strip()]
+
+    @staticmethod
+    def _extract_deadline_minutes(prompt: str) -> int | None:
+        match = _DELIVERY_DEADLINE_PATTERN.search(prompt)
+        if match is None:
+            return None
+        hour_12 = int(match.group(1)) % 12
+        is_pm = match.group(2).lower() == "pm"
+        hour_24 = hour_12 + (12 if is_pm else 0)
+        return hour_24 * 60
+
+
 class EasyOrderAgentService(IAgentService):
     """Initializes EasyOrder sessions from tagged WhatsApp messages."""
 

@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from app.services.whatsapp_sender import SessionHandoff
 
+from app.models.order import Order, OrderCreate, OrderLineItem, OrderStatus
 from app.models.session import (
     CartItem,
     Session,
@@ -113,6 +115,22 @@ class ISwiggyMcpClient(Protocol):
 
     async def get_restaurant_menu(self, restaurant_id: str) -> list[dict[str, Any]]:
         """Return a normalized restaurant menu."""
+        ...
+
+    async def find_restaurant_by_name(self, name: str) -> dict[str, Any] | None:
+        """Case-insensitive restaurant lookup by name; None when nothing matches."""
+        ...
+
+    async def match_menu_items(
+        self,
+        restaurant_id: str,
+        dish_names: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        """Return normalized menu items matching each requested dish name.
+
+        Unmatched dish names are omitted; callers diff len(result) against
+        len(dish_names) to detect misses.
+        """
         ...
 
     async def search_instamart(self, lat: float, lng: float, query: str) -> list[dict[str, Any]]:
@@ -220,4 +238,67 @@ class IDBAdapter(Protocol):
 
     async def get_session_events(self, session_id: str) -> list[SessionEvent]:
         """Return all timeline events for a session, oldest-first."""
+        ...
+
+    async def create_order(self, order: OrderCreate) -> Order:
+        """Persist a new targeted order."""
+        ...
+
+    async def get_order(self, order_id: str) -> Order | None:
+        """Retrieve a targeted order by ID."""
+        ...
+
+    async def get_order_by_source_message_id(self, message_id: str) -> Order | None:
+        """Return the order already created for an inbound message, or None.
+
+        Backs webhook-retry idempotency, mirroring get_session_event.
+        """
+        ...
+
+    async def get_pending_confirmation_order(self, wa_id: str) -> Order | None:
+        """Return the order awaiting a yes/no confirmation reply for this wa_id, or None."""
+        ...
+
+    async def list_orders_for_host(self, wa_id: str, *, limit: int = 30) -> list[Order]:
+        """Retrieve the most recent targeted orders for a wa_id, newest first."""
+        ...
+
+    async def get_due_scheduled_orders(
+        self,
+        *,
+        as_of: datetime,
+        limit: int = 20,
+    ) -> list[Order]:
+        """Return SCHEDULED orders whose target_placement_at has arrived."""
+        ...
+
+    async def update_order_status(self, order_id: str, status: OrderStatus | str) -> None:
+        """Update an order's lifecycle status."""
+        ...
+
+    async def set_order_scheduled(self, order_id: str, *, target_placement_at: datetime) -> None:
+        """Move an order to SCHEDULED with its computed placement time."""
+        ...
+
+    async def set_order_placed(self, order_id: str, *, swiggy_order_id: str) -> None:
+        """Move an order to PLACED and record the Swiggy order id."""
+        ...
+
+    async def set_order_failed(self, order_id: str, *, failure_reason: str) -> None:
+        """Move an order to FAILED and record why."""
+        ...
+
+    async def set_order_price_changed(
+        self,
+        order_id: str,
+        *,
+        items: Sequence[OrderLineItem],
+        total: Decimal,
+    ) -> None:
+        """Move an order back to PENDING_CONFIRMATION with a fresh price.
+
+        Used when a pre-placement re-check finds the menu changed since the
+        order was first created — the user is asked to confirm again at the
+        new price rather than the order silently placing at a stale one.
+        """
         ...

@@ -40,6 +40,7 @@ class IntentFamily(StrEnum):
     DISCOVERY_OFFERS = "discovery_offers"
     SHARE_REQUEST = "share_request"
     DATA_DELETION_REQUEST = "data_deletion_request"
+    TARGETED_ORDER = "targeted_order"
     UNSUPPORTED = "unsupported"
 
 
@@ -148,6 +149,10 @@ _ORDER_REQUEST_PATTERNS = [
     re.compile(r"\bunder\s+\d+"),
     re.compile(r"\bfor\s+\d+"),
 ]
+_ORDER_VERB_PATTERN = re.compile(r"\b(get|order|need|want|send)\b")
+# A named single restaurant ("... from MotiMahal") distinguishes a targeted
+# single-restaurant order from a generic multi-item group-session request.
+_TARGETED_ORDER_PATTERN = re.compile(r"\bfrom\s+[a-z0-9]", re.IGNORECASE)
 
 
 def classify_chat_mode(
@@ -195,6 +200,8 @@ def route_business_chat_message(message_text: str) -> RoutedIntent:
         return RoutedIntent(IntentFamily.SHARE_REQUEST, SHARE_REPLY, share_confirmed=confirmed)
     if any(pattern.search(normalized) for pattern in _DISCOVERY_PATTERNS):
         return RoutedIntent(IntentFamily.DISCOVERY_OFFERS, DISCOVERY_REPLY)
+    if _ORDER_VERB_PATTERN.search(normalized) and _TARGETED_ORDER_PATTERN.search(normalized):
+        return RoutedIntent(IntentFamily.TARGETED_ORDER, None)
     if any(pattern.search(normalized) for pattern in _ORDER_REQUEST_PATTERNS):
         return RoutedIntent(IntentFamily.START_SESSION, None, creates_session=True)
     return RoutedIntent(IntentFamily.UNSUPPORTED, UNSUPPORTED_REPLY)

@@ -2061,9 +2061,47 @@ ul, ol {
   color: var(--success, #22c55e);
 }
 
-.order-status--degraded {
+.order-status--degraded,
+.order-status--failed,
+.order-status--cancelled {
   border-color: var(--danger, #ef4444);
   color: var(--danger, #ef4444);
+}
+
+.order-status--pending_confirmation,
+.order-status--scheduled {
+  border-color: var(--accent-gold, #eab308);
+  color: var(--accent-gold, #eab308);
+}
+
+.order-status--placed,
+.order-status--delivered {
+  border-color: var(--success, #22c55e);
+  color: var(--success, #22c55e);
+}
+
+.live-orders-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.live-orders-tab {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+
+.live-orders-tab.active {
+  background: var(--accent, #f97316);
+  border-color: var(--accent, #f97316);
+  color: #fff;
 }
 
 .order-meta {

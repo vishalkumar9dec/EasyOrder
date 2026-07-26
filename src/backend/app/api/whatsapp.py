@@ -23,13 +23,21 @@ from app.services.intent_router import (
     classify_chat_mode,
     route_business_chat_message,
 )
-from app.services.llm_intent import create_intent_parser
+from app.services.llm_intent import create_intent_parser, create_targeted_order_parser
 from app.services.memory_db import InMemoryDBAdapter
 from app.services.mock_agent import MockAgentService
+from app.services.order_confirmation import resolve_pending_order_confirmation
 from app.services.order_history import answer_order_history, answer_share_request
 from app.services.privacy import answer_data_deletion_request
-from app.services.protocols import IAgentService, IDBAdapter, IShortLinkService, IWhatsAppSender
+from app.services.protocols import (
+    IAgentService,
+    IDBAdapter,
+    IShortLinkService,
+    ISwiggyMcpClient,
+    IWhatsAppSender,
+)
 from app.services.swiggy_mcp import create_swiggy_client
+from app.services.targeted_order import TargetedOrderService
 from app.services.whatsapp_sender import SessionHandoff, WhatsAppSendError
 
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
@@ -69,6 +77,10 @@ def get_db_adapter(request: Request) -> IDBAdapter:
 
 def get_short_links(request: Request) -> IShortLinkService:
     return request.app.state.short_links
+
+
+def get_targeted_order_service(request: Request) -> TargetedOrderService:
+    return request.app.state.targeted_order_service
 
 
 def build_session_path(session_id: str, token: str) -> str:
@@ -140,6 +152,7 @@ async def ingest_webhook(
     whatsapp_sender: IWhatsAppSender = Depends(get_whatsapp_sender),
     db: IDBAdapter = Depends(get_db_adapter),
     short_links: IShortLinkService = Depends(get_short_links),
+    targeted_order_service: TargetedOrderService = Depends(get_targeted_order_service),
 ) -> dict[str, object]:
     raw_body = await request.body()
     log_webhook_event(
@@ -179,6 +192,37 @@ async def ingest_webhook(
         )
         if mode != ChatMode.BUSINESS_CHAT:
             continue
+
+        # Real multi-turn confirmation: a wa_id with an order awaiting a
+        # yes/no reply is resolved here, before ordinary intent routing —
+        # this message must not also be interpreted as a new request.
+        pending_order = await db.get_pending_confirmation_order(message.sender_id)
+        if pending_order is not None:
+            reply_text = await resolve_pending_order_confirmation(
+                db,
+                targeted_order_service.swiggy_client,
+                pending_order,
+                message.message_text,
+            )
+            log_webhook_event(
+                "whatsapp_order_confirmation_resolved",
+                message_id=message.message_id,
+                order_id=pending_order.order_id,
+            )
+            try:
+                await whatsapp_sender.send_private_message(message.sender_id, reply_text)
+            except WhatsAppSendError as error:
+                log_webhook_event(
+                    "whatsapp_business_chat_reply_failed",
+                    message_id=message.message_id,
+                    intent="order_confirmation",
+                    error=error,
+                )
+            routed_intents.append(
+                {"message_id": message.message_id, "intent": "order_confirmation"}
+            )
+            continue
+
         routed = route_business_chat_message(message.message_text)
         log_webhook_event(
             "whatsapp_business_chat_routed",
@@ -217,6 +261,8 @@ async def ingest_webhook(
                 confirmed=routed.deletion_confirmed,
                 warning_reply=routed.reply_text or "",
             )
+        elif routed.family == IntentFamily.TARGETED_ORDER:
+            reply_text = await targeted_order_service.handle_targeted_order_message(message)
         if reply_text:
             try:
                 await whatsapp_sender.send_private_message(message.sender_id, reply_text)
@@ -468,3 +514,19 @@ def create_agent_service(settings: Settings, db: IDBAdapter | None = None) -> IA
         ),
         parser=parser,
     )
+
+
+def create_targeted_order_service(
+    settings: Settings,
+    db: IDBAdapter,
+    swiggy_client: ISwiggyMcpClient,
+) -> TargetedOrderService:
+    """Build the targeted-order service, reusing the already-constructed
+    swiggy_client so there is exactly one client instance per process
+    regardless of which agent_service implementation was selected."""
+    parser = create_targeted_order_parser(
+        mode=settings.llm_mode,
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+    )
+    return TargetedOrderService(db=db, swiggy_client=swiggy_client, parser=parser)

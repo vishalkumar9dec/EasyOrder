@@ -54,6 +54,84 @@ export function adaptOrders(orders: ApiOrder[]): OrderView[] {
   return orders.map(adaptOrder);
 }
 
+export interface ApiLiveOrderItem {
+  name: string;
+  quantity: number;
+}
+
+export interface ApiLiveOrder {
+  order_id: string;
+  restaurant_name: string;
+  items: ApiLiveOrderItem[];
+  total: string;
+  status: string;
+  delivery_deadline: string | null;
+  target_placement_at: string | null;
+  created_at: string;
+}
+
+export interface ApiLiveOrders {
+  wa_id: string;
+  scheduled: ApiLiveOrder[];
+  ongoing: ApiLiveOrder[];
+  historical: ApiLiveOrder[];
+}
+
+export interface LiveOrderView {
+  orderId: string;
+  restaurantName: string;
+  itemsLabel: string;
+  totalLabel: string;
+  statusLabel: string;
+  statusClass: string;
+  timingLabel: string | null;
+}
+
+const LIVE_ORDER_STATUS_LABELS: Record<string, string> = {
+  PENDING_CONFIRMATION: 'Awaiting your confirmation',
+  SCHEDULED: 'Scheduled',
+  PLACED: 'Placed',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+  FAILED: 'Failed',
+};
+
+function formatDateTime(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString([], {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function adaptLiveOrder(order: ApiLiveOrder): LiveOrderView {
+  const timingSource = order.target_placement_at ?? order.delivery_deadline;
+  const timingLabel = formatDateTime(timingSource);
+  return {
+    orderId: order.order_id,
+    restaurantName: order.restaurant_name,
+    itemsLabel: order.items.map((item) => `${item.name} x${item.quantity}`).join(', '),
+    totalLabel: `₹${Number(order.total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+    statusLabel: LIVE_ORDER_STATUS_LABELS[order.status] ?? order.status,
+    statusClass: `order-status--${order.status.toLowerCase()}`,
+    timingLabel: timingLabel ? `Target: ${timingLabel}` : null,
+  };
+}
+
+export function adaptLiveOrders(orders: ApiLiveOrder[]): LiveOrderView[] {
+  return orders.map(adaptLiveOrder);
+}
+
+export async function fetchLiveOrders(): Promise<ApiLiveOrders> {
+  const response = await fetch('/api/me/orders/live');
+  if (!response.ok) throw new Error(await readError(response));
+  return (await response.json()) as ApiLiveOrders;
+}
+
 export function isValidPhoneInput(phone: string): boolean {
   return /^\+?[\d\s-]{8,18}$/.test(phone.trim());
 }

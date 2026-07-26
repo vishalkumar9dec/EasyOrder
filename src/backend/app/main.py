@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 import re
 import time
@@ -12,7 +14,11 @@ from app.api.account import router as account_router
 from app.api.dev_tools import router as dev_tools_router
 from app.api.session import router as session_router
 from app.api.short_links import router as short_links_router
-from app.api.whatsapp import create_agent_service, create_db_adapter_for_settings
+from app.api.whatsapp import (
+    create_agent_service,
+    create_db_adapter_for_settings,
+    create_targeted_order_service,
+)
 from app.api.whatsapp import router as whatsapp_router
 from app.config import get_settings
 from app.db.pool import AsyncpgConnectionPool
@@ -22,6 +28,7 @@ from app.observability import (
     metrics_endpoint,
     metrics_middleware,
 )
+from app.services.order_scheduler import OrderScheduler
 from app.services.rate_limit import OtpRateLimiter
 from app.services.short_links import create_short_link_service
 from app.services.web_auth import create_auth_store
@@ -91,9 +98,13 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        scheduler_task = asyncio.create_task(_app.state.order_scheduler.run_forever())
         try:
             yield
         finally:
+            scheduler_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await scheduler_task
             if db_pool is not None:
                 await db_pool.close()
 
@@ -103,6 +114,9 @@ def create_app() -> FastAPI:
     app.state.db_adapter = db_adapter
     app.state.db_pool = db_pool
     app.state.swiggy_client = app.state.agent_service.swiggy_client
+    app.state.targeted_order_service = create_targeted_order_service(
+        settings, db_adapter, app.state.swiggy_client
+    )
     app.state.whatsapp_sender = create_whatsapp_sender(
         provider_mode=settings.whatsapp_provider_mode,
         access_token=settings.whatsapp_access_token,
@@ -110,6 +124,12 @@ def create_app() -> FastAPI:
         api_version=settings.whatsapp_api_version,
         handoff_template_name=settings.whatsapp_handoff_template_name,
         handoff_template_language=settings.whatsapp_handoff_template_language,
+    )
+    app.state.order_scheduler = OrderScheduler(
+        db=db_adapter,
+        swiggy_client=app.state.swiggy_client,
+        whatsapp_sender=app.state.whatsapp_sender,
+        poll_interval_seconds=settings.order_scheduler_poll_seconds,
     )
     app.state.short_links = create_short_link_service(settings, connection_factory)
     app.state.auth_store = create_auth_store(settings, connection_factory)

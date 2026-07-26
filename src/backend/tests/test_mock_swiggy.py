@@ -146,3 +146,41 @@ def test_mock_swiggy_delivery_update_reports_rider_only_when_out_for_delivery() 
 
     with pytest.raises(MockSwiggyOrderNotFoundError):
         run(client.get_delivery_update("order-unknown"))
+
+
+def test_find_restaurant_by_name_matches_case_insensitively_and_returns_none_on_miss() -> None:
+    client = MockSwiggyMcpClient()
+
+    found = run(client.find_restaurant_by_name("motimahal"))
+    assert found is not None
+    assert found["restaurant_id"] == "rest-moti-mahal"
+
+    assert run(client.find_restaurant_by_name("does not exist")) is None
+
+
+def test_match_menu_items_returns_full_or_partial_matches() -> None:
+    client = MockSwiggyMcpClient()
+
+    full = run(client.match_menu_items("rest-moti-mahal", ["paneer tikka", "chicken 65"]))
+    assert {item["name"] for item in full} == {"Paneer Tikka", "Chicken 65"}
+
+    partial = run(
+        client.match_menu_items("rest-moti-mahal", ["paneer tikka", "nonexistent dish"])
+    )
+    assert [item["name"] for item in partial] == ["Paneer Tikka"]
+
+
+def test_moti_mahal_and_biryani_by_kilo_menus_have_real_dishes() -> None:
+    client = MockSwiggyMcpClient()
+
+    moti_mahal_menu = run(client.get_restaurant_menu("rest-moti-mahal"))
+    biryani_by_kilo_menu = run(client.get_restaurant_menu("rest-biryani-by-kilo"))
+
+    assert {item["name"] for item in moti_mahal_menu} >= {"Paneer Tikka", "Chicken 65"}
+    assert all(item["restaurant_name"] == "MotiMahal" for item in moti_mahal_menu)
+    assert {item["name"] for item in biryani_by_kilo_menu} >= {"Egg Biryani"}
+    assert all(item["restaurant_name"] == "BiryaniByKilo" for item in biryani_by_kilo_menu)
+
+    # Original restaurants keep the prior synthetic single-combo behavior.
+    combo_menu = run(client.get_restaurant_menu("rest-biryani-house"))
+    assert [item["name"] for item in combo_menu] == ["Family meal combo"]
