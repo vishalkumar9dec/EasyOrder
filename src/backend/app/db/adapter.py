@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from app.models.order import Order, OrderCreate, OrderLineItem, OrderStatus
 from app.models.session import (
     CartItem,
     EventType,
@@ -334,6 +335,201 @@ class AsyncPostgresDBAdapter:
             return [self._session_event_from_row(row) for row in rows]
         finally:
             await self._close_connection(connection)
+
+    async def create_order(self, order: OrderCreate) -> Order:
+        """Persist a new targeted order."""
+
+        connection = await self._connection_factory()
+        order_model = Order(**order.model_dump())
+        try:
+            row = await connection.fetchrow(
+                """
+                INSERT INTO orders (
+                    order_id, wa_id, restaurant_id, restaurant_name, items, total,
+                    budget_limit, delivery_deadline, target_placement_at, status,
+                    source_message_id
+                )
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
+                RETURNING *
+                """,
+                order_model.order_id,
+                order_model.wa_id,
+                order_model.restaurant_id,
+                order_model.restaurant_name,
+                json.dumps([item.model_dump(mode="json") for item in order_model.items]),
+                order_model.total,
+                order_model.budget_limit,
+                order_model.delivery_deadline,
+                order_model.target_placement_at,
+                order_model.status,
+                order_model.source_message_id,
+            )
+            return self._order_from_row(row)
+        except DatabaseAdapterError:
+            raise
+        except Exception as error:  # pragma: no cover - mapped in tests via fakes
+            raise DatabaseAdapterError("Failed to create order") from error
+        finally:
+            await self._close_connection(connection)
+
+    async def get_order(self, order_id: str) -> Order | None:
+        connection = await self._connection_factory()
+        try:
+            row = await connection.fetchrow("SELECT * FROM orders WHERE order_id = $1", order_id)
+            return self._order_from_row(row) if row is not None else None
+        finally:
+            await self._close_connection(connection)
+
+    async def get_order_by_source_message_id(self, message_id: str) -> Order | None:
+        connection = await self._connection_factory()
+        try:
+            row = await connection.fetchrow(
+                "SELECT * FROM orders WHERE source_message_id = $1", message_id
+            )
+            return self._order_from_row(row) if row is not None else None
+        finally:
+            await self._close_connection(connection)
+
+    async def get_pending_confirmation_order(self, wa_id: str) -> Order | None:
+        connection = await self._connection_factory()
+        try:
+            row = await connection.fetchrow(
+                "SELECT * FROM orders WHERE wa_id = $1 AND status = 'PENDING_CONFIRMATION'",
+                wa_id,
+            )
+            return self._order_from_row(row) if row is not None else None
+        finally:
+            await self._close_connection(connection)
+
+    async def list_orders_for_host(self, wa_id: str, *, limit: int = 30) -> list[Order]:
+        connection = await self._connection_factory()
+        try:
+            rows = await connection.fetch(
+                """
+                SELECT * FROM orders
+                WHERE wa_id = $1
+                ORDER BY created_at DESC
+                LIMIT $2
+                """,
+                wa_id,
+                limit,
+            )
+            return [self._order_from_row(row) for row in rows]
+        finally:
+            await self._close_connection(connection)
+
+    async def get_due_scheduled_orders(
+        self,
+        *,
+        as_of: datetime,
+        limit: int = 20,
+    ) -> list[Order]:
+        connection = await self._connection_factory()
+        try:
+            rows = await connection.fetch(
+                """
+                SELECT * FROM orders
+                WHERE status = 'SCHEDULED' AND target_placement_at <= $1
+                ORDER BY target_placement_at
+                LIMIT $2
+                """,
+                as_of,
+                limit,
+            )
+            return [self._order_from_row(row) for row in rows]
+        finally:
+            await self._close_connection(connection)
+
+    async def update_order_status(self, order_id: str, status: OrderStatus | str) -> None:
+        connection = await self._connection_factory()
+        try:
+            await connection.execute(
+                "UPDATE orders SET status = $2, updated_at = NOW() WHERE order_id = $1",
+                order_id,
+                str(status),
+            )
+        finally:
+            await self._close_connection(connection)
+
+    async def set_order_scheduled(self, order_id: str, *, target_placement_at: datetime) -> None:
+        connection = await self._connection_factory()
+        try:
+            await connection.execute(
+                """
+                UPDATE orders
+                SET status = 'SCHEDULED', target_placement_at = $2, updated_at = NOW()
+                WHERE order_id = $1
+                """,
+                order_id,
+                target_placement_at,
+            )
+        finally:
+            await self._close_connection(connection)
+
+    async def set_order_placed(self, order_id: str, *, swiggy_order_id: str) -> None:
+        connection = await self._connection_factory()
+        try:
+            await connection.execute(
+                """
+                UPDATE orders
+                SET status = 'PLACED', swiggy_order_id = $2, updated_at = NOW()
+                WHERE order_id = $1
+                """,
+                order_id,
+                swiggy_order_id,
+            )
+        finally:
+            await self._close_connection(connection)
+
+    async def set_order_failed(self, order_id: str, *, failure_reason: str) -> None:
+        connection = await self._connection_factory()
+        try:
+            await connection.execute(
+                """
+                UPDATE orders
+                SET status = 'FAILED', failure_reason = $2, updated_at = NOW()
+                WHERE order_id = $1
+                """,
+                order_id,
+                failure_reason,
+            )
+        finally:
+            await self._close_connection(connection)
+
+    async def set_order_price_changed(
+        self,
+        order_id: str,
+        *,
+        items: Sequence[OrderLineItem],
+        total: Decimal,
+    ) -> None:
+        connection = await self._connection_factory()
+        try:
+            await connection.execute(
+                """
+                UPDATE orders
+                SET status = 'PENDING_CONFIRMATION', items = $2::jsonb, total = $3,
+                    updated_at = NOW()
+                WHERE order_id = $1
+                """,
+                order_id,
+                json.dumps([item.model_dump(mode="json") for item in items]),
+                total,
+            )
+        finally:
+            await self._close_connection(connection)
+
+    @staticmethod
+    def _order_from_row(row: Any) -> Order:
+        data = dict(row)
+        data["total"] = Decimal(str(data["total"]))
+        if data.get("budget_limit") is not None:
+            data["budget_limit"] = Decimal(str(data["budget_limit"]))
+        items = data.get("items") or []
+        if isinstance(items, str):
+            items = json.loads(items)
+        data["items"] = [OrderLineItem(**item) for item in items]
+        return Order(**data)
 
     async def _replace_cart_items(
         self,

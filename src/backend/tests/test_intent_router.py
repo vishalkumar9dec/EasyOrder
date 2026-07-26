@@ -130,6 +130,17 @@ def test_order_request_creates_planning_session() -> None:
         assert routed.reply_text is None
 
 
+def test_named_restaurant_order_routes_to_targeted_order_not_group_session() -> None:
+    for text in (
+        "Order paneer tikka and chicken 65 from MotiMahal restaurant and if the budget "
+        "exceeds INR 800, let me know before placing the order",
+        "Order Egg Biryani for me from BiryaniByKilo and it should reach by 8PM",
+    ):
+        routed = route_business_chat_message(text)
+        assert routed.family == IntentFamily.TARGETED_ORDER, text
+        assert routed.creates_session is False
+
+
 def test_gibberish_routes_to_unsupported_with_safe_reply() -> None:
     routed = route_business_chat_message("asdf qwerty")
 

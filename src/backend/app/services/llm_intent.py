@@ -13,13 +13,21 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from openai import AsyncOpenAI
 
 from app.models.session import DietaryTag
-from app.services.agent import IntentParser, MockIntentParser, ParsedIntent
+from app.services.agent import (
+    IntentParser,
+    MockIntentParser,
+    MockTargetedOrderIntentParser,
+    ParsedIntent,
+    TargetedOrderIntent,
+    TargetedOrderIntentParser,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -155,3 +163,122 @@ def create_intent_parser(*, mode: str, api_key: str, model: str) -> IntentParser
             raise LLMIntentConfigurationError("OPENAI_API_KEY is required when LLM_MODE=openai")
         return LLMIntentParser(api_key=api_key, model=model)
     return MockIntentParser()
+
+
+TARGETED_ORDER_INTENT_SCHEMA = {
+    "name": "targeted_order_intent",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "restaurant_name": {
+                "type": "string",
+                "description": "The single named restaurant the message asks to order from.",
+            },
+            "dish_names": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "The specific dish names requested, in the order mentioned.",
+            },
+            "budget_limit": {
+                "type": ["number", "null"],
+                "description": "Budget in INR that, if exceeded, requires confirmation before "
+                "placing. Null when the message states no budget.",
+            },
+            "delivery_deadline": {
+                "type": ["string", "null"],
+                "description": 'Deadline the order must arrive by, as 24-hour "HH:MM". Null '
+                "when the message states no delivery deadline.",
+            },
+        },
+        "required": ["restaurant_name", "dish_names", "budget_limit", "delivery_deadline"],
+        "additionalProperties": False,
+    },
+    "strict": True,
+}
+
+TARGETED_ORDER_SYSTEM_PROMPT = (
+    "You classify a WhatsApp message asking EasyOrder to place an order from one named "
+    "restaurant. Extract the restaurant name, the specific dish names requested, an "
+    "optional budget limit in INR (only if the message says to confirm/check before "
+    "placing when a budget is exceeded), and an optional delivery deadline. Never invent "
+    "a restaurant, dish, budget, or deadline the message does not state — use null for "
+    "budget_limit/delivery_deadline when absent."
+)
+
+
+class LLMTargetedOrderIntentParser:
+    """Parses targeted-order prompts with a real LLM; falls back to the
+    deterministic parser on any failure, mirroring LLMIntentParser."""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        fallback: TargetedOrderIntentParser | None = None,
+        client: AsyncOpenAI | None = None,
+    ) -> None:
+        self._client = client or AsyncOpenAI(api_key=api_key)
+        self._model = model
+        self._fallback = fallback or MockTargetedOrderIntentParser()
+
+    async def parse(self, prompt: str) -> TargetedOrderIntent | None:
+        try:
+            return await self._parse_with_llm(prompt)
+        except Exception:
+            logger.warning(
+                "llm_targeted_order_intent_parse_failed_falling_back_to_mock_parser",
+                exc_info=True,
+            )
+            return await self._fallback.parse(prompt)
+
+    async def _parse_with_llm(self, prompt: str) -> TargetedOrderIntent | None:
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": TARGETED_ORDER_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_schema", "json_schema": TARGETED_ORDER_INTENT_SCHEMA},
+        )
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("LLM returned no content")
+        return _to_targeted_order_intent(json.loads(content))
+
+
+def _to_targeted_order_intent(data: dict[str, Any]) -> TargetedOrderIntent | None:
+    restaurant_name = str(data.get("restaurant_name") or "").strip()
+    dish_names = [str(name).strip() for name in data.get("dish_names") or [] if str(name).strip()]
+    if not restaurant_name:
+        return None
+
+    budget_limit = None
+    if data.get("budget_limit") is not None:
+        try:
+            budget_limit = Decimal(str(data["budget_limit"])).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError):
+            budget_limit = None
+
+    deadline_minutes = None
+    deadline_text = data.get("delivery_deadline")
+    if deadline_text:
+        match = re.match(r"^(\d{1,2}):(\d{2})$", str(deadline_text).strip())
+        if match:
+            deadline_minutes = int(match.group(1)) * 60 + int(match.group(2))
+
+    return TargetedOrderIntent(
+        restaurant_name=restaurant_name,
+        dish_names=dish_names,
+        budget_limit=budget_limit,
+        delivery_deadline_minutes=deadline_minutes,
+    )
+
+
+def create_targeted_order_parser(
+    *, mode: str, api_key: str, model: str
+) -> TargetedOrderIntentParser:
+    if mode == "openai":
+        if not api_key:
+            raise LLMIntentConfigurationError("OPENAI_API_KEY is required when LLM_MODE=openai")
+        return LLMTargetedOrderIntentParser(api_key=api_key, model=model)
+    return MockTargetedOrderIntentParser()

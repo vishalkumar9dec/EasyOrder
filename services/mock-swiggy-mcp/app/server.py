@@ -64,6 +64,20 @@ RESTAURANTS: tuple[dict[str, Any], ...] = (
         "rating": 4.0,
         "eta_minutes": 40,
     },
+    {
+        "id": "rest-moti-mahal",
+        "name": "MotiMahal",
+        "cuisines": ["North Indian", "Mughlai"],
+        "rating": 4.4,
+        "eta_minutes": 40,
+    },
+    {
+        "id": "rest-biryani-by-kilo",
+        "name": "BiryaniByKilo",
+        "cuisines": ["Biryani", "North Indian"],
+        "rating": 4.2,
+        "eta_minutes": 45,
+    },
 )
 
 FOOD_ITEMS: tuple[dict[str, Any], ...] = (
@@ -94,6 +108,55 @@ FOOD_ITEMS: tuple[dict[str, Any], ...] = (
         "price": "560.00",
         "diet": "veg",
         "restaurant": {"id": "rest-pizza-yard", "name": "Pizza Yard"},
+    },
+    {
+        "id": "food-mm-paneer-tikka",
+        "title": "Paneer Tikka",
+        "price": "260.00",
+        "diet": "veg",
+        "restaurant": {"id": "rest-moti-mahal", "name": "MotiMahal"},
+    },
+    {
+        "id": "food-mm-chicken-65",
+        "title": "Chicken 65",
+        "price": "320.00",
+        "diet": "non-veg",
+        "restaurant": {"id": "rest-moti-mahal", "name": "MotiMahal"},
+    },
+    {
+        "id": "food-mm-butter-naan",
+        "title": "Butter Naan",
+        "price": "60.00",
+        "diet": "veg",
+        "restaurant": {"id": "rest-moti-mahal", "name": "MotiMahal"},
+    },
+    {
+        "id": "food-mm-dal-makhani",
+        "title": "Dal Makhani",
+        "price": "220.00",
+        "diet": "veg",
+        "restaurant": {"id": "rest-moti-mahal", "name": "MotiMahal"},
+    },
+    {
+        "id": "food-bbk-egg-biryani",
+        "title": "Egg Biryani",
+        "price": "300.00",
+        "diet": "non-veg",
+        "restaurant": {"id": "rest-biryani-by-kilo", "name": "BiryaniByKilo"},
+    },
+    {
+        "id": "food-bbk-chicken-biryani",
+        "title": "Chicken Biryani",
+        "price": "340.00",
+        "diet": "non-veg",
+        "restaurant": {"id": "rest-biryani-by-kilo", "name": "BiryaniByKilo"},
+    },
+    {
+        "id": "food-bbk-veg-biryani",
+        "title": "Veg Biryani",
+        "price": "260.00",
+        "diet": "veg",
+        "restaurant": {"id": "rest-biryani-by-kilo", "name": "BiryaniByKilo"},
     },
 )
 

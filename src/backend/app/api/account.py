@@ -13,6 +13,7 @@ from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
+from app.models.order import Order, order_bucket
 from app.models.session import Session
 from app.services.order_history import session_cart_total
 from app.services.protocols import IDBAdapter, IShortLinkService, IWhatsAppSender
@@ -169,6 +170,38 @@ async def my_orders(
     for session in sessions:
         orders.append(await _order_entry(session, short_links, settings))
     return {"wa_id": wa_id, "orders": orders}
+
+
+@router.get("/me/orders/live")
+async def my_live_orders(
+    request: Request,
+    easyorder_web_session: str | None = Cookie(default=None),
+) -> dict[str, object]:
+    wa_id = await require_wa_id(request, easyorder_web_session)
+    orders = await get_db(request).list_orders_for_host(wa_id, limit=30)
+    buckets: dict[str, list[dict[str, object]]] = {
+        "scheduled": [],
+        "ongoing": [],
+        "historical": [],
+    }
+    for order in orders:
+        buckets[order_bucket(order.status)].append(_live_order_entry(order))
+    return {"wa_id": wa_id, **buckets}
+
+
+def _live_order_entry(order: Order) -> dict[str, object]:
+    return {
+        "order_id": order.order_id,
+        "restaurant_name": order.restaurant_name,
+        "items": [{"name": item.name, "quantity": item.quantity} for item in order.items],
+        "total": f"{order.total:.2f}",
+        "status": str(order.status),
+        "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
+        "target_placement_at": (
+            order.target_placement_at.isoformat() if order.target_placement_at else None
+        ),
+        "created_at": order.created_at.isoformat(),
+    }
 
 
 async def _order_entry(

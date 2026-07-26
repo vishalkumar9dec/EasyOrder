@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import itertools
@@ -716,3 +717,80 @@ def test_share_request_without_history_gets_graceful_reply() -> None:
     reply = sender.sent_messages[messages_before:]
     assert len(reply) == 1
     assert "don't have any orders" in reply[0].text
+
+
+def test_targeted_order_budget_gate_resolves_on_a_separate_later_message() -> None:
+    from app.models.order import OrderStatus
+
+    sender = app.state.whatsapp_sender
+    db = app.state.db_adapter
+    sender_wa_id = "919900000030"
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        first = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "Order paneer tikka and chicken 65 from MotiMahal restaurant and if the "
+                "budget exceeds INR 400, let me know before placing the order",
+                message_id="wamid.e2e.budget.1",
+                phone_number_id="business-42",
+                sender_wa_id=sender_wa_id,
+            ),
+        )
+        assert first.json()["intents"][0]["intent"] == "targeted_order"
+        first_reply = sender.sent_messages[-1].text
+        assert "exceeds your INR 400 budget" in first_reply
+
+        pending = asyncio.run(db.get_pending_confirmation_order(sender_wa_id))
+        assert pending is not None
+        assert pending.status == OrderStatus.PENDING_CONFIRMATION
+
+        # A completely separate later inbound message resolves it — this is
+        # the real multi-turn confirmation, not a same-message "...confirm".
+        second = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "yes",
+                message_id="wamid.e2e.budget.2",
+                phone_number_id="business-42",
+                sender_wa_id=sender_wa_id,
+            ),
+        )
+        assert second.json()["intents"][0]["intent"] == "order_confirmation"
+        second_reply = sender.sent_messages[-1].text
+        assert "Placed!" in second_reply
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    resolved = asyncio.run(db.get_pending_confirmation_order(sender_wa_id))
+    assert resolved is None
+    order = asyncio.run(db.get_order(pending.order_id))
+    assert order.status == OrderStatus.PLACED
+
+
+def test_targeted_order_with_delivery_deadline_is_scheduled_not_placed() -> None:
+    from app.models.order import OrderStatus
+
+    db = app.state.db_adapter
+    sender_wa_id = "919900000031"
+    app.dependency_overrides[get_settings] = business_chat_settings
+
+    try:
+        response = TestClient(app).post(
+            "/api/whatsapp/webhook",
+            json=whatsapp_payload(
+                "Order Egg Biryani for me from BiryaniByKilo and it should reach by 8PM",
+                message_id="wamid.e2e.scheduled.1",
+                phone_number_id="business-42",
+                sender_wa_id=sender_wa_id,
+            ),
+        )
+        assert response.json()["intents"][0]["intent"] == "targeted_order"
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    orders = asyncio.run(db.list_orders_for_host(sender_wa_id))
+    assert len(orders) == 1
+    assert orders[0].status == OrderStatus.SCHEDULED
+    assert orders[0].swiggy_order_id is None

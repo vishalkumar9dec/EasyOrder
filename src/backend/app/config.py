@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     llm_mode: str = "mock"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    # Poll interval for the SCHEDULED-order background placer.
+    order_scheduler_poll_seconds: float = 30.0
 
     # Observability
     log_level: str = "INFO"

@@ -249,3 +249,52 @@ def test_swiggy_mcp_client_order_lifecycle_tools() -> None:
         "get_current_order",
         "get_delivery_update",
     ]
+
+
+def test_swiggy_mcp_client_resolves_restaurant_by_name_and_matches_menu_items() -> None:
+    runner = FakeRunner(
+        {
+            "get_restaurants": {
+                "items": [
+                    {
+                        "id": "rest-moti-mahal",
+                        "name": "MotiMahal",
+                        "cuisines": ["North Indian"],
+                        "rating": 4.4,
+                        "eta_minutes": 40,
+                    }
+                ]
+            },
+            "get_restaurant_menu": {
+                "items": [
+                    {
+                        "id": "food-mm-paneer-tikka",
+                        "name": "Paneer Tikka",
+                        "price": "260.00",
+                        "dietary_tag": "VEG",
+                        "restaurant_id": "rest-moti-mahal",
+                        "restaurant_name": "MotiMahal",
+                    },
+                    {
+                        "id": "food-mm-chicken-65",
+                        "name": "Chicken 65",
+                        "price": "320.00",
+                        "dietary_tag": "NON-VEG",
+                        "restaurant_id": "rest-moti-mahal",
+                        "restaurant_name": "MotiMahal",
+                    },
+                ]
+            },
+        }
+    )
+    client = SwiggyMcpClient(runner)
+
+    restaurant = run(client.find_restaurant_by_name("motimahal"))
+    assert restaurant is not None
+    assert restaurant["restaurant_id"] == "rest-moti-mahal"
+
+    missing = run(client.find_restaurant_by_name("does not exist"))
+    assert missing is None
+
+    matched = run(client.match_menu_items("rest-moti-mahal", ["paneer tikka", "missing dish"]))
+    assert [item["name"] for item in matched] == ["Paneer Tikka"]

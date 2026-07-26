@@ -10,8 +10,12 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 from app.models.session import DietaryTag, Vertical
+from app.services import menu_matching
 from app.services.mock_swiggy import MockSwiggyMcpClient
 from app.services.protocols import ISwiggyMcpClient
+
+DEFAULT_LAT = 12.9716
+DEFAULT_LNG = 77.5946
 
 
 class SwiggyMcpError(RuntimeError):
@@ -114,6 +118,18 @@ class SwiggyMcpClient(ISwiggyMcpClient):
     ) -> list[dict[str, Any]]:
         response = await self._call("search_instamart", {"lat": lat, "lng": lng, "query": query})
         return [normalize_instamart_item(item) for item in extract_items(response)]
+
+    async def find_restaurant_by_name(self, name: str) -> dict[str, Any] | None:
+        restaurants = await self.get_restaurants(DEFAULT_LAT, DEFAULT_LNG)
+        return menu_matching.find_restaurant_by_name(restaurants, name)
+
+    async def match_menu_items(
+        self,
+        restaurant_id: str,
+        dish_names: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        menu = await self.get_restaurant_menu(restaurant_id)
+        return menu_matching.match_menu_items(menu, dish_names)
 
     async def exchange_oauth_code(self, oauth_code: str) -> str:
         response = await self._call("exchange_oauth_code", {"oauth_code": oauth_code})

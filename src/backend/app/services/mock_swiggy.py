@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
 from app.models.session import DietaryTag, Vertical
+from app.services import menu_matching
 
 # Order lifecycle a mock order walks through on successive status polls.
 # Deterministic (call-count driven, not wall-clock) so tests never race.
@@ -50,7 +52,74 @@ MOCK_RESTAURANTS: tuple[dict[str, Any], ...] = (
         "rating": 4.0,
         "eta_minutes": 40,
     },
+    {
+        "restaurant_id": "rest-moti-mahal",
+        "name": "MotiMahal",
+        "cuisines": ["North Indian", "Mughlai"],
+        "rating": 4.4,
+        "eta_minutes": 40,
+    },
+    {
+        "restaurant_id": "rest-biryani-by-kilo",
+        "name": "BiryaniByKilo",
+        "cuisines": ["Biryani", "North Indian"],
+        "rating": 4.2,
+        "eta_minutes": 45,
+    },
 )
+
+
+# Real multi-dish catalogs, keyed by restaurant_id. get_restaurant_menu falls
+# back to a synthetic single-item combo for any restaurant not listed here
+# (the original 4 restaurants and any unknown id), preserving prior behavior.
+MOCK_MENUS: dict[str, tuple[dict[str, Any], ...]] = {
+    "rest-moti-mahal": (
+        {
+            "item_id": "food-mm-paneer-tikka",
+            "name": "Paneer Tikka",
+            "price": "260.00",
+            "dietary_tag": DietaryTag.VEG,
+        },
+        {
+            "item_id": "food-mm-chicken-65",
+            "name": "Chicken 65",
+            "price": "320.00",
+            "dietary_tag": DietaryTag.NON_VEG,
+        },
+        {
+            "item_id": "food-mm-butter-naan",
+            "name": "Butter Naan",
+            "price": "60.00",
+            "dietary_tag": DietaryTag.VEG,
+        },
+        {
+            "item_id": "food-mm-dal-makhani",
+            "name": "Dal Makhani",
+            "price": "220.00",
+            "dietary_tag": DietaryTag.VEG,
+        },
+    ),
+    "rest-biryani-by-kilo": (
+        {
+            "item_id": "food-bbk-egg-biryani",
+            "name": "Egg Biryani",
+            "price": "300.00",
+            "dietary_tag": DietaryTag.NON_VEG,
+        },
+        {
+            "item_id": "food-bbk-chicken-biryani",
+            "name": "Chicken Biryani",
+            "price": "340.00",
+            "dietary_tag": DietaryTag.NON_VEG,
+        },
+        {
+            "item_id": "food-bbk-veg-biryani",
+            "name": "Veg Biryani",
+            "price": "260.00",
+            "dietary_tag": DietaryTag.VEG,
+        },
+    ),
+}
 
 
 class MockSwiggyTimeoutError(TimeoutError):
@@ -170,16 +239,54 @@ class MockSwiggyMcpClient:
         ]
 
     async def get_restaurant_menu(self, restaurant_id: str) -> list[dict[str, Any]]:
-        return [
-            self._food_item(
-                f"{restaurant_id}-combo",
-                "Family meal combo",
-                "720.00",
-                DietaryTag.ANY,
-                restaurant_id=restaurant_id,
-                restaurant_name=f"Mock Restaurant {restaurant_id}",
-            ),
-        ]
+        menu = MOCK_MENUS.get(restaurant_id)
+        if menu is not None:
+            restaurant_name = self._restaurant_name(restaurant_id)
+            items = [
+                self._food_item(
+                    dish["item_id"],
+                    dish["name"],
+                    dish["price"],
+                    dish["dietary_tag"],
+                    restaurant_id=restaurant_id,
+                    restaurant_name=restaurant_name,
+                )
+                for dish in menu
+            ]
+        else:
+            items = [
+                self._food_item(
+                    f"{restaurant_id}-combo",
+                    "Family meal combo",
+                    "720.00",
+                    DietaryTag.ANY,
+                    restaurant_id=restaurant_id,
+                    restaurant_name=f"Mock Restaurant {restaurant_id}",
+                ),
+            ]
+        return self._apply_menu_scenario(items)
+
+    def _apply_menu_scenario(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Simulates a menu changing between when it was first read and a
+        later re-check — reuses the same scenario fields create_cart already
+        uses for its own price-changed/unavailable-item simulation."""
+        if self.scenario.unavailable_item_id is not None:
+            items = [item for item in items if item["item_id"] != self.scenario.unavailable_item_id]
+        if self.scenario.price_change_item_id is not None:
+            items = [
+                {**item, "price": str(Decimal(str(item["price"])) + Decimal("25.00"))}
+                if item["item_id"] == self.scenario.price_change_item_id
+                else item
+                for item in items
+            ]
+        return items
+
+    @staticmethod
+    def _restaurant_name(restaurant_id: str) -> str:
+        for restaurant in MOCK_RESTAURANTS:
+            if restaurant["restaurant_id"] == restaurant_id:
+                return str(restaurant["name"])
+        return f"Mock Restaurant {restaurant_id}"
 
     async def search_instamart(
         self,
@@ -291,6 +398,17 @@ class MockSwiggyMcpClient:
                 brand_name="Mock Brand",
             )
         ]
+
+    async def find_restaurant_by_name(self, name: str) -> dict[str, Any] | None:
+        return menu_matching.find_restaurant_by_name(MOCK_RESTAURANTS, name)
+
+    async def match_menu_items(
+        self,
+        restaurant_id: str,
+        dish_names: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        menu = await self.get_restaurant_menu(restaurant_id)
+        return menu_matching.match_menu_items(menu, dish_names)
 
     async def get_restaurants(self, lat: float, lng: float) -> list[dict[str, Any]]:
         del lat, lng

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
+from decimal import Decimal
 
+from app.models.order import Order, OrderCreate, OrderLineItem, OrderStatus
 from app.models.session import CartItem, Session, SessionCreate, SessionEvent, SessionStatus
 from app.services.protocols import IDBAdapter, ISessionStore
 
@@ -17,6 +19,7 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
         self.events: list[SessionEvent] = []
         self.next_cart_id = 1
         self._next_event_id = 1
+        self.orders: dict[str, Order] = {}
 
     async def create_session(
         self,
@@ -117,6 +120,83 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
 
     async def get_session_events(self, session_id: str) -> list[SessionEvent]:
         return [e for e in self.events if e.session_id == session_id]
+
+    async def create_order(self, order: OrderCreate) -> Order:
+        created = Order(**order.model_dump())
+        self.orders[created.order_id] = created
+        return created
+
+    async def get_order(self, order_id: str) -> Order | None:
+        return self.orders.get(order_id)
+
+    async def get_order_by_source_message_id(self, message_id: str) -> Order | None:
+        for order in self.orders.values():
+            if order.source_message_id == message_id:
+                return order
+        return None
+
+    async def get_pending_confirmation_order(self, wa_id: str) -> Order | None:
+        for order in self.orders.values():
+            if order.wa_id == wa_id and order.status == OrderStatus.PENDING_CONFIRMATION:
+                return order
+        return None
+
+    async def list_orders_for_host(self, wa_id: str, *, limit: int = 30) -> list[Order]:
+        candidates = [order for order in self.orders.values() if order.wa_id == wa_id]
+        candidates.sort(key=lambda o: (o.created_at, o.order_id), reverse=True)
+        return candidates[:limit]
+
+    async def get_due_scheduled_orders(
+        self,
+        *,
+        as_of: datetime,
+        limit: int = 20,
+    ) -> list[Order]:
+        due = [
+            order
+            for order in self.orders.values()
+            if order.status == OrderStatus.SCHEDULED
+            and order.target_placement_at is not None
+            and order.target_placement_at <= as_of
+        ]
+        due.sort(key=lambda o: o.target_placement_at)  # type: ignore[arg-type,return-value]
+        return due[:limit]
+
+    async def update_order_status(self, order_id: str, status: OrderStatus | str) -> None:
+        if order := self.orders.get(order_id):
+            order.status = status  # type: ignore[assignment]
+            order.updated_at = datetime.now(UTC)
+
+    async def set_order_scheduled(self, order_id: str, *, target_placement_at: datetime) -> None:
+        if order := self.orders.get(order_id):
+            order.status = OrderStatus.SCHEDULED  # type: ignore[assignment]
+            order.target_placement_at = target_placement_at
+            order.updated_at = datetime.now(UTC)
+
+    async def set_order_placed(self, order_id: str, *, swiggy_order_id: str) -> None:
+        if order := self.orders.get(order_id):
+            order.status = OrderStatus.PLACED  # type: ignore[assignment]
+            order.swiggy_order_id = swiggy_order_id
+            order.updated_at = datetime.now(UTC)
+
+    async def set_order_failed(self, order_id: str, *, failure_reason: str) -> None:
+        if order := self.orders.get(order_id):
+            order.status = OrderStatus.FAILED  # type: ignore[assignment]
+            order.failure_reason = failure_reason
+            order.updated_at = datetime.now(UTC)
+
+    async def set_order_price_changed(
+        self,
+        order_id: str,
+        *,
+        items: Sequence[OrderLineItem],
+        total: Decimal,
+    ) -> None:
+        if order := self.orders.get(order_id):
+            order.status = OrderStatus.PENDING_CONFIRMATION  # type: ignore[assignment]
+            order.items = list(items)
+            order.total = Decimal(str(total)).quantize(Decimal("0.01"))
+            order.updated_at = datetime.now(UTC)
 
     def _assign_cart(self, session_id: str, items: Sequence[CartItem]) -> list[CartItem]:
         assigned: list[CartItem] = []

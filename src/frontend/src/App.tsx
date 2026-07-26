@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { HowItWorks } from './components/HowItWorks';
+import { LiveOrdersPage } from './components/LiveOrdersPage';
 import { LoginPage } from './components/LoginPage';
 import { MyOrdersPage } from './components/MyOrdersPage';
 import { SessionDemo } from './components/SessionDemo';
@@ -61,6 +62,14 @@ export function App() {
       </>
     );
   }
+  if (accountRoute === 'live-orders') {
+    return (
+      <>
+        <Navbar />
+        <LiveOrdersPage />
+      </>
+    );
+  }
 
   return (
     <>
@@ -76,10 +85,11 @@ export function App() {
   );
 }
 
-export function getAccountRoute(pathname: string): 'login' | 'orders' | null {
+export function getAccountRoute(pathname: string): 'login' | 'orders' | 'live-orders' | null {
   const normalized = pathname.replace(/\/+$/, '') || '/';
   if (normalized === '/login') return 'login';
   if (normalized === '/orders' || normalized === '/my-orders') return 'orders';
+  if (normalized === '/orders/live') return 'live-orders';
   return null;
 }
 

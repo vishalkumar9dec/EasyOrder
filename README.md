@@ -268,6 +268,25 @@ configured `WHATSAPP_PHONE_NUMBER_ID`, not a group message):
 3. Send `delete my data confirm` — expect a confirmation reply naming how many
    sessions were deleted, and the session is now gone.
 
+Verify targeted single-restaurant orders, the budget-confirmation flow, and
+scheduled delivery (business chat, same direct-message number as above; see
+`docs/mock-swiggy-restaurant-call-flow.md` for the full call flow):
+
+1. Send `Order paneer tikka and chicken 65 from MotiMahal restaurant and if
+   the budget exceeds INR 400, let me know before placing the order` —
+   expect a reply stating the total exceeds your budget and asking to
+   reply YES or NO. Nothing is placed yet.
+2. Send a **separate** message: `yes` — expect a "Placed!" confirmation.
+   This is a genuine two-message exchange, not a same-message confirm word.
+3. Send `Order Egg Biryani for me from BiryaniByKilo and it should reach by
+   8PM` — expect an immediate "Scheduled" reply; the order is not placed
+   yet (deadlines are interpreted as UTC, not IST — see the doc above for
+   why). The background scheduler places it automatically once the
+   computed placement time arrives (`ORDER_SCHEDULER_POLL_SECONDS`, default
+   30s poll interval).
+4. Log in to the PWA and open [http://localhost:5173/orders/live](http://localhost:5173/orders/live) —
+   confirm the Scheduled/Ongoing/Historical tabs show the orders above.
+
 Stop the long-running services when you are done:
 
 ```bash
