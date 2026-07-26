@@ -13,21 +13,22 @@ export function Navbar() {
   return (
     <>
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`} id="navbar" aria-label="Main navigation">
-        <a className="navbar-brand" href="#top">
+        <a className="navbar-brand" href="/#top">
           Easy<span>Order</span>
         </a>
 
         <div className="navbar-links">
           <a href="/#how-it-works">How It Works</a>
-          <a href="/#demo">Demo</a>
+          <a href="/demo">Watch Demo</a>
+          <a href="/playground">Playground</a>
           <a href="/#testimonials">Reviews</a>
           <a href="/#footer">Contact</a>
           <a href="/orders" id="nav-my-orders">My Orders</a>
           <a href="/orders/live" id="nav-live-orders">Live Orders</a>
         </div>
 
-        <a className="navbar-cta" href="/#demo" id="nav-try-demo">
-          Try Demo
+        <a className="navbar-cta" href="/playground" id="nav-try-demo">
+          Try Playground
         </a>
 
         <button
@@ -49,7 +50,8 @@ export function Navbar() {
 
       <div className={`mobile-menu ${menuOpen ? 'open' : ''}`} aria-label="Mobile navigation">
         <a href="/#how-it-works" onClick={() => setMenuOpen(false)}>How It Works</a>
-        <a href="/#demo" onClick={() => setMenuOpen(false)}>Demo</a>
+        <a href="/demo" onClick={() => setMenuOpen(false)}>Watch Demo</a>
+        <a href="/playground" onClick={() => setMenuOpen(false)}>Playground</a>
         <a href="/#testimonials" onClick={() => setMenuOpen(false)}>Reviews</a>
         <a href="/#footer" onClick={() => setMenuOpen(false)}>Contact</a>
         <a href="/orders" onClick={() => setMenuOpen(false)}>My Orders</a>

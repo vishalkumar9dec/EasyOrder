@@ -487,21 +487,149 @@ The method does not verify that the restaurant ID came from
 ### Current integration status
 
 `get_restaurant_menu` is part of the shared Swiggy client contract and is
-implemented by both mock and production clients. However, the current
-`EasyOrderAgentService` flow calls `search_restaurants` directly and does not
-call `get_restaurant_menu` afterward.
+implemented by both mock and production clients. The group-session
+`EasyOrderAgentService` flow still calls `search_restaurants` directly and
+does not call `get_restaurant_menu` afterward — but `TargetedOrderService`
+(see Use case 3 below) does, as part of matching named dishes.
 
-A future two-step discovery flow could be:
+Restaurants with a real multi-dish catalog (`MotiMahal`, `BiryaniByKilo`,
+plus any restaurant listed in `MOCK_MENUS` in `mock_swiggy.py`) return their
+actual dishes here instead of the single synthetic combo item described
+above; the synthetic-combo fallback only applies to restaurant IDs with no
+entry in `MOCK_MENUS` (the original 4 restaurants, and any unknown ID).
+
+## Use case 3: Targeted single-restaurant order, budget gate, and scheduled delivery
+
+Two additional business-chat prompt shapes bypass the group-session pipeline
+entirely and go through a separate, simpler service:
 
 ```text
-search_restaurants("biryani")
-    -> select restaurant_id = "rest-biryani-house"
-    -> get_restaurant_menu("rest-biryani-house")
-    -> show or rank menu items
+"Order paneer tikka and chicken 65 from MotiMahal restaurant and if the
+budget exceeds INR 800, let me know before placing the order"
+
+"Order Egg Biryani for me from BiryaniByKilo and it should reach by 8PM"
 ```
 
-That flow would require application orchestration to be added; the client
-method itself is already available.
+### Routing
+
+`intent_router.route_business_chat_message` recognizes a message as
+`IntentFamily.TARGETED_ORDER` when it contains both an order verb
+(get/order/need/want/send) and `from <restaurant>` — this check runs before
+the generic "creates a group session" check, so `"get biryani for 4 under
+2000"` (no named restaurant) is unaffected.
+
+### Restaurant and dish resolution
+
+`TargetedOrderService` calls two new `ISwiggyMcpClient` methods, both built
+entirely on top of the existing `get_restaurants`/`get_restaurant_menu`
+methods (no new MCP tool was added to `services/mock-swiggy-mcp/app/server.py`
+— only new restaurant/dish fixture data):
+
+```python
+restaurant = await swiggy_client.find_restaurant_by_name("MotiMahal")
+menu = await swiggy_client.get_restaurant_menu(restaurant["restaurant_id"])
+matched_items = menu_matching.match_menu_items(menu, ["paneer tikka", "chicken 65"])
+```
+
+Matching is case-insensitive substring/token matching (`app/services/menu_matching.py`),
+shared by both `MockSwiggyMcpClient` and `SwiggyMcpClient` so the behavior is
+identical in `mock` and `mcp` client modes.
+
+### Budget gate — real multi-turn confirmation
+
+If the matched total exceeds a budget stated in the prompt, the order is
+**not placed**. It is persisted as a new `Order` row
+(`app/models/order.py`) with `status=PENDING_CONFIRMATION`, and the bot asks
+a question. Unlike the deletion/share confirmation patterns elsewhere in
+this codebase (which require the confirm word in the *same* message), this
+is resolved by a **separate, later** WhatsApp message:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Webhook as /api/whatsapp/webhook
+    participant DB as IDBAdapter
+
+    User->>Webhook: "order ... from MotiMahal ... budget exceeds 800"
+    Webhook->>DB: create_order(status=PENDING_CONFIRMATION)
+    Webhook-->>User: "...exceeds your budget. Reply YES or NO."
+    User->>Webhook: "yes"  (a brand new inbound message)
+    Webhook->>DB: get_pending_confirmation_order(wa_id)
+    DB-->>Webhook: the pending Order
+    Webhook->>DB: set_order_placed(...) / set_order_scheduled(...)
+    Webhook-->>User: "Placed!" or "Scheduled — ..."
+```
+
+Every inbound business-chat message is checked against
+`db.get_pending_confirmation_order(wa_id)` **before** normal intent routing
+— see `api/whatsapp.py`. If a pending order exists, the message resolves it
+(`order_confirmation.resolve_pending_order_confirmation`) instead of being
+treated as a new request.
+
+### Delivery deadline — real deferred placement
+
+When the prompt states a delivery deadline ("reach by 8PM"), the order is
+persisted as `status=SCHEDULED` with `target_placement_at` computed as
+`deadline - restaurant["eta_minutes"]`. It is placed automatically, later,
+by a background poller (`app/services/order_scheduler.py`, an in-process
+`asyncio` loop started in `app/main.py`'s lifespan — no external job queue).
+One order's `place_order` failure never blocks or crashes the poller; it is
+marked `FAILED` and the rest of the due batch still runs.
+
+### Price/availability re-check before every actual placement
+
+An order's price and item list are captured once, when it's first quoted —
+but the real commit (`place_order`) can happen much later: a budget-gated
+order commits whenever the user eventually replies "yes" (could be minutes
+later), and a scheduled order commits whenever `target_placement_at`
+arrives (could be an hour+ later). To avoid silently placing at a stale
+price, both commit points — `order_confirmation._place` and
+`order_scheduler._place_one` — call
+`targeted_order.reverify_order_before_placement` immediately before
+`place_order`. It re-fetches the restaurant's current menu and compares:
+
+- **Unchanged** → placement proceeds normally.
+- **Price changed** → the order resets to `PENDING_CONFIRMATION` at the new
+  price (`db.set_order_price_changed`) and the user is asked to confirm
+  again — reusing the same multi-turn mechanism the budget gate already
+  uses, rather than a separate state machine.
+- **Item no longer on the menu** → the order is cancelled outright (nothing
+  to re-confirm) and the user is told which dish disappeared.
+
+This mirrors the group-session checkout flow's `create_cart`
+`PRICE_CHANGED`/`ITEM_UNAVAILABLE` handling in `api/session.py`, applied to
+`place_order` instead. To exercise it locally, `MockSwiggyMcpClient`'s
+existing `MockSwiggyScenario.price_change_item_id`/`unavailable_item_id`
+fields now also affect `get_restaurant_menu` (previously they only affected
+`create_cart`), so a test can simulate the menu changing between when an
+order is first quoted and when it's actually placed.
+
+**Not used anywhere in this flow — or the rest of the codebase:** LangGraph's
+`interrupt()`/checkpointer human-in-the-loop primitive. The multi-turn
+confirmation here is a hand-rolled state machine (a `PENDING_CONFIRMATION`
+`Order` row, checked on the next inbound webhook), consistent with how this
+codebase already handles other multi-step flows (OTP request/verify,
+deletion warn/confirm) — none of which use LangGraph interrupts either. The
+pre-existing group-session `EasyOrderAgentService` graph
+(`app/services/agent.py`) is a single-shot pipeline with no pause/resume.
+
+### Auth for autonomous placement
+
+`place_order` needs a Swiggy auth header, but this flow has no host-browser
+OAuth step (unlike group-session checkout, see the OAuth flow above). It
+reuses the same placeholder-auth precedent as pre-checkout validation
+(`api/session.py`'s `"Bearer mock-precheckout-validation"`):
+`PLACEHOLDER_AUTH_HEADER = "Bearer mock-order-placement"` in
+`app/services/targeted_order.py`, documented there as a demo/mock
+simplification.
+
+### Order status page
+
+`GET /api/me/orders/live` (cookie-authenticated, same pattern as the
+existing `/api/me/orders`) returns every `Order` for the logged-in wa_id,
+bucketed into `scheduled` / `ongoing` / `historical` via
+`app.models.order.order_bucket`. The frontend's Live Orders page
+(`/orders/live`) renders these as three tabs.
 
 ## Real MCP flow (`SWIGGY_CLIENT_MODE=mcp`)
 
