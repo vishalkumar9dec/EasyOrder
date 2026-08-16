@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>EasyOrder — Business Model Canvas</title>
+<style>
+  :root {
+    --bg: #0D0D0D;
+    --surface: #1A1A1A;
+    --accent: #E85D2C;
+    --gold: #F5C842;
+    --text: #F5F5F5;
+    --muted: #9CA3AF;
+    --border: rgba(255, 255, 255, 0.10);
+    --green: #22C55E;
+    --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* 16:9 stage that always fits the recording window, no scrollbars. */
+  .stage {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .canvas {
+    width: min(100vw, calc(100vh * 16 / 9));
+    height: min(100vh, calc(100vw * 9 / 16));
+    padding: 2.2vmin 2.6vmin;
+    display: flex;
+    flex-direction: column;
+    gap: 1.4vmin;
+    /* every size below is viewport-relative so 1080p and 4K captures look identical */
+    font-size: clamp(9px, 1.28vmin, 22px);
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2vmin;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.1vmin;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: 2.9em;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  h1 em { color: var(--accent); font-style: italic; }
+
+  .tagline {
+    color: var(--muted);
+    font-size: 1.15em;
+    text-align: right;
+    line-height: 1.35;
+  }
+
+  .tagline strong { color: var(--gold); font-weight: 600; }
+
+  .grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 1vmin;
+    min-height: 0;
+  }
+
+  .bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1vmin;
+    height: 22%;
+  }
+
+  .block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1.1vmin;
+    padding: 1.1vmin 1.3vmin;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7vmin;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .block h2 {
+    font-size: 1.02em;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+  }
+
+  .block h2::before {
+    content: attr(data-n);
+    color: var(--accent);
+    font-size: 0.92em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ul { list-style: none; display: flex; flex-direction: column; gap: 0.55vmin; }
+
+  li {
+    font-size: 1.14em;
+    line-height: 1.32;
+    color: var(--text);
+    padding-left: 1em;
+    position: relative;
+  }
+
+  li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.62em;
+    width: 0.34em;
+    height: 0.34em;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.85;
+  }
+
+  li span { color: var(--muted); }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.86em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.15em 0.5em;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    vertical-align: middle;
+  }
+
+  .tag.hyp { color: var(--gold); }
+  .tag.now { color: var(--green); }
+
+  /* Value Proposition is the argument — give it the accent treatment. */
+  .vp {
+    background: linear-gradient(180deg, rgba(232, 93, 44, 0.14), rgba(232, 93, 44, 0.05));
+    border-color: rgba(232, 93, 44, 0.4);
+  }
+  .vp h2 { color: var(--accent); }
+  .vp li::before { background: var(--gold); opacity: 1; }
+
+  .span-2 { grid-row: span 2; }
+
+  footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--muted);
+    font-size: 1.02em;
+    border-top: 1px solid var(--border);
+    padding-top: 0.9vmin;
+  }
+
+  footer .rule { color: var(--text); }
+  footer .rule b { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="canvas">
+
+  <header>
+    <h1>EasyOrder — <em>Business Model Canvas</em></h1>
+    <p class="tagline">
+      WhatsApp-first group ordering, checked out on Swiggy.<br />
+      <strong>Phase 1 monetizes nobody.</strong> The return is Swiggy's GMV.
+    </p>
+  </header>
+
+  <div class="grid">
+
+    <section class="block span-2">
+      <h2 data-n="08">Key Partners</h2>
+      <ul>
+        <li>Swiggy — Food, Instamart, OAuth, checkout <span>(and the MCP endpoint, when partner access lands)</span></li>
+        <li>Meta WhatsApp Business Platform</li>
+        <li>LLM provider <span>— model ladder keeps cost and vendor risk controllable</span></li>
+        <li>Postgres / Supabase, container hosting</li>
+        <li>Dineout venues <span>(Phase 5)</span></li>
+      </ul>
+    </section>
+
+    <section class="block">
+      <h2 data-n="06">Key Activities</h2>
+      <ul>
+        <li>Agentic orchestration + guardrails</li>
+        <li>Swiggy MCP integration</li>
+        <li>Real-time chat → canvas session sync</li>
+        <li>Scheduling, degraded-vertical handling</li>
+        <li>WhatsApp policy + data retention</li>
+      </ul>
+    </section>
+
+    <section class="block vp span-2">
+      <h2 data-n="02">Value Propositions</h2>
+      <ul>
+        <li><b>Hosts:</b> the coordination tax, removed. One message → one shared cart → host-controlled checkout.</li>
+        <li><b>Guests:</b> edit your own items from a link. No app, no account.</li>
+        <li><b>Swiggy:</b> higher AOV on its highest-value order type; Food + Instamart consolidated in one plan; fewer abandoned group carts; a WhatsApp-native surface the consumer app can't reach.</li>
+        <li><b>Companies (Ph. 2):</b> team lunch with per-head budgets enforced <em>before</em> spend.</li>
+      </ul>
+    </section>
+
+    <section class="block">
+      <h2 data-n="04">Customer Relationships</h2>
+      <ul>
+        <li>Conversational self-serve — first message is the first order</li>
+        <li>Host-mediated trust: guests hold scoped tokens, never check out</li>
+        <li>Saved lists → recurring commerce memory</li>
+        <li>Never autonomous — nothing charged without an explicit yes</li>
+      </ul>
+    </section>
+
+    <section class="block span-2">
+      <h2 data-n="01">Customer Segments</h2>
+      <ul>
+        <li>Group hosts — the one person compiling every order <span>(flatmates, hostels, 6–10 person Friday plans)</span></li>
+        <li>Group guests — join by link, no signup</li>
+        <li>Corporate admins &amp; team leads <span>(Phase 2)</span></li>
+        <li>Swiggy — not a payer in Phase 1, but where the value lands</li>
+      </ul>
+    </section>
+
+    <section class="block">
+      <h2 data-n="07">Key Resources</h2>
+      <ul>
+        <li>The agent harness — LangGraph graph, guardrails, deterministic fallback <span>(the actual IP)</span></li>
+        <li>Provider-agnostic MCP client — real Swiggy is a URL + token</li>
+        <li>Session/cart store with host/guest token model</li>
+        <li>Skill-locked build harness — PRD, HLD/LLD, ADRs, runbooks, tests</li>
+      </ul>
+    </section>
+
+    <section class="block">
+      <h2 data-n="03">Channels</h2>
+      <ul>
+        <li>WhatsApp Business number <span>(primary)</span></li>
+        <li>Host-forwarded share link — the growth loop, at zero CAC</li>
+        <li>PWA planning canvas</li>
+        <li>Swiggy checkout via OAuth</li>
+        <li>Slack / Teams <span>(Phase 6)</span></li>
+      </ul>
+    </section>
+
+  </div>
+
+  <div class="bottom">
+    <section class="block">
+      <h2 data-n="09">Cost Structure</h2>
+      <ul>
+        <li>LLM inference per parsed message — suppressed by a deterministic router (no model call for "hi") and a regex fallback</li>
+        <li>WhatsApp conversation fees — scale with sessions, not group size; replies go to the host</li>
+        <li>Infrastructure, compliance, one engineer + an agentic toolchain</li>
+      </ul>
+    </section>
+
+    <section class="block">
+      <h2 data-n="05">Revenue Streams</h2>
+      <ul>
+        <li><b>Phase 1:</b> none, by design — free consumer tool <span class="tag now">live</span></li>
+        <li><b>Phase 2:</b> B2B SaaS subscription — corporate team-lunch coordination</li>
+        <li><b>Phase 3:</b> service fee on occasion planning — food + groceries + Dineout</li>
+        <li>AOV uplift vs. solo carts <span class="tag hyp">hypothesis to validate</span></li>
+      </ul>
+    </section>
+  </div>
+
+  <footer>
+    <span class="rule">One rule holds the model together: <b>EasyOrder never charges the group. Swiggy captures the cart.</b></span>
+    <span>Built for the Swiggy Builders Program</span>
+  </footer>
+
+</div>
+</div>
+</body>
+</html>
