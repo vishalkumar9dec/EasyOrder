@@ -1,6 +1,6 @@
 # EasyOrder promo voiceover script
 
-*Swiggy Builders Program submission. Target runtime: **2:05–2:12**.*
+*Swiggy Builders Program submission. Target runtime: **2:13–2:21**.*
 
 Written for an AI voice agent to read aloud over a screen recording of the real app.
 Two cuts below: the **primary** (four product beats + architecture + business model)
@@ -15,16 +15,23 @@ Companion docs:
   deliberately does *not* do yet.
 - `docs/assets/business-model-canvas.html` — the slide you actually put on screen.
 
-> **On the runtime.** This cut runs **2:12**, not the 2:00 the earlier versions held to.
-> Personalization is a demonstrable product beat now, not a roadmap line, and showing it
-> properly — the bare prompt, the disclosure in the reply, the "Your usual" card — costs
-> 13 seconds that cannot come out of the architecture or the canvas without gutting them.
+> **On the runtime.** This cut runs **2:21**, well past the 2:00 the earliest versions
+> held to. Beat 6 grew twice: first when personalization became a shipped feature rather
+> than a roadmap line, then again to cover onboarding — the first reply a new user ever
+> gets, and the profile visibly forming before it is trusted. That arc is the strongest
+> thing in the video and it does not compress into a sentence.
 >
-> **To get back under 2:00**, cut beat 3 (the budget gate, −23s including its screen
-> time) and renumber. It is the most expendable of the four product beats *only* because
-> beat 6 now carries the same point — the user's explicit instruction always wins — and
-> the `Placed!` confirmation still appears in beat 4. Nothing else in this cut is
-> redundant with anything else.
+> **Two documented ways back down**, in the order I'd take them:
+>
+> 1. **−9s:** drop the onboarding half of beat 6 (its first two sentences and sub-shots
+>    a–b), leaving the learned-behaviour demo. Costs the "starts knowing nothing" arc but
+>    keeps the payoff. Lands at ~2:12.
+> 2. **−23s:** also cut beat 3 (the budget gate) and renumber. It is the most expendable
+>    of the product beats *only* because beat 6 now makes the same point — your explicit
+>    instruction always wins — and the `Placed!` confirmation still appears in beat 4.
+>    Lands at ~1:49.
+>
+> Nothing else in this cut is redundant with anything else.
 
 ---
 
@@ -51,6 +58,9 @@ make demo-smoke
   matters more than authenticity here.
 - **Log in to the PWA by OTP before you record.** Beat 4 needs `/orders/live` and
   `/orders` already open; an OTP round-trip on camera is dead air.
+- **Beat 6 needs two WhatsApp numbers** — one with no history at all for the onboarding
+  shots, one with three or more orders for the learned ones. See its section below; this
+  is the only prep in the whole script you cannot do at the last minute.
 - **Open the guest link in an incognito window** for the beat 2 split — same browser
   profile in two tabs shares cookies and quietly defeats the point of the shot.
 - Open the BMC slide full-screen ahead of time so beat 6 is one window switch, not a
@@ -62,7 +72,7 @@ open docs/assets/business-model-canvas.html
 
 ---
 
-## Primary cut (2:12)
+## Primary cut (2:21)
 
 ### Shot list
 
@@ -75,9 +85,9 @@ Record in this order. Voiceover timings below are cut to match.
 | 3 | 0:31–0:43 | WhatsApp: MotiMahal prompt with the budget gate → reply naming the total and asking YES/NO → `yes` as a **separate** message → `Placed!` | `Nothing is placed until you say yes` |
 | 4 | 0:43–1:01 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (**Group plans**), landing on the **Total spent** panel | `Scheduled / Ongoing / Historical`, then `Placed 7:31 PM. You were in a meeting.`, then `Total spent · lifetime, not this page` |
 | 5 | 1:01–1:32 | **Architecture** — see the detailed sub-shot list below | Callouts, timed to the read |
-| 6 | 1:32–1:53 | **Personalization, live.** WhatsApp: send just `get biryani` — no budget, no headcount — and show the reply's disclosure line: *"You didn't say, so I used your usual budget of INR 600 (from your last 3 orders)."* Then cut to `/orders` and land on the **Your usual** card. | `You said 8 words. It filled the rest.` then `Your number always wins` |
-| 7 | 1:53–2:05 | **Business Model Canvas** — `docs/assets/business-model-canvas.html` full-screen | `Phase 1 monetizes nobody` |
-| 8 | 2:05–2:12 | Back to home page / logo, end card held under the closing line | End card (below) |
+| 6 | 1:32–2:02 | **Onboarding → learning, live.** Four quick cuts: (a) a **fresh** WhatsApp number sends `hi` — show the whole onboarding reply, privacy line included; (b) `/orders` after one order — the greyed **Your usual** card reading *"2 more orders until EasyOrder starts using this"*; (c) the seasoned number sends just `get biryani`, and the reply discloses *"You didn't say, so I used your usual budget of INR 600 (from your last 3 orders)"*; (d) the same number sends `get biryani for 8 under 2500` — **no** disclosure line. End on the confident **Your usual** card. | `First message: what it is, what it stores` then `Learning · 2 more orders` then `You said 8 words. It filled the rest.` then `Your number always wins` |
+| 7 | 2:02–2:14 | **Business Model Canvas** — `docs/assets/business-model-canvas.html` full-screen | `Phase 1 monetizes nobody` |
+| 8 | 2:14–2:21 | Back to home page / logo, end card held under the closing line | End card (below) |
 
 ### Voiceover script
 
@@ -106,16 +116,18 @@ Record in this order. Voiceover timings below are cut to match.
 > concurrently over MCP, Swiggy's own protocol. A slow vertical degrades. It doesn't fail.
 > Built the way it runs: agent-first, from a locked skill set.
 
-**[1:32–1:53] — It learns how you order**
-> And it learns. A profile node reads what you've actually ordered — your usual budget,
-> the place you keep going back to, when you eat — and fills in whatever your message
-> left out. Name a number and your number wins. Either way, it tells you which.
+**[1:32–2:02] — Onboarding, and what it learns**
+> It starts knowing nothing about you. Say hi, and it says what it is, what it stores,
+> and how to erase it — all in the first reply. Then it watches. Three orders later it
+> stops counting down and starts filling in what you leave out: your usual budget, the
+> place you keep going back to. Name a number and your number wins. Either way, it tells
+> you which.
 
-**[1:53–2:05] — Business model**
+**[2:02–2:14] — Business model**
 > Free for the group, because the value lands on Swiggy — bigger carts, fewer abandoned
 > ones. Revenue starts in Phase two: corporate lunches, on subscription.
 
-**[2:05–2:12] — Close**
+**[2:14–2:21] — Close**
 > Group orders are Swiggy's biggest carts. Coordination is what kills them. EasyOrder
 > takes it off the table.
 
@@ -130,7 +142,7 @@ Built for the Swiggy Builders Program.
 
 ### Word count / timing check
 
-286 spoken words, by beat:
+310 spoken words, by beat:
 
 | Beat | Words | @140 wpm |
 |---|---|---|
@@ -139,18 +151,18 @@ Built for the Swiggy Builders Program.
 | 3 Budget gate | 25 | 11s |
 | 4 Scheduled + orders page | 39 | 17s |
 | 5 Architecture | 68 | 29s |
-| 6 Personalization | 45 | 19s |
+| 6 Onboarding + learning | 69 | 30s |
 | 7 Business model | 25 | 11s |
 | 8 Close | 17 | 7s |
-| **Total** | **286** | **123s (2:03)** |
+| **Total** | **310** | **133s (2:13)** |
 
-- At 150 wpm → **114s (1:54)**
-- At 140 wpm → **123s (2:03)**
-- At 130 wpm → **132s (2:12)**
+- At 150 wpm → **124s (2:04)**
+- At 140 wpm → **133s (2:13)**
+- At 130 wpm → **144s (2:24)**
 
-The shot list runs 2:12. At 140 wpm the read lands at 2:03, leaving ~9 seconds for the
+The shot list runs 2:21. At 140 wpm the read lands at 2:13, leaving ~8 seconds for the
 seven beat-boundary pauses, with the end card held *under* the closing line. **Read at
-140–150 wpm**; at 130 the read alone fills the whole 2:12 and every pause pushes past it.
+140–150 wpm**; at 130 the read alone overruns the shot list.
 
 If your generated track comes in long, cut in this order — each is written to be
 droppable without breaking the argument:
@@ -209,6 +221,7 @@ should be narrated until it does — a judge who opens the repo will check.
 |---|---|
 | Host / guest split access | **Real.** Host token vs. guest token; guest bootstrap redacts the host token; guest checkout and confirm both `403`. Verified in `make security-smoke`. |
 | Pending + historical orders in the PWA | **Real.** `/orders/live` buckets by status, `/orders` lists past sessions. Per-order totals shown on both. |
+| Onboarding reply | **Real.** A first message routes to `IntentFamily.START_SESSION` and answers with orientation plus the data-retention line in one reply, before the user has shared anything. `intent_router.py`, `ONBOARDING_REPLY`. |
 | Learned preferences | **Real.** `profile_defaults` runs in the graph between `intent_parser` and `swiggy_workers`, filling only slots the prompt left unsaid, above a 3-order threshold, and disclosing what it applied in the reply. Deterministic — medians and frequencies, no model call. |
 | Aggregate total spend | **Real.** `GET /api/me/spend` returns lifetime spend split by surface; the panel sits above both listings. Counts committed money only — an ORDERED session and a PLACED or DELIVERED order — so a cart still being planned and an order still scheduled contribute nothing. |
 | Order history read from EasyOrder's own database | **Real, and deliberate.** These are orders placed *through* EasyOrder, so the record is already local. MCP is how items get searched and carts get placed; asking Swiggy for history back would be a slower, costlier route to a number we already hold. Say this if a judge asks — it's an architecture decision, not a missing integration. |
@@ -295,16 +308,35 @@ with the canvas extension below as well. Only use these if your cap is genuinely
 
 ---
 
-## Beat 6 in detail — staging the personalization demo
+## Beat 6 in detail — staging onboarding and the learning demo
 
-This beat only works if the history is already there, and history is the one thing you
-cannot fake at record time. Seed it before you start.
+This beat needs **two different WhatsApp numbers**, and that is the whole trick: one that
+has never messaged EasyOrder, and one with history. A number cannot be both, and history
+is the one thing you cannot fake at record time. Seed both before you start.
 
-### Setup (before recording)
+### Number A — never used before (the onboarding shots)
 
-1. Place **at least three** real orders from the same number, so the profile clears its
-   confidence threshold (`MIN_OBSERVATIONS = 3`). The quickest is the MotiMahal targeted
-   prompt three times — each one places immediately:
+Its first message must genuinely be its first, so pick a number you have not tested with,
+or wipe it first by sending `delete my data` then `delete my data confirm`.
+
+1. Send `hi`. The reply is the whole onboarding beat in one message:
+   > Hi! I'm EasyOrder. Tell me what to order, for example: get biryani for 4 under 2000.
+   > In a group chat, tag @EasyOrder with the same request.
+   >
+   > We store your phone number and order details to run your sessions. Message
+   > "delete my data confirm" anytime to erase them.
+
+   Hold on it. Orientation and the data promise arrive together, unprompted, before the
+   user has given anything up — worth a beat of silence rather than narration.
+2. Place **one** order from this number, log in, and open `/orders` (**Group plans**).
+   The **Your usual** card is there but greyed and dashed, reading *"2 more orders until
+   EasyOrder starts using this."* That frame is what makes the threshold real: the system
+   is visibly learning and visibly not yet acting.
+
+### Number B — three or more orders (the learned shots)
+
+1. Place **at least three** orders so the profile clears `MIN_OBSERVATIONS = 3`. The
+   quickest is the MotiMahal targeted prompt three times — each places immediately:
    > `Order paneer tikka and chicken 65 from MotiMahal restaurant`
 2. Check what the profile learned before you trust it on camera:
 
@@ -315,7 +347,7 @@ curl -s -b cookies.txt http://localhost:8000/api/me/profile
 3. Confirm `is_confident` is `true` and `typical_budget` is a number you're happy to see
    quoted out loud. If a bad order skewed it, place another or reset and reseed.
 
-### The shot
+### The shot (number B)
 
 - Send **exactly** `get biryani` — no budget, no headcount, nothing else. The whole point
   is how little the user said.
