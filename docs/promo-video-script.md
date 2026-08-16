@@ -68,7 +68,7 @@ Record in this order. Voiceover timings below are cut to match.
 | 1 | 0:00–0:11 | Home page (`/`) — hero *"Craft Your Feast, Together"*, one quick scroll through **How It Works** | — |
 | 2 | 0:11–0:33 | WhatsApp Web: group-order prompt → reply carrying **both** links → forward the guest link into a real group → cut to the PWA. **Two windows side by side** (normal + incognito): host view left, guest view right. Guest bumps a quantity; it updates on the host's screen. Then pan the host's **Check out** control and land on the guest window, where it isn't there. | `Host link · private` / `Guest link · shared` then `Guests edit. Only the host checks out.` |
 | 3 | 0:33–0:45 | WhatsApp: MotiMahal prompt with the budget gate → reply naming the total and asking YES/NO → `yes` as a **separate** message → `Placed!` | `Nothing is placed until you say yes` |
-| 4 | 0:45–1:06 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (My orders) showing past sessions with their totals | `Scheduled / Ongoing / Historical` then `Every order, and what it cost` |
+| 4 | 0:45–1:06 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (My orders), landing on the **Total spent** panel | `Scheduled / Ongoing / Historical` then `Total spent · lifetime, not this page` |
 | 5 | 1:06–1:38 | **Architecture** — see the detailed sub-shot list below | Callouts, timed to the read |
 | 6 | 1:38–1:52 | **Business Model Canvas** — `docs/assets/business-model-canvas.html` full-screen | `Phase 1 monetizes nobody` |
 | 7 | 1:52–2:00 | Back to home page / logo, end card held under the closing line | End card (below) |
@@ -92,7 +92,7 @@ Record in this order. Voiceover timings below are cut to match.
 **[0:45–1:06] — Scheduled delivery + the host's orders page**
 > Or order for later. It works backwards from the delivery time and places it at the right
 > moment, while you were in a meeting. The host's page holds the record — what's
-> scheduled, what's on its way, what's delivered, and what each one cost.
+> scheduled, what's on its way, what's delivered, and what it has all cost.
 
 **[1:06–1:38] — Under the hood (architecture)**
 > Underneath: a deterministic router runs first, so "hi" never costs a model call. Real
@@ -121,18 +121,18 @@ Built for the Swiggy Builders Program.
 
 ### Word count / timing check
 
-260 spoken words, by beat:
+261 spoken words, by beat:
 
 | Beat | Words | @140 wpm |
 |---|---|---|
 | 1 Hook | 25 | 11s |
 | 2 Group order + host/guest | 51 | 22s |
 | 3 Budget gate | 25 | 11s |
-| 4 Scheduled + orders page | 44 | 19s |
+| 4 Scheduled + orders page | 45 | 19s |
 | 5 Architecture | 68 | 29s |
 | 6 Business model | 30 | 13s |
 | 7 Close | 17 | 7s |
-| **Total** | **260** | **111s (1:51)** |
+| **Total** | **261** | **112s (1:52)** |
 
 - At 150 wpm → **104s (1:44)**
 - At 140 wpm → **111s (1:51)**
@@ -147,7 +147,7 @@ If your generated track comes in long, cut in this order — each is written to 
 droppable without breaking the argument:
 
 1. *"Nobody asks who added the roti."* (beat 2, −6 words) — the visual already says it.
-2. *"and what each one cost"* (beat 4, −5 words) — the totals are legible on screen.
+2. *"and what it has all cost"* (beat 4, −6 words) — the spend panel is legible on screen.
 3. *"while you were in a meeting"* (beat 4, −6 words) — costs you a joke, not a claim.
 
 Do **not** cut *"only the host can check out"* (beat 2), the skills clause, or *"It
@@ -195,24 +195,21 @@ Both need an OTP login first — do that before recording, not on camera.
 Two things you asked to show don't exist in the code yet. Both are small, but neither
 should be narrated until it does — a judge who opens the repo will check.
 
-| Claim | Status | What it'd take |
-|---|---|---|
-| Host / guest split access | **Real.** Host token vs. guest token; guest bootstrap redacts the host token; guest checkout and confirm both `403`. Verified in `make security-smoke`. | — |
-| Pending + historical orders in the PWA | **Real.** `/orders/live` buckets by status, `/orders` lists past sessions. Per-order totals shown on both. | — |
-| **Aggregate "total spend"** | **Not built.** Every screen shows *per-order* totals; nothing sums them. | A sum over the same list `my_orders` already builds, plus one figure in the header — `src/backend/app/api/account.py:161` and `MyOrdersPage.tsx`. |
-| **Orders fetched via Swiggy MCP** | **Not wired.** `/orders` and `/orders/live` read EasyOrder's own Postgres (`list_sessions_for_host`, `list_orders_for_host`). The MCP client *has* `get_order_history` / `get_current_order` / `get_delivery_update`, and the mock server implements `get_order_history` — but nothing calls them. `order_history.py` says so in its docstring: live Swiggy order scopes are deferred. | Call `get_order_history` in the account API and merge it with the local record. Half a day, honestly — the client method and the server tool both already exist. |
+| Claim | Status |
+|---|---|
+| Host / guest split access | **Real.** Host token vs. guest token; guest bootstrap redacts the host token; guest checkout and confirm both `403`. Verified in `make security-smoke`. |
+| Pending + historical orders in the PWA | **Real.** `/orders/live` buckets by status, `/orders` lists past sessions. Per-order totals shown on both. |
+| Aggregate total spend | **Real.** `GET /api/me/spend` returns lifetime spend split by surface; the panel sits above both listings. Counts committed money only — an ORDERED session and a PLACED or DELIVERED order — so a cart still being planned and an order still scheduled contribute nothing. |
+| Order history read from EasyOrder's own database | **Real, and deliberate.** These are orders placed *through* EasyOrder, so the record is already local. MCP is how items get searched and carts get placed; asking Swiggy for history back would be a slower, costlier route to a number we already hold. Say this if a judge asks — it's an architecture decision, not a missing integration. |
 
-**So the scripted line is** *"the host's page holds the record — what's scheduled, what's
-on its way, what's delivered, and what each one cost."* Accurate today, and it still lands
-the point.
+**Two things the spend panel is careful about**, worth a beat of narration if you're asked:
 
-If you build the rollup and the MCP fetch before recording, swap in (+7 words, still
-inside 2:00):
-
-> The host's page holds the record — pulled from Swiggy over MCP: what's scheduled,
-> what's on its way, what's delivered, and what the group has spent.
-
-Do **not** record that line first and implement it after. Ship order matters here.
+- It is a **lifetime** total, aggregated in SQL, not a sum of the rows on screen — the
+  listings are paginated, so summing them would quietly under-report.
+- **Scheduled ≠ spent.** In the demo the scheduled BiryaniByKilo order is visible on the
+  page and *excluded* from the total until the scheduler actually places it. If your take
+  catches the bucket flip from Scheduled to Ongoing, the total moves in the same shot —
+  that's the single best frame available for the whole orders surface. Worth staging.
 
 ---
 
@@ -254,7 +251,7 @@ here that isn't on this list.
 | **Scheduler** | Background poller places scheduled orders at `target_placement_at` (deadline minus the restaurant's ETA) and notifies on WhatsApp. | `services/order_scheduler.py` |
 | **Skills (build-time)** | 60+ locked skills (`skills-lock.json`, `agent/skills/`, `docs/prompts/skill-lookup-table.md`) drove the pipeline: `/to-prd` → `/create-hld-lld` → `/decision-mapping` (ADRs) → `/implement` → `/review` → `/qa`. The PRD, HLD, LLD, seven ADRs and the runbooks on screen are all outputs of that harness. | repo root |
 
-### Four things not to say on camera
+### Three things not to say on camera
 
 - **"Three workers."** The HLD's diagram shows Food / Instamart / Budget workers, but the
   shipped code fans out **two** concurrent workers and does the budget math inside the
@@ -263,10 +260,9 @@ here that isn't on this list.
 - **Any latency number.** `2.5s` is a *timeout*, not a measured response time. "Two and a
   half seconds each" as a budget is accurate (it's in the callout overlay, not the read);
   "sub-two-second responses" is not, unless you've metered the take you're shipping.
-- **"Total spend."** Nothing aggregates order totals today. Per-order costs, yes.
 - **"Order history from Swiggy's MCP server."** The orders pages read EasyOrder's own
-  Postgres. MCP is how items are searched and carts are placed — not how history is read.
-  See the accuracy table under *Beats 2 & 4* for what it'd take to make both true.
+  Postgres, by design — see the accuracy table under *Beats 2 & 4*. MCP is how items are
+  searched and carts are placed, not how history is read.
 
 ### Extended alternate (only if your cap is 2:30)
 

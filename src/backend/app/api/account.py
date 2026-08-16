@@ -189,6 +189,36 @@ async def my_live_orders(
     return {"wa_id": wa_id, **buckets}
 
 
+@router.get("/me/spend")
+async def my_spend(
+    request: Request,
+    easyorder_web_session: str | None = Cookie(default=None),
+) -> dict[str, object]:
+    """Lifetime spend for the logged-in host, split by surface.
+
+    Answered from EasyOrder's own records: these are orders placed through
+    EasyOrder, so the total is already local — no Swiggy round-trip needed.
+    Counts committed money only (see `app.models.spend`), and counts all of
+    it, not just the page of orders the listings show.
+    """
+    wa_id = await require_wa_id(request, easyorder_web_session)
+    summary = await get_db(request).get_spend_summary(wa_id)
+    return {
+        "wa_id": wa_id,
+        "currency": "INR",
+        "total": f"{summary.total:.2f}",
+        "order_count": summary.order_count,
+        "group_orders": {
+            "total": f"{summary.group_orders.total:.2f}",
+            "count": summary.group_orders.count,
+        },
+        "restaurant_orders": {
+            "total": f"{summary.restaurant_orders.total:.2f}",
+            "count": summary.restaurant_orders.count,
+        },
+    }
+
+
 def _live_order_entry(order: Order) -> dict[str, object]:
     return {
         "order_id": order.order_id,

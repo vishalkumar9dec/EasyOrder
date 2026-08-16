@@ -8,6 +8,12 @@ from decimal import Decimal
 
 from app.models.order import Order, OrderCreate, OrderLineItem, OrderStatus
 from app.models.session import CartItem, Session, SessionCreate, SessionEvent, SessionStatus
+from app.models.spend import (
+    SPENT_ORDER_STATUSES,
+    SPENT_SESSION_STATUSES,
+    SpendBucket,
+    SpendSummary,
+)
 from app.services.protocols import IDBAdapter, ISessionStore
 
 
@@ -145,6 +151,31 @@ class InMemoryDBAdapter(IDBAdapter, ISessionStore):
         candidates = [order for order in self.orders.values() if order.wa_id == wa_id]
         candidates.sort(key=lambda o: (o.created_at, o.order_id), reverse=True)
         return candidates[:limit]
+
+    async def get_spend_summary(self, wa_id: str) -> SpendSummary:
+        spent_sessions = [
+            session
+            for session in self.sessions.values()
+            if session.host_phone == wa_id and session.status in SPENT_SESSION_STATUSES
+        ]
+        spent_orders = [
+            order
+            for order in self.orders.values()
+            if order.wa_id == wa_id and order.status in SPENT_ORDER_STATUSES
+        ]
+        session_total = sum(
+            (
+                item.price * item.quantity
+                for session in spent_sessions
+                for item in session.cart_items
+            ),
+            Decimal("0"),
+        )
+        order_total = sum((order.total for order in spent_orders), Decimal("0"))
+        return SpendSummary(
+            group_orders=SpendBucket(total=session_total, count=len(spent_sessions)),
+            restaurant_orders=SpendBucket(total=order_total, count=len(spent_orders)),
+        )
 
     async def get_due_scheduled_orders(
         self,

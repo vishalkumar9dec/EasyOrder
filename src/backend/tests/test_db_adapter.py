@@ -133,6 +133,27 @@ class FakeConnection:
                 None,
             )
 
+        if "FROM sessions s" in sql and "COUNT(*)" in sql:
+            statuses = args[1]
+            matches = [
+                s
+                for s in self.sessions.values()
+                if s["host_phone"] == args[0] and s["status"] in statuses
+            ]
+            total = sum(
+                item["price"] * item["quantity"]
+                for item in self.cart_items
+                if item["session_id"] in {s["session_id"] for s in matches}
+            )
+            return {"count": len(matches), "total": total or 0}
+
+        if "FROM orders" in sql and "COUNT(*)" in sql:
+            statuses = args[1]
+            matches = [
+                o for o in self.orders.values() if o["wa_id"] == args[0] and o["status"] in statuses
+            ]
+            return {"count": len(matches), "total": sum(o["total"] for o in matches) or 0}
+
         raise AssertionError(f"Unexpected fetchrow SQL: {sql}")
 
     async def fetch(self, sql: str, *args):
@@ -559,3 +580,77 @@ def test_adapter_list_orders_for_host_and_due_scheduled_orders() -> None:
     assert len(listed) == 2
     assert all(order.wa_id == "919988776655" for order in listed)
     assert [order.order_id for order in due_orders] == [due.order_id]
+
+
+def test_adapter_spend_summary_counts_only_committed_records() -> None:
+    connection = FakeConnection()
+    adapter = AsyncPostgresDBAdapter(lambda: asyncio.sleep(0, result=connection))
+    wa_id = "919988776655"
+
+    run(adapter.create_order(_order_create(wa_id=wa_id, total="300.00")))
+    run(
+        adapter.create_order(
+            _order_create(wa_id=wa_id, total="250.50", status=OrderStatus.DELIVERED)
+        )
+    )
+    run(
+        adapter.create_order(
+            _order_create(wa_id=wa_id, total="900.00", status=OrderStatus.SCHEDULED)
+        )
+    )
+    run(
+        adapter.create_order(
+            _order_create(wa_id=wa_id, total="500.00", status=OrderStatus.CANCELLED)
+        )
+    )
+    run(adapter.create_order(_order_create(wa_id="911111111111", total="999.00")))
+
+    ordered = run(
+        adapter.create_session(
+            SessionCreate(whatsapp_group_id="group_1", host_phone=wa_id),
+            host_token_hash="hash",
+            guest_token="guest_1",
+            cart_items=[
+                CartItem(
+                    item_id="food-biryani",
+                    name="Chicken Biryani",
+                    quantity=2,
+                    price=Decimal("339.00"),
+                    added_by=wa_id,
+                    vertical=Vertical.FOOD,
+                    restaurant_id="rest-1",
+                    restaurant_name="Paradise",
+                )
+            ],
+        )
+    )
+    run(adapter.update_session_status(ordered.session_id, SessionStatus.ORDERED))
+    # Still being planned — intent, not spend.
+    run(
+        adapter.create_session(
+            SessionCreate(whatsapp_group_id="group_2", host_phone=wa_id),
+            host_token_hash="hash",
+            guest_token="guest_2",
+            cart_items=[
+                CartItem(
+                    item_id="food-roti",
+                    name="Tandoori Roti",
+                    quantity=3,
+                    price=Decimal("49.00"),
+                    added_by=wa_id,
+                    vertical=Vertical.FOOD,
+                    restaurant_id="rest-1",
+                    restaurant_name="Paradise",
+                )
+            ],
+        )
+    )
+
+    summary = run(adapter.get_spend_summary(wa_id))
+
+    assert summary.restaurant_orders.count == 2
+    assert summary.restaurant_orders.total == Decimal("550.50")
+    assert summary.group_orders.count == 1
+    assert summary.group_orders.total == Decimal("678.00")
+    assert summary.total == Decimal("1228.50")
+    assert summary.order_count == 3

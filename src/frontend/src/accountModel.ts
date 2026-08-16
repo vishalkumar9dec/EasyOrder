@@ -132,6 +132,58 @@ export async function fetchLiveOrders(): Promise<ApiLiveOrders> {
   return (await response.json()) as ApiLiveOrders;
 }
 
+export interface ApiSpendBucket {
+  total: string;
+  count: number;
+}
+
+export interface ApiSpend {
+  wa_id: string;
+  currency: string;
+  total: string;
+  order_count: number;
+  group_orders: ApiSpendBucket;
+  restaurant_orders: ApiSpendBucket;
+}
+
+export interface SpendView {
+  totalLabel: string;
+  ordersLabel: string;
+  groupOrdersLabel: string;
+  restaurantOrdersLabel: string;
+  isEmpty: boolean;
+}
+
+function orderCountLabel(count: number): string {
+  return `${count} order${count === 1 ? '' : 's'}`;
+}
+
+export function formatAmount(value: string): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '₹0.00';
+  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+}
+
+export function adaptSpend(spend: ApiSpend): SpendView {
+  return {
+    totalLabel: formatAmount(spend.total),
+    ordersLabel: `across ${orderCountLabel(spend.order_count)}`,
+    groupOrdersLabel: `${formatAmount(spend.group_orders.total)} · ${orderCountLabel(
+      spend.group_orders.count,
+    )}`,
+    restaurantOrdersLabel: `${formatAmount(spend.restaurant_orders.total)} · ${orderCountLabel(
+      spend.restaurant_orders.count,
+    )}`,
+    isEmpty: spend.order_count === 0,
+  };
+}
+
+export async function fetchSpend(): Promise<ApiSpend> {
+  const response = await fetch('/api/me/spend');
+  if (!response.ok) throw new Error(await readError(response));
+  return (await response.json()) as ApiSpend;
+}
+
 export function isValidPhoneInput(phone: string): boolean {
   return /^\+?[\d\s-]{8,18}$/.test(phone.trim());
 }

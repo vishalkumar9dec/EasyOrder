@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react';
 
-import { OrderView, adaptOrders, fetchMe, fetchOrders, logout } from '../accountModel';
+import {
+  OrderView,
+  SpendView,
+  adaptOrders,
+  adaptSpend,
+  fetchMe,
+  fetchOrders,
+  fetchSpend,
+  logout,
+} from '../accountModel';
 import { LoginPage } from './LoginPage';
+import { SpendSummary } from './SpendSummary';
 
 type State =
   | { kind: 'loading' }
   | { kind: 'unauthenticated' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; waId: string; orders: OrderView[] };
+  | { kind: 'ready'; waId: string; orders: OrderView[]; spend: SpendView | null };
 
 export function MyOrdersPage() {
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -22,9 +32,18 @@ export function MyOrdersPage() {
           setState({ kind: 'unauthenticated' });
           return;
         }
-        const orders = await fetchOrders();
+        // Spend is supplementary: if it fails, still show the orders.
+        const [orders, spend] = await Promise.all([
+          fetchOrders(),
+          fetchSpend().catch(() => null),
+        ]);
         if (cancelled) return;
-        setState({ kind: 'ready', waId, orders: adaptOrders(orders) });
+        setState({
+          kind: 'ready',
+          waId,
+          orders: adaptOrders(orders),
+          spend: spend ? adaptSpend(spend) : null,
+        });
       } catch (err) {
         if (!cancelled) {
           setState({
@@ -76,10 +95,18 @@ export function MyOrdersPage() {
             <p className="account-subtitle">
               Logged in as +{state.waId}. Same history you get on WhatsApp.
             </p>
+            {state.spend && <SpendSummary spend={state.spend} />}
             {state.orders.length === 0 ? (
               <p className="orders-empty">
-                No orders yet. Message the EasyOrder WhatsApp number — for example:
+                No group orders yet. Message the EasyOrder WhatsApp number — for example:
                 <em> get biryani for 4 under 2000</em> — and it will appear here.
+                {/* Spend is account-wide, so it can be non-zero while this list is empty. */}
+                {state.spend && !state.spend.isEmpty && (
+                  <>
+                    {' '}
+                    Your single-restaurant orders are on <a href="/orders/live">Live orders</a>.
+                  </>
+                )}
               </p>
             ) : (
               <ol className="orders-list">
