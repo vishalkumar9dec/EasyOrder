@@ -4,6 +4,41 @@ BACKEND_PYTHON := src/backend/.venv/bin/python
 BACKEND_PORT ?= 8000
 FRONTEND_PORT ?= 5173
 
+# Interpreter used to create the Python venvs.
+#
+# A bare `python3` picks whatever the machine defaults to, and on 3.14 the
+# install is unresolvable: mcp requires starlette>=0.48 there, which conflicts
+# with the pinned starlette. That surfaces as a wall of pip backtracking ending
+# in ResolutionImpossible, which reads like a broken repo rather than a wrong
+# interpreter. So pick a known-good one, newest first.
+#
+# Override for a Python that isn't on PATH under these names:
+#   make setup VENV_PYTHON=/path/to/python3.13
+SUPPORTED_PYTHON_MINORS := 3.13 3.12
+VENV_PYTHON ?= $(firstword $(foreach v,$(SUPPORTED_PYTHON_MINORS),$(shell command -v python$(v) 2>/dev/null)))
+
+# Create a venv at $1 using a supported interpreter, replacing it if the one
+# already there can't resolve this project's pins.
+define ensure_venv
+	set -euo pipefail; \
+	venv="$(1)"; \
+	if [ -x "$$venv/bin/python" ]; then \
+		current="$$("$$venv/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"; \
+		case " $(SUPPORTED_PYTHON_MINORS) " in \
+			*" $$current "*) exit 0;; \
+		esac; \
+		echo "Existing venv at $$venv runs Python $$current, which cannot resolve this project's pinned dependencies. Recreating it."; \
+		rm -rf "$$venv"; \
+	fi; \
+	if [ -z "$(VENV_PYTHON)" ]; then \
+		echo "No supported Python found on PATH. EasyOrder needs one of: $(SUPPORTED_PYTHON_MINORS)."; \
+		echo "Install one, or point at it directly: make setup VENV_PYTHON=/path/to/python3.13"; \
+		exit 1; \
+	fi; \
+	echo "Creating $$venv with $(VENV_PYTHON) (Python $$($(VENV_PYTHON) -c 'import sys; print("%d.%d" % sys.version_info[:2])'))"; \
+	$(VENV_PYTHON) -m venv "$$venv"
+endef
+
 .PHONY: setup up dev-down test check-ports backend-venv backend-install backend-dev backend-test backend-smoke frontend-install frontend-dev frontend-build frontend-test db-up db-migrate db-rollback db-down smoke demo-smoke security-smoke mock-mcp-install mock-mcp-up mock-mcp-test data-retention data-retention-dry-run db-migrate-versioned db-migrate-versioned-down prod-build prod-up prod-down
 
 setup: backend-install frontend-install
@@ -65,7 +100,7 @@ up:
 test: backend-test frontend-test
 
 backend-venv:
-	cd src/backend && python3 -m venv .venv
+	@$(call ensure_venv,src/backend/.venv)
 
 backend-install: backend-venv
 	cd src/backend && .venv/bin/python -m pip install -r requirements.txt -r requirements-dev.txt
@@ -129,7 +164,8 @@ security-smoke:
 	APP_ENV=local PERSISTENCE_MODE=memory PUBLIC_APP_BASE_URL=http://localhost:5173 WHATSAPP_PROVIDER_MODE=mock WHATSAPP_VERIFY_TOKEN=local-verify-token WHATSAPP_APP_SECRET= SWIGGY_CLIENT_MODE=mock LLM_MODE=mock $(BACKEND_PYTHON) scripts/easyorder_security_smoke.py
 
 mock-mcp-install:
-	cd services/mock-swiggy-mcp && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+	@$(call ensure_venv,services/mock-swiggy-mcp/.venv)
+	cd services/mock-swiggy-mcp && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 
 mock-mcp-up:
 	cd services/mock-swiggy-mcp && MOCK_MCP_AUTH_TOKEN=$${MOCK_MCP_AUTH_TOKEN:-dev-token} .venv/bin/python app/server.py
