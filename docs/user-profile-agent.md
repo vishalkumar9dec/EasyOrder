@@ -69,11 +69,18 @@ It fills **only unspecified slots**. Three rules, none negotiable:
 2. **Applied defaults are stated in the reply.** *"Using your usual ₹1,800 — reply
    'budget 3000' to change it."* A silent default that's wrong is indistinguishable from
    a bug, and the user has no way to correct something they can't see.
-3. **A profile never places an order.** It changes what gets *proposed*. The existing
-   product rule — nothing is charged without an explicit yes (`docs/hld.md` §3.6, and the
-   budget gate the demo shows) — still holds. This is worth being firm about: "based on
-   the user's preference the order is placed" is exactly the feature that turns one wrong
-   inference into a wrong charge, and the trust cost of that is not recoverable.
+3. **The profile composes the order; the user still confirms it.** Preferences do the
+   real work — picking the restaurant, filling the items, setting the budget — so a bare
+   "order lunch" comes back as a complete, specific proposal rather than a question. It
+   then goes through the same confirmation gate every other order goes through:
+   *"Chicken biryani from Paradise, ₹640 — reply YES."* Nothing is charged without an
+   explicit yes (`docs/hld.md` §3.6, and the budget gate the demo shows).
+
+   Keeping the gate is what makes aggressive inference *safe*. Because a wrong guess
+   costs one "no" instead of one wrong charge, the profile can afford to commit to a
+   specific order rather than hedging — and a declined proposal is a labelled correction,
+   which feeds straight back into the loop below. The confirmation isn't a limit on
+   personalization; it's the thing that lets personalization be bold.
 
 ## Data model sketch
 
@@ -108,11 +115,19 @@ that cascade, and `docs/data-retention-policy.md` needs a line for it.
 A profile built once at onboarding is wrong within a month. Four mechanisms, in
 descending order of value:
 
-**1. Overrides are the signal.** When `profile_defaults` injects a budget of ₹1,800 and
-the user replies "no, keep it under 900", that is a labelled correction — the single most
-valuable data point the system will ever get, and it's free. Record it as a
-`preference_override` event and weight it far above passive order data. Two overrides in
-the same direction should move the default; three should retire it.
+**1. Overrides and declines are the signal.** When `profile_defaults` injects a budget of
+₹1,800 and the user replies "no, keep it under 900", that is a labelled correction — the
+single most valuable data point the system will ever get, and it's free. A declined
+proposal at the confirmation gate is the same signal in stronger form: the profile
+committed to a specific order and was told no, which says more than any amount of passive
+order data. Record both as `preference_override` events, tagged with which slot was wrong,
+and weight them far above inferred history. Two corrections in the same direction should
+move the default; three should retire it.
+
+This is why the confirmation gate and the learning loop are the same mechanism. Every
+"yes" is a confirmed prediction and every "no" is a labelled error, so the profile gets
+sharper precisely because the user is asked. Skip the gate and you lose the only clean
+training signal in the system.
 
 **2. Incremental update per completed order.** Each EasyOrder order is a fresh
 observation. Update the affected aggregates in place on order completion rather than
