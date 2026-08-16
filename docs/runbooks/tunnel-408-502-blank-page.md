@@ -133,6 +133,79 @@ dev-mode HMR, or to stop re-pointing the Meta webhook), migrate to ngrok's free
 static domain per [ngrok-dev-tunnel.md](ngrok-dev-tunnel.md). ngrok has no
 ~10-second cutoff, and `vite.config.ts` already allowlists `.ngrok-free.app`.
 
+---
+
+# Stale Service Worker: Old UI And Broken Images On A Tunnel
+
+A second, distinct failure with the same "it worked before" shape. Worth knowing
+because nothing about it looks like a caching problem.
+
+## Symptoms
+
+- The navbar is missing on `/session/...` and `/orders`, or shows an older set
+  of links than the code has.
+- Pages that used to have per-page brand headers have them again.
+- The hero photo renders as its alt text (`Indian feast spread on dark table`)
+  while the file is present in `dist/` and serves fine over curl.
+- Everything looks correct on `localhost`, and correct in a private window.
+
+## Root cause
+
+The tunnel serves the production build, so a **service worker installs on the
+tunnel hostname** — and localtunnel reuses subdomains, so
+`easyorder-web-dev.loca.lt` keeps whatever service worker a previous session
+left there.
+
+That service worker answers navigations from its own precached `index.html`.
+When it holds an old shell, the browser runs an **old JS bundle**, which asks
+for **content-hashed asset filenames** (`hero-feast-<hash>.png`) that the
+current `dist/` no longer contains. The server 404s them, the image falls back
+to alt text, and the old bundle renders the old UI. The server is serving the
+right files the whole time; nothing ever reaches them.
+
+## Confirm it in five seconds
+
+Open the console. Every build prints its stamp on boot:
+
+```text
+EasyOrder build 2026-08-16T12:05:37.512Z
+```
+
+If that timestamp predates your last `npm run build`, you are looking at a
+cached shell, not at your code. Cross-check in DevTools → Application →
+Service Workers, and in the Network tab (the failing image will be a 404 for a
+hash that is not in `dist/assets/`).
+
+## Fix it now
+
+The app removes a service worker it finds on a tunnel host automatically
+(`src/frontend/src/tunnelHosts.ts`), but that code only runs once a fresh shell
+loads. To force it immediately:
+
+- DevTools → Application → **Storage** → *Clear site data*, then hard reload
+  (`Cmd+Shift+R`). This is the reliable one.
+- Or in the console:
+
+```js
+navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+caches.keys().then((ks) => ks.forEach((k) => caches.delete(k)));
+```
+
+Then reload twice: once to fetch the new shell, once to run it.
+
+## Why it should not recur
+
+- The app unregisters service workers and clears caches on tunnel hostnames.
+  A demo gains nothing from offline support and loses everything to a stale
+  shell; production keeps its PWA.
+- `index.html`, `sw.js`, `registerSW.js` and the manifest are served
+  `no-cache, must-revalidate` by both `vite preview` (a small plugin in
+  `vite.config.ts`) and Caddy (`src/frontend/Caddyfile`), so no browser or
+  proxy can pin the shell. Hashed assets under `/assets/` stay immutable and
+  cacheable — they are safe precisely because their names change.
+- Every build prints its stamp, so "is this my code?" is answered by looking,
+  not by guessing.
+
 ## TL;DR
 
 | Do | Don't |
@@ -141,3 +214,5 @@ static domain per [ngrok-dev-tunnel.md](ngrok-dev-tunnel.md). ngrok has no
 | Keep large images out of SW precache (lazy runtime cache) | Precache the whole `dist/` including ~5 MB of photos |
 | Reload once after deploy to let the new SW install | Assume a cold first load is instant over a free tunnel |
 | Move to ngrok for a stable URL / HMR | Fight loca.lt zombie leases for a fixed subdomain |
+| Check the console build stamp before debugging UI | Assume the tunnel is serving the build you just made |
+| Clear site data when a tunnel shows an old UI | Re-fix code that a stale service worker is hiding |

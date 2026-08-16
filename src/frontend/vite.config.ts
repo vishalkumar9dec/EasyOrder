@@ -1,13 +1,42 @@
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
+// Paths that must never be pinned by a browser or an intermediary proxy.
+// Everything under /assets/ is content-hashed and safe to cache forever; the
+// app shell and the service worker script are not, and a stale copy of either
+// is silently fatal: the SW keeps serving an old index.html, that old bundle
+// asks for asset filenames whose hashes no longer exist, and the page renders
+// an old UI with broken images while the server has the right files all along.
+const SHELL_PATHS = /^\/(index\.html)?$|^\/sw\.js$|^\/registerSW\.js$|^\/manifest\.webmanifest$/;
+
+function noCacheAppShell(): Plugin {
+  return {
+    name: 'easyorder-no-cache-app-shell',
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = (req.url ?? '').split('?')[0];
+        if (SHELL_PATHS.test(path)) {
+          res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
+        }
+        next();
+      });
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
+    // Stamped into the bundle so any running page can say which build it is —
+    // the first question worth asking when the UI looks out of date.
+    define: {
+      __BUILD_STAMP__: JSON.stringify(new Date().toISOString()),
+    },
     plugins: [
       react(),
+      noCacheAppShell(),
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
