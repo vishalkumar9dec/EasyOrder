@@ -27,7 +27,11 @@ are required.
 
 ## Requirements
 
-- Python 3.12+
+- Python 3.13 or 3.12. **Not 3.14** — the `mcp` SDK requires `starlette>=0.48` there,
+  which conflicts with the pinned `starlette`, so the install fails to resolve. `make
+  setup` picks a supported interpreter itself (newest first) and replaces an existing
+  venv built on an unsupported one. If yours lives somewhere unusual:
+  `make setup VENV_PYTHON=/path/to/python3.13`.
 - Node.js 22+
 - Docker, for local PostgreSQL, the mock Swiggy MCP server, and the production stack rehearsal
 
