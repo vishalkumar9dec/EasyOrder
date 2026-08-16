@@ -66,8 +66,11 @@ make demo-smoke
 - **Log in to the PWA by OTP before you record.** Beat 4 needs `/orders/live` and
   `/orders` already open; an OTP round-trip on camera is dead air.
 - **Beat 6 needs two WhatsApp numbers** — one with no history at all for the onboarding
-  shots, one with three or more orders for the learned ones. See its section below; this
-  is the only prep in the whole script you cannot do at the last minute.
+  shots, one with three or more orders for the learned ones. This is the only prep in the
+  whole script you cannot do at the last minute.
+- **Work the take from the [message sheet](#message-sheet--what-to-type-in-order)** — every
+  message in send order, the reply each must produce, and the voiceover line it plays
+  under. Its pre-record table is the seeding you must finish *before* rolling.
 - **Open the guest link in an incognito window** for the beat 2 split — same browser
   profile in two tabs shares cookies and quietly defeats the point of the shot.
 - Open the BMC slide full-screen ahead of time so beat 6 is one window switch, not a
@@ -490,34 +493,68 @@ Fits under 60s with 7–14 seconds for transitions and the end-card hold.
 
 ---
 
-## Exact prompts to send on camera
+## Message sheet — what to type, in order
 
-Use these verbatim — they are the three verified use cases from
-`docs/runbooks/local-demo.md`, and the numbers in the voiceover match them.
+Everything you send on camera, in recording order, with the reply it must produce and the
+voiceover line it plays under. If a reply doesn't match, stop and fix it before the take:
+the read quotes these numbers out loud.
 
-1. **Group order** (or the `whatsapp-tagged-normal.json` fixture, if you're driving the
-   webhook by `curl` off-camera):
-   > `2 chicken biryani, 1 mixed veg and 3 tandoori roti from the best restaurant under 2000 INR`
+### Before you hit record — cannot be done live
 
-2. **Named restaurant + budget gate** — then `yes` as a **separate** message:
-   > `Order paneer tikka and chicken 65 from MotiMahal restaurant and if the budget exceeds INR 400, let me know before placing the order`
+| Do | Why |
+|---|---|
+| From **number B**, send `Order paneer tikka and chicken 65 from MotiMahal restaurant` **three times** | Gets B over the 3-order threshold so beat 6 has a profile to show. Each places immediately at ₹580. |
+| From **number A**, send `get biryani for 4 under 2000` **once** | Gives A exactly one order, so its card reads *"2 more orders until EasyOrder starts using this"* — the learning-in-progress shot. |
+| `curl -s -b cookies.txt http://localhost:8000/api/me/profile` for B | Confirm `is_confident: true` and a `typical_budget` you're happy to hear quoted. |
+| OTP-log in both numbers in separate browser profiles | An OTP round-trip on camera is dead air. |
+| Confirm **number A has never messaged EasyOrder** otherwise | Its `hi` must genuinely be a first contact. Reset with `delete my data` → `delete my data confirm`. |
 
-   The budget is **400, not 800**. Those two dishes come to **₹580** on the mock menu, so
-   an 800 limit is never crossed: the order just places, no confirmation is asked, and the
-   beat has nothing in it. Verified against a running stack — at 800 the reply is
-   `Placed! Paneer Tikka, Chicken 65 from MotiMahal — total INR 580.00`, while at 400 it is
-   `…comes to INR 580.00, which exceeds your INR 400 budget. Reply YES to place it anyway,
-   or NO to cancel.`
+### On camera, in order
 
-   ⚠️ Re-check this if the mock menu ever changes: the voiceover quotes both numbers
-   ("five eighty, over the four hundred you set"), so a menu edit silently makes the read
-   wrong. `docs/prompts/demo.md` flagged the same trap.
+| # | Beat | Send verbatim | Expect back | Plays under |
+|---|---|---|---|---|
+| 1 | 2 | `2 chicken biryani, 1 mixed veg and 3 tandoori roti from the best restaurant under 2000 INR` | Two messages: the shareable canvas link, and the private host link | *"That's the coordination tax. One message removes it…"* |
+| 2 | 3 | `Order paneer tikka and chicken 65 from MotiMahal restaurant and if the budget exceeds INR 400, let me know before placing the order` | `…comes to INR 580.00, which exceeds your INR 400 budget. Reply YES to place it anyway, or NO to cancel.` | *"It comes back at five eighty — over the four hundred you set…"* |
+| 3 | 3 | `yes` — a **separate** message, not appended | `Placed! MotiMahal order — total INR 580.00.` | *"…Nothing is placed until you reply yes."* |
+| 4 | 4 | `Order Egg Biryani for me from BiryaniByKilo and it should reach by <NEXT HOUR>PM` — see the timing recipe below | `Got it — Egg Biryani from BiryaniByKilo (INR 300.00) is scheduled so it reaches by H:00 PM UTC.` | *"Or order for later. It works backwards from the delivery time…"* |
+| 5 | 6 | From **number A**: `hi` | The onboarding reply — orientation plus the data-retention line, in one message | *(silent — hold on the reply)* |
+| 6 | 6 | From **number B**: `get biryani` | Host link, plus `You didn't say, so I used your usual budget of INR 600 (from your last 3 orders). Say it in your message to override.` | *"…starts filling in what you leave out…"* |
+| 7 | 6 | From **number B**: `get biryani for 8 under 2500` | Host link, and **no** disclosure line | *"Name a number and your number wins."* |
 
-3. **Scheduled delivery**:
-   > `Order Egg Biryani for me from BiryaniByKilo and it should reach by 8PM`
+Rows 2, 3, 6 and 7 are exact — that copy comes from the order and profile services and does
+not vary by provider mode. Row 1's wording differs between mock mode and live Meta mode
+(template/CTA handoff vs. plain short links), so confirm it on your dry run rather than
+trusting the phrasing above.
 
-   Deadlines are interpreted as UTC, not IST. Pick a target time that lands correctly in
-   your recording session, or pre-record the fire and cut to it.
+### The scheduled order is the one that can't wait for you
+
+The deadline parser reads only the **hour**, and treats it as **UTC** of the message's
+date. BiryaniByKilo's ETA is 45 minutes, so the order is placed at *deadline − 45 min* —
+which always lands at **:15 past the preceding hour**, whatever you type.
+
+So `by 8PM` schedules a placement at **19:15 UTC**. Send that at 13:10 and you are waiting
+six hours for the Scheduled → Ongoing flip.
+
+To catch the flip inside a take, send between **:00 and :12 past the hour** and name the
+**next** hour:
+
+> sent 13:10 UTC · `…reach by 2PM` → deadline 14:00 UTC → **places 13:15 UTC**, about
+> 5 minutes later
+
+The scheduler polls every 30 seconds, so it fires within half a minute of that. Five
+minutes is still too long to hold one continuous shot — cut away to beat 5, come back for
+the flip, and drop the `Meanwhile…` caption over the join. If the maths lands badly on the
+day, pre-record the flip and cut to it; nothing in the read depends on it being one take.
+
+⚠️ The reply prints the deadline **in UTC** (`2:00 PM UTC`), not IST. On camera that reads
+oddly to an Indian audience — pick an hour whose UTC label you're comfortable showing, or
+crop the reply to the `Got it — …is scheduled` half.
+
+### If the mock menu changes
+
+The voiceover quotes ₹580 and ₹400 aloud, and beat 6 quotes ₹600. A menu edit silently
+makes all three wrong. Re-run rows 2 and 6 before any re-record and update the read to
+match — `docs/prompts/demo.md` flagged this same trap for the original ₹800 figure.
 
 ---
 
