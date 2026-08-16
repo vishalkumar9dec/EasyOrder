@@ -23,8 +23,8 @@ export function Navbar() {
           <a href="/playground">Playground</a>
           <a href="/#testimonials">Reviews</a>
           <a href="/#footer">Contact</a>
-          <a href="/orders" id="nav-my-orders">My Orders</a>
-          <a href="/orders/live" id="nav-live-orders">Live Orders</a>
+          <a href="/orders" id="nav-group-plans">Group plans</a>
+          <a href="/orders/live" id="nav-orders">Orders</a>
         </div>
 
         <a className="navbar-cta" href="/playground" id="nav-try-demo">
@@ -54,8 +54,8 @@ export function Navbar() {
         <a href="/playground" onClick={() => setMenuOpen(false)}>Playground</a>
         <a href="/#testimonials" onClick={() => setMenuOpen(false)}>Reviews</a>
         <a href="/#footer" onClick={() => setMenuOpen(false)}>Contact</a>
-        <a href="/orders" onClick={() => setMenuOpen(false)}>My Orders</a>
-        <a href="/orders/live" onClick={() => setMenuOpen(false)}>Live Orders</a>
+        <a href="/orders" onClick={() => setMenuOpen(false)}>Group plans</a>
+        <a href="/orders/live" onClick={() => setMenuOpen(false)}>Orders</a>
       </div>
     </>
   );

@@ -85,10 +85,10 @@ export function LiveOrdersPage() {
   const orders = state.kind === 'ready' ? state.buckets[activeTab] : [];
 
   return (
-    <section className="account-page" aria-label="Live orders">
+    <section className="account-page" aria-label="Orders">
       <div className="account-card account-card--wide">
         <div className="account-header">
-          <h1 className="account-title">Live orders</h1>
+          <h1 className="account-title">Orders</h1>
           {state.kind === 'ready' && (
             <button
               className="account-link-button"
@@ -115,7 +115,7 @@ export function LiveOrdersPage() {
         {state.kind === 'ready' && (
           <>
             <p className="account-subtitle">
-              Logged in as +{state.waId}. Restaurant orders placed by name over WhatsApp.
+              Logged in as +{state.waId}. Orders you placed from a named restaurant over WhatsApp.
             </p>
 
             {state.spend && <SpendSummary spend={state.spend} />}

@@ -75,10 +75,10 @@ export function MyOrdersPage() {
   }
 
   return (
-    <section className="account-page" aria-label="My orders">
+    <section className="account-page" aria-label="Group plans">
       <div className="account-card account-card--wide">
         <div className="account-header">
-          <h1 className="account-title">My orders</h1>
+          <h1 className="account-title">Group plans</h1>
           {state.kind === 'ready' && (
             <button
               className="account-link-button"
@@ -105,19 +105,19 @@ export function MyOrdersPage() {
         {state.kind === 'ready' && (
           <>
             <p className="account-subtitle">
-              Logged in as +{state.waId}. Same history you get on WhatsApp.
+              Logged in as +{state.waId}. Every group order you started, and how far it got.
             </p>
             {state.spend && <SpendSummary spend={state.spend} />}
             {state.profile && <ProfileCard profile={state.profile} />}
             {state.orders.length === 0 ? (
               <p className="orders-empty">
-                No group orders yet. Message the EasyOrder WhatsApp number — for example:
+                No group plans yet. Message the EasyOrder WhatsApp number — for example:
                 <em> get biryani for 4 under 2000</em> — and it will appear here.
                 {/* Spend is account-wide, so it can be non-zero while this list is empty. */}
                 {state.spend && !state.spend.isEmpty && (
                   <>
                     {' '}
-                    Your single-restaurant orders are on <a href="/orders/live">Live orders</a>.
+                    Your single-restaurant orders are under <a href="/orders/live">Orders</a>.
                   </>
                 )}
               </p>
