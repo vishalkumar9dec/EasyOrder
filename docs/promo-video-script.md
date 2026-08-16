@@ -351,7 +351,7 @@ or wipe it first by sending `delete my data` then `delete my data confirm`.
 
 1. Send `hi`. The reply is the whole onboarding beat in one message:
    > Hi! I'm EasyOrder. Tell me what to order, for example: get biryani for 4 under 2000.
-   > In a group chat, tag @EasyOrder with the same request.
+   > I'll build the cart and send you a link you can forward to your group.
    >
    > We store your phone number and order details to run your sessions. Message
    > "delete my data confirm" anytime to erase them.
@@ -359,27 +359,11 @@ or wipe it first by sending `delete my data` then `delete my data confirm`.
    Hold on it. Orientation and the data promise arrive together, unprompted, before the
    user has given anything up — worth a beat of silence rather than narration.
 
-   ⚠️ **The middle sentence contradicts the rest of the video.** *"In a group chat, tag
-   @EasyOrder with the same request"* puts a group-tagging instruction on screen, while
-   every other beat — and every prompt on the message sheet — is a plain 1:1 message to
-   the business number. `docs/prompts/demo.md` is blunt about why: tagging a business
-   number is not a real WhatsApp mention feature, and the product does not need one. The
-   host forwards a link; that is the sharing mechanic.
-
-   The code does still route tagged messages (`ChatMode.MENTION_PLANNING`), so the line
-   is not false — it just advertises the one path you cannot demonstrate. Three ways to
-   handle it, best first:
-
-   1. **Change the copy** in `ONBOARDING_REPLY` (`services/intent_router.py`) so onboarding
-      describes the flow the product actually runs. One line, one test.
-   2. **Frame the shot** on the first and last sentences. Works, but you are hiding a line
-      rather than fixing it, and a judge who scrolls the chat sees it anyway.
-   3. **Leave it** and accept that the most-watched frame of your onboarding beat tells
-      the viewer to do something the demo never does.
-2. Place **one** order from this number, log in, and open `/orders` (**Group plans**).
-   The **Your usual** card is there but greyed and dashed, reading *"2 more orders until
-   EasyOrder starts using this."* That frame is what makes the threshold real: the system
-   is visibly learning and visibly not yet acting.
+   Every sentence points at something the rest of the video then does: the example prompt
+   is beat 2's message, and "a link you can forward to your group" is the sharing mechanic
+   beat 2 shows. That alignment is deliberate — the reply used to end that paragraph with
+   "In a group chat, tag @EasyOrder with the same request", which advertised the one flow
+   a viewer cannot reproduce. Changed in the product, not worked around in the edit.
 
 ### Number B — three or more orders (the learned shots)
 
