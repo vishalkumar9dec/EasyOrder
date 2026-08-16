@@ -11,6 +11,8 @@ Companion docs:
 - `docs/prompts/demo.md` — the longer (~3:00) comedic *Tale of Two Rohans* sketch. Same
   three use cases, so B-roll is interchangeable; opposite register.
 - `docs/business-model-canvas.md` — source of truth for beat 6.
+- `docs/user-profile-agent.md` — the design behind the roadmap line that closes beat 5.
+  Not implemented; see the honesty rule for how it must be labelled on screen.
 - `docs/assets/business-model-canvas.html` — the slide you actually put on screen.
 
 > **On the budget.** Beats 5 and 6 (architecture, business model) take 46 seconds of a
@@ -66,12 +68,12 @@ Record in this order. Voiceover timings below are cut to match.
 | # | Time | Screen | On-screen text overlay |
 |---|---|---|---|
 | 1 | 0:00–0:11 | Home page (`/`) — hero *"Craft Your Feast, Together"*, one quick scroll through **How It Works** | — |
-| 2 | 0:11–0:33 | WhatsApp Web: group-order prompt → reply carrying **both** links → forward the guest link into a real group → cut to the PWA. **Two windows side by side** (normal + incognito): host view left, guest view right. Guest bumps a quantity; it updates on the host's screen. Then pan the host's **Check out** control and land on the guest window, where it isn't there. | `Host link · private` / `Guest link · shared` then `Guests edit. Only the host checks out.` |
-| 3 | 0:33–0:45 | WhatsApp: MotiMahal prompt with the budget gate → reply naming the total and asking YES/NO → `yes` as a **separate** message → `Placed!` | `Nothing is placed until you say yes` |
-| 4 | 0:45–1:06 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (My orders), landing on the **Total spent** panel | `Scheduled / Ongoing / Historical` then `Total spent · lifetime, not this page` |
-| 5 | 1:06–1:38 | **Architecture** — see the detailed sub-shot list below | Callouts, timed to the read |
-| 6 | 1:38–1:52 | **Business Model Canvas** — `docs/assets/business-model-canvas.html` full-screen | `Phase 1 monetizes nobody` |
-| 7 | 1:52–2:00 | Back to home page / logo, end card held under the closing line | End card (below) |
+| 2 | 0:11–0:31 | WhatsApp Web: group-order prompt → reply carrying **both** links → forward the guest link into a real group → cut to the PWA. **Two windows side by side** (normal + incognito): host view left, guest view right. Guest bumps a quantity; it updates on the host's screen. Then pan the host's **Check out** control and land on the guest window, where it isn't there. | `Host link · private` / `Guest link · shared` then `Guests edit. Only the host checks out.` |
+| 3 | 0:31–0:43 | WhatsApp: MotiMahal prompt with the budget gate → reply naming the total and asking YES/NO → `yes` as a **separate** message → `Placed!` | `Nothing is placed until you say yes` |
+| 4 | 0:43–1:01 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (My orders), landing on the **Total spent** panel | `Scheduled / Ongoing / Historical`, then `Placed 7:31 PM. You were in a meeting.`, then `Total spent · lifetime, not this page` |
+| 5 | 1:01–1:41 | **Architecture**, closing on the roadmap card — see the detailed sub-shot list below | Callouts timed to the read; the last one **must** read `NEXT — not shipped yet` |
+| 6 | 1:41–1:53 | **Business Model Canvas** — `docs/assets/business-model-canvas.html` full-screen | `Phase 1 monetizes nobody` |
+| 7 | 1:53–2:00 | Back to home page / logo, end card held under the closing line | End card (below) |
 
 ### Voiceover script
 
@@ -79,34 +81,33 @@ Record in this order. Voiceover timings below are cut to match.
 > Every group order starts the same way. Forty messages, three menus, one person doing
 > arithmetic they never volunteered for. That person is the coordination tax.
 
-**[0:11–0:33] — Group ordering + host and guest (WhatsApp → PWA)**
-> One message, in plain language. EasyOrder searches Swiggy Food and Instamart at once and
-> hands back two links — a private one for the host, a shared one for everyone else.
-> Guests add and edit their own items, live; only the host can check out. Nobody asks who
-> added the roti.
+**[0:11–0:31] — Group ordering + host and guest (WhatsApp → PWA)**
+> One message. EasyOrder searches Swiggy Food and Instamart at once and hands back two
+> links — a private one for the host, a shared one for everyone else. Guests add and edit
+> their own items, live; only the host can check out.
 
-**[0:33–0:45] — Named restaurant + budget gate**
+**[0:31–0:43] — Named restaurant + budget gate**
 > It comes back at eight seventy-eight — over the eight hundred you set — and then it
 > stops. Nothing is placed until you reply yes.
 
-**[0:45–1:06] — Scheduled delivery + the host's orders page**
+**[0:43–1:01] — Scheduled delivery + the host's orders page**
 > Or order for later. It works backwards from the delivery time and places it at the right
-> moment, while you were in a meeting. The host's page holds the record — what's
-> scheduled, what's on its way, what's delivered, and what it has all cost.
+> moment. The host's page holds the record — what's scheduled, what's on its way, what's
+> delivered, and what it has all cost.
 
-**[1:06–1:38] — Under the hood (architecture)**
+**[1:01–1:41] — Under the hood (architecture, closing on what's next)**
 > Underneath: a deterministic router runs first, so "hi" never costs a model call. Real
 > orders enter a LangGraph state machine. The model does one job — a sentence into a
 > strict JSON schema — with a deterministic parser standing by. Food and Instamart run
 > concurrently over MCP, Swiggy's own protocol. A slow vertical degrades. It doesn't fail.
-> Built the way it runs: agent-first, from a locked skill set.
+> Built the way it runs: agent-first, from a locked skill set. Next: a profile builder
+> that reads your order history at onboarding, so "the usual" finally means something.
 
-**[1:38–1:52] — Business model**
-> The model, in one frame. Free for the group, because the value lands on Swiggy — bigger
-> carts, fewer abandoned ones. Revenue starts in Phase two: corporate lunches, on
-> subscription.
+**[1:41–1:53] — Business model**
+> Free for the group, because the value lands on Swiggy — bigger carts, fewer abandoned
+> ones. Revenue starts in Phase two: corporate lunches, on subscription.
 
-**[1:52–2:00] — Close**
+**[1:53–2:00] — Close**
 > Group orders are Swiggy's biggest carts. Coordination is what kills them. EasyOrder
 > takes it off the table.
 
@@ -121,22 +122,22 @@ Built for the Swiggy Builders Program.
 
 ### Word count / timing check
 
-261 spoken words, by beat:
+258 spoken words, by beat:
 
 | Beat | Words | @140 wpm |
 |---|---|---|
 | 1 Hook | 25 | 11s |
-| 2 Group order + host/guest | 51 | 22s |
+| 2 Group order + host/guest | 42 | 18s |
 | 3 Budget gate | 25 | 11s |
-| 4 Scheduled + orders page | 45 | 19s |
-| 5 Architecture | 68 | 29s |
-| 6 Business model | 30 | 13s |
+| 4 Scheduled + orders page | 39 | 17s |
+| 5 Architecture + roadmap | 85 | 36s |
+| 6 Business model | 25 | 11s |
 | 7 Close | 17 | 7s |
-| **Total** | **261** | **112s (1:52)** |
+| **Total** | **258** | **111s (1:51)** |
 
-- At 150 wpm → **104s (1:44)**
+- At 150 wpm → **103s (1:43)**
 - At 140 wpm → **111s (1:51)**
-- At 130 wpm → **120s (2:00)**
+- At 130 wpm → **119s (1:59)**
 
 This cut is **deliberately tighter than the 60-second one** — architecture and business
 model don't compress. At 140 wpm you have ~9 seconds of slack for the six beat-boundary
@@ -146,9 +147,10 @@ pauses, and the end card holds *under* the closing line rather than after it. **
 If your generated track comes in long, cut in this order — each is written to be
 droppable without breaking the argument:
 
-1. *"Nobody asks who added the roti."* (beat 2, −6 words) — the visual already says it.
-2. *"and what it has all cost"* (beat 4, −6 words) — the spend panel is legible on screen.
-3. *"while you were in a meeting"* (beat 4, −6 words) — costs you a joke, not a claim.
+1. *"and what it has all cost"* (beat 4, −6 words) — the spend panel is legible on screen.
+2. *"with a deterministic parser standing by"* (beat 5, −6 words) — it survives as a callout.
+3. *"so 'the usual' finally means something"* (beat 5, −6 words) — keeps the roadmap beat,
+   drops its punchline. Cut the joke before you cut the fact.
 
 Do **not** cut *"only the host can check out"* (beat 2), the skills clause, or *"It
 doesn't fail"* (beat 5). Those are the three lines this cut exists to deliver: the trust
@@ -222,10 +224,11 @@ seconds, four visuals, callouts landing on the clause that names them.
 
 | Time | Screen | Callout overlay | Lands on the words |
 |---|---|---|---|
-| 1:06–1:12 | `docs/diagrams/03-agentic-framework-architecture.png`, full-frame | `Router → intent families (no LLM call)` | *"a deterministic router runs first"* |
-| 1:12–1:23 | Same diagram; slow push-in on the graph nodes. Or, better, the rendered state machine from `docs/hld.md` §3.1 (GitHub renders the Mermaid — screenshot it beforehand). | `LangGraph: guardrails → intent → workers → guardrails → persist` then `LLM → strict JSON schema · deterministic fallback` | *"LangGraph state machine"* … *"strict JSON schema"* |
-| 1:23–1:32 | `docs/diagrams/01-high-level-architecture.png` — or split-screen the `services/mock-swiggy-mcp` terminal showing live `POST /mcp` lines, which is far more convincing than a static box | `MCP · Food ∥ Instamart · 2.5s each · degrade, don't fail` | *"concurrently over MCP"* |
-| 1:32–1:38 | Quick pan over the repo docs tree — `docs/` (PRD, HLD, LLD, `adr/`, `runbooks/`) — then `skills-lock.json` | `60+ locked skills · PRD → HLD/LLD → ADRs → tests` | *"agent-first, from a locked skill set"* |
+| 1:01–1:07 | `docs/diagrams/03-agentic-framework-architecture.png`, full-frame | `Router → intent families (no LLM call)` | *"a deterministic router runs first"* |
+| 1:07–1:18 | Same diagram; slow push-in on the graph nodes. Or, better, the rendered state machine from `docs/hld.md` §3.1 (GitHub renders the Mermaid — screenshot it beforehand). | `LangGraph: guardrails → intent → workers → guardrails → persist` then `LLM → strict JSON schema · deterministic fallback` | *"LangGraph state machine"* … *"strict JSON schema"* |
+| 1:18–1:28 | `docs/diagrams/01-high-level-architecture.png` — or split-screen the `services/mock-swiggy-mcp` terminal showing live `POST /mcp` lines, which is far more convincing than a static box | `MCP · Food ∥ Instamart · 2.5s each · degrade, don't fail` | *"concurrently over MCP"* |
+| 1:28–1:34 | Quick pan over the repo docs tree — `docs/` (PRD, HLD, LLD, `adr/`, `runbooks/`) — then `skills-lock.json` | `60+ locked skills · PRD → HLD/LLD → ADRs → tests` | *"agent-first, from a locked skill set"* |
+| 1:34–1:41 | **Roadmap card.** A still frame, visibly different from the live-product footage — put it on the BMC slide's dark palette so it reads as "deck", not "app". Show the graph again with one greyed-out node appended: `profile_defaults`. | `NEXT — not shipped yet` (top-left, held for the whole card) plus `onboarding → order history → typical budget · favourites · rhythm → defaults you can override` | *"Next: a profile builder…"* |
 
 > The `POST /mcp` terminal is the single most persuasive frame in the whole video: it's
 > live protocol traffic, not a diagram of intent. If you show it, run
@@ -266,14 +269,23 @@ here that isn't on this list.
 
 ### Extended alternate (only if your cap is 2:30)
 
-Adds ~16s. Replaces everything after *"It doesn't fail."*:
+Adds ~19s. Replaces everything after *"It doesn't fail."*:
 
 > Nothing here is autonomous, by the way. The agent recommends, compiles and schedules —
 > a human always says yes before money moves. That's a design rule, not a missing feature.
 > And it was built the way it runs: agent-first, from a locked skill set — the PRD, the
-> design docs and the ADRs on screen all came out of that same harness.
+> design docs and the ADRs on screen all came out of that same harness. Next on that
+> graph: a profile builder that reads your order history at onboarding and learns your
+> defaults — your usual budget, your regular places, when you actually eat — so "the
+> usual" finally means something. Defaults you can always override, on a graph that still
+> asks before it spends.
 
-Gives beat 5 ~48 seconds (1:06–1:54) and pushes the total to about 2:12 — or about 2:22
+The last clause matters more in this version than in the 2:00 cut: you've just spent a
+sentence on "nothing is autonomous," so the personalization line has to land as *better
+defaults*, not as an agent that decides for you. Those two ideas are one beat apart, and
+a judge will notice if they contradict.
+
+Gives beat 5 ~55 seconds (1:01–1:56) and pushes the total to about 2:15 — or about 2:25
 with the canvas extension below as well. Only use these if your platform's cap is
 genuinely 2:30.
 
@@ -406,6 +418,16 @@ Judges will assume anything unlabelled is real. Keep these true on screen:
   that still fits inside 2:00.)
 - No invented metrics: no latency figure, no AOV number, no user count. The canvas is
   already labelled for this.
+- **The roadmap line in beat 5 describes something that does not exist yet.** It is the
+  only unbuilt thing narrated anywhere in this script, and it is safe *only* because the
+  word "Next" and the `NEXT — not shipped yet` overlay run together. Both, or neither:
+  - Keep the overlay up for the whole card, not a flash at the start.
+  - Keep the visual obviously a *card*, not app footage. Everything before it in this
+    video is real; a roadmap frame that looks like a screenshot retroactively makes a
+    judge doubt the parts that were real.
+  - Say "Next", not "we have" or "it learns". Present tense is a claim.
+  - Design lives in `docs/user-profile-agent.md` — worth linking in the description, and
+    worth having open if anyone asks how it would work.
 
 ---
 
