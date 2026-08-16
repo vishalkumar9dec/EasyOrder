@@ -68,9 +68,19 @@ PRIVACY_NOTICE = (
     "We store your phone number and order details to run your sessions. "
     'Message "delete my data confirm" anytime to erase them.'
 )
+# First contact. Orientation and the data promise arrive together, before the
+# user has shared anything.
+#
+# It used to end the first paragraph with "In a group chat, tag @EasyOrder with
+# the same request." That path exists in the router (ChatMode.MENTION_PLANNING),
+# but it is the one flow a new user cannot actually follow: tagging a business
+# number is not a real WhatsApp mention feature. Sharing works by the host
+# forwarding the guest link, so onboarding now describes that instead — the
+# first thing a user reads should be the thing that works.
 ONBOARDING_REPLY = (
     "Hi! I'm EasyOrder. Tell me what to order, for example: "
-    f"{EXAMPLE_PROMPT}. In a group chat, tag @EasyOrder with the same request.\n\n"
+    f"{EXAMPLE_PROMPT}. I'll build the cart and send you a link you can forward "
+    "to your group.\n\n"
     f"{PRIVACY_NOTICE}"
 )
 ORDER_HISTORY_REPLY = (
