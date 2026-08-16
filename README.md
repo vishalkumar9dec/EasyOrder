@@ -286,6 +286,10 @@ scheduled delivery (business chat, same direct-message number as above; see
    30s poll interval).
 4. Log in to the PWA and open [http://localhost:5173/orders/live](http://localhost:5173/orders/live) —
    confirm the Scheduled/Ongoing/Historical tabs show the orders above.
+5. On the same page (and on `/orders`), confirm the **Total spent** panel counts the
+   placed order but *not* the scheduled one — scheduled money isn't spent yet. The
+   figure comes from `GET /api/me/spend`, which aggregates every committed record
+   rather than summing the page currently on screen.
 
 Stop the long-running services when you are done:
 

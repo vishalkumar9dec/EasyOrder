@@ -17,6 +17,12 @@ from app.models.session import (
     SessionEvent,
     SessionStatus,
 )
+from app.models.spend import (
+    SPENT_ORDER_STATUSES,
+    SPENT_SESSION_STATUSES,
+    SpendBucket,
+    SpendSummary,
+)
 
 
 class DatabaseAdapterError(RuntimeError):
@@ -28,6 +34,18 @@ class SessionNotFoundError(DatabaseAdapterError):
 
 
 ConnectionFactory = Callable[[], Awaitable[Any]]
+
+
+def _as_decimal(value: Any) -> Decimal:
+    """Normalize an aggregate result to Decimal.
+
+    ``COALESCE(SUM(...), 0)`` comes back as Decimal from asyncpg, but the zero
+    branch can arrive as an int, and a driver in mock mode may hand back a
+    float — quantize once here rather than at every call site.
+    """
+    if isinstance(value, Decimal):
+        return value.quantize(Decimal("0.01"))
+    return Decimal(str(value or 0)).quantize(Decimal("0.01"))
 
 
 def _deleted_row_count(execute_result: str) -> int:
@@ -415,6 +433,51 @@ class AsyncPostgresDBAdapter:
                 limit,
             )
             return [self._order_from_row(row) for row in rows]
+        finally:
+            await self._close_connection(connection)
+
+    async def get_spend_summary(self, wa_id: str) -> SpendSummary:
+        """Aggregate committed spend in SQL, over every record — not just a page of them."""
+
+        connection = await self._connection_factory()
+        try:
+            group_row = await connection.fetchrow(
+                """
+                SELECT
+                    COUNT(*) AS count,
+                    COALESCE(SUM(cart.total), 0) AS total
+                FROM sessions s
+                LEFT JOIN LATERAL (
+                    SELECT SUM(ci.price * ci.quantity) AS total
+                    FROM cart_items ci
+                    WHERE ci.session_id = s.session_id
+                ) cart ON TRUE
+                WHERE s.host_phone = $1 AND s.status = ANY($2::text[])
+                """,
+                wa_id,
+                [str(status) for status in SPENT_SESSION_STATUSES],
+            )
+            order_row = await connection.fetchrow(
+                """
+                SELECT
+                    COUNT(*) AS count,
+                    COALESCE(SUM(total), 0) AS total
+                FROM orders
+                WHERE wa_id = $1 AND status = ANY($2::text[])
+                """,
+                wa_id,
+                [str(status) for status in SPENT_ORDER_STATUSES],
+            )
+            return SpendSummary(
+                group_orders=SpendBucket(
+                    total=_as_decimal(group_row["total"]),
+                    count=group_row["count"],
+                ),
+                restaurant_orders=SpendBucket(
+                    total=_as_decimal(order_row["total"]),
+                    count=order_row["count"],
+                ),
+            )
         finally:
             await self._close_connection(connection)
 

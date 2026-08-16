@@ -3,12 +3,16 @@ import { useEffect, useState } from 'react';
 import {
   ApiLiveOrders,
   LiveOrderView,
+  SpendView,
   adaptLiveOrders,
+  adaptSpend,
   fetchLiveOrders,
   fetchMe,
+  fetchSpend,
   logout,
 } from '../accountModel';
 import { LoginPage } from './LoginPage';
+import { SpendSummary } from './SpendSummary';
 
 type Tab = 'scheduled' | 'ongoing' | 'historical';
 
@@ -18,7 +22,7 @@ type State =
   | { kind: 'loading' }
   | { kind: 'unauthenticated' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; waId: string; buckets: Buckets };
+  | { kind: 'ready'; waId: string; buckets: Buckets; spend: SpendView | null };
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'scheduled', label: 'Scheduled' },
@@ -48,9 +52,18 @@ export function LiveOrdersPage() {
           setState({ kind: 'unauthenticated' });
           return;
         }
-        const body = await fetchLiveOrders();
+        // Spend is supplementary: if it fails, still show the orders.
+        const [body, spend] = await Promise.all([
+          fetchLiveOrders(),
+          fetchSpend().catch(() => null),
+        ]);
         if (cancelled) return;
-        setState({ kind: 'ready', waId, buckets: adaptBuckets(body) });
+        setState({
+          kind: 'ready',
+          waId,
+          buckets: adaptBuckets(body),
+          spend: spend ? adaptSpend(spend) : null,
+        });
       } catch (err) {
         if (!cancelled) {
           setState({
@@ -104,6 +117,8 @@ export function LiveOrdersPage() {
             <p className="account-subtitle">
               Logged in as +{state.waId}. Restaurant orders placed by name over WhatsApp.
             </p>
+
+            {state.spend && <SpendSummary spend={state.spend} />}
 
             <div className="live-orders-tabs" role="tablist" aria-label="Order status">
               {TABS.map((tab) => (
