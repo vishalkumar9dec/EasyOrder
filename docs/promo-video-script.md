@@ -73,7 +73,7 @@ Record in this order. Voiceover timings below are cut to match.
 | 1 | 0:00–0:11 | Home page (`/`) — hero *"Craft Your Feast, Together"*, one quick scroll through **How It Works** | — |
 | 2 | 0:11–0:31 | WhatsApp Web: group-order prompt → reply carrying **both** links → forward the guest link into a real group → cut to the PWA. **Two windows side by side** (normal + incognito): host view left, guest view right. Guest bumps a quantity; it updates on the host's screen. Then pan the host's **Check out** control and land on the guest window, where it isn't there. | `Host link · private` / `Guest link · shared` then `Guests edit. Only the host checks out.` |
 | 3 | 0:31–0:43 | WhatsApp: MotiMahal prompt with the budget gate → reply naming the total and asking YES/NO → `yes` as a **separate** message → `Placed!` | `Nothing is placed until you say yes` |
-| 4 | 0:43–1:01 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (My orders), landing on the **Total spent** panel | `Scheduled / Ongoing / Historical`, then `Placed 7:31 PM. You were in a meeting.`, then `Total spent · lifetime, not this page` |
+| 4 | 0:43–1:01 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (**Group plans**), landing on the **Total spent** panel | `Scheduled / Ongoing / Historical`, then `Placed 7:31 PM. You were in a meeting.`, then `Total spent · lifetime, not this page` |
 | 5 | 1:01–1:32 | **Architecture** — see the detailed sub-shot list below | Callouts, timed to the read |
 | 6 | 1:32–1:53 | **Personalization, live.** WhatsApp: send just `get biryani` — no budget, no headcount — and show the reply's disclosure line: *"You didn't say, so I used your usual budget of INR 600 (from your last 3 orders)."* Then cut to `/orders` and land on the **Your usual** card. | `You said 8 words. It filled the rest.` then `Your number always wins` |
 | 7 | 1:53–2:05 | **Business Model Canvas** — `docs/assets/business-model-canvas.html` full-screen | `Phase 1 monetizes nobody` |
@@ -193,11 +193,11 @@ question *"so anyone with the link can spend the host's money?"* Show it, don't 
 
 Both need an OTP login first — do that before recording, not on camera.
 
-- **`/orders/live`** — Scheduled / Ongoing / Historical, each tab showing its **count**.
+- **`/orders/live`** (**Orders**) — Scheduled / Ongoing / Historical, each tab showing its **count**.
   This is where the scheduled biryani visibly moves from one bucket to the next when the
   background scheduler fires. Time the take so that flip happens on camera; that
   transition is the proof the scheduler is real.
-- **`/orders`** ("My orders") — past planning sessions with date, item count and total,
+- **`/orders`** (**Group plans**) — past planning sessions with date, item count and total,
   plus a review link back into each cart.
 
 ### What's true today, and what isn't
