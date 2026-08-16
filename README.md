@@ -423,6 +423,8 @@ default to mock/no-op behavior.
 - WhatsApp operating modes ADR: `docs/adr/0004-whatsapp-operating-modes.md`
 - Domain glossary: `CONTEXT.md`
 - Local demo runbook: `docs/runbooks/local-demo.md`
+- Submission video voiceover script (2:00 / 0:60 cuts): `docs/promo-video-script.md`
+- Business Model Canvas (content: `docs/business-model-canvas.md`, slide: `docs/assets/business-model-canvas.html`)
 - Operations runbook: `docs/runbooks/operations.md`
 - **Deployment runbook: `docs/runbooks/deployment.md`**
 - Tunnel 408/502 blank-page fix: `docs/runbooks/tunnel-408-502-blank-page.md`
