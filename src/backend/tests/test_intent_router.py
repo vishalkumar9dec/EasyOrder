@@ -1,5 +1,7 @@
 from app.models.whatsapp import IncomingMessage
 from app.services.intent_router import (
+    EXAMPLE_PROMPT,
+    PRIVACY_NOTICE,
     ChatMode,
     IntentFamily,
     classify_chat_mode,
@@ -67,7 +69,9 @@ def test_greeting_routes_to_onboarding_without_session() -> None:
 
     assert routed.family == IntentFamily.START_SESSION
     assert routed.creates_session is False
-    assert "@EasyOrder" in routed.reply_text
+    # A greeting is answered, not turned into an order: the reply orients the
+    # user with an example prompt instead of creating a session for "hi".
+    assert EXAMPLE_PROMPT in routed.reply_text
 
 
 def test_order_history_question_routes_to_history_intent() -> None:
@@ -147,3 +151,25 @@ def test_gibberish_routes_to_unsupported_with_safe_reply() -> None:
     assert routed.family == IntentFamily.UNSUPPORTED
     assert routed.creates_session is False
     assert "for example" in routed.reply_text
+
+
+def test_onboarding_reply_describes_a_flow_a_new_user_can_follow() -> None:
+    reply = route_business_chat_message("hi").reply_text
+
+    assert reply is not None
+    # What it is, how to order, and how sharing actually works.
+    assert "I'm EasyOrder" in reply
+    assert EXAMPLE_PROMPT in reply
+    assert "forward" in reply
+    # The data promise arrives in the same breath, before anything is shared.
+    assert PRIVACY_NOTICE in reply
+
+
+def test_onboarding_reply_does_not_advertise_group_tagging() -> None:
+    reply = route_business_chat_message("hello").reply_text
+
+    # Tagging a business number is not a real WhatsApp mention feature, so
+    # pointing a first-time user at it sends them somewhere they cannot go —
+    # and contradicts every flow the product actually demonstrates.
+    assert "tag @EasyOrder" not in reply
+    assert "group chat" not in reply.lower()
