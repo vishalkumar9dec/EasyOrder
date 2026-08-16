@@ -1,0 +1,179 @@
+/* Shared styling for the EasyOrder architecture diagrams.
+ *
+ * These are rendered to PNG with headless Chrome (see README.md in this
+ * directory). Keeping them as HTML rather than an opaque image means the next
+ * person to change the architecture can change the diagram in the same commit
+ * — the previous PNGs had no source at all and drifted for months.
+ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  width: 1024px;
+  height: 100vh;  /* the render window defines the canvas; see README */
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.035) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px) 0 0 / 32px 32px,
+    #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  color: #1a1a1a;
+  padding: 26px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+h1 {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+h1 .light { font-weight: 400; }
+
+.subtitle {
+  text-align: center;
+  font-size: 12.5px;
+  color: #5f6368;
+  margin-top: -8px;
+}
+
+.row { display: flex; gap: 12px; align-items: stretch; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.grow { flex: 1; }
+
+/* A titled region — the coloured outer containers. */
+.panel {
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel > .panel-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #3c4043;
+  text-align: center;
+}
+
+.p-client { background: #fce8e6; }
+.p-server { background: #e6f4ea; }
+.p-external { background: #e8f0fe; }
+.p-store { background: #fef7e0; }
+.p-auth { background: #f3e8fd; }
+.p-neutral { background: #f1f3f4; }
+
+/* A single component box. */
+.box {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.box h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.box p, .box li {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #3c4043;
+}
+
+.box ul { list-style: none; }
+.box li::before { content: '· '; color: #9aa0a6; }
+
+.box code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.tint-food { border-left: 3px solid #34a853; }
+.tint-llm { border-left: 3px solid #4285f4; }
+.tint-guard { border-left: 3px solid #ea4335; }
+.tint-store { border-left: 3px solid #f9ab00; }
+.tint-profile { border-left: 3px solid #a142f4; }
+
+/* Flow connectors. */
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5f6368;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.arrow-label {
+  font-size: 10px;
+  color: #5f6368;
+  text-align: center;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+/* Numbered request-flow strip along the bottom. */
+.flow {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.flow > div {
+  flex: 1;
+  padding: 8px 9px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: #3c4043;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.flow > div:last-child { border-right: none; }
+.flow b { display: block; color: #1a1a1a; font-size: 11px; }
+
+.step {
+  display: inline-block;
+  min-width: 15px;
+  height: 15px;
+  line-height: 15px;
+  border-radius: 50%;
+  background: #3c4043;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-align: center;
+  margin-right: 4px;
+}
+
+/* Footnote strip — where a diagram states what it deliberately does not show. */
+.note {
+  background: #ffffff;
+  border: 1px dashed rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #3c4043;
+}
+
+.note b { color: #1a1a1a; }
+
+table.stack { width: 100%; border-collapse: collapse; }
+table.stack td { font-size: 11px; padding: 3px 0; vertical-align: top; }
+table.stack td:first-child { color: #5f6368; width: 38%; }
+table.stack td:last-child { font-weight: 600; }

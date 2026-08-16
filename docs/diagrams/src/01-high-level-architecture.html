@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>EasyOrder — High-Level System Architecture</title>
+<link rel="stylesheet" href="_style.css" />
+</head>
+<body>
+
+<h1>EasyOrder — <span class="light">High-Level System Architecture</span></h1>
+<p class="subtitle">WhatsApp in, Swiggy out, PostgreSQL in the middle · Python 3.13 · FastAPI · LangGraph</p>
+
+<div class="row grow">
+
+  <!-- ─────────────── CLIENT ─────────────── -->
+  <div class="panel p-client" style="width: 210px">
+    <div class="panel-title">Client Ingress</div>
+
+    <div class="box">
+      <h3>WhatsApp</h3>
+      <p>Business number · 1:1 chat with the host. Meta delivers each message as a webhook.</p>
+    </div>
+
+    <div class="box">
+      <h3>PWA</h3>
+      <ul>
+        <li>Planning canvas (host + guest links)</li>
+        <li>Group plans · Orders · profile</li>
+        <li>Polls the session API every 2.5s</li>
+      </ul>
+    </div>
+
+    <div class="box tint-store">
+      <h3>Caddy</h3>
+      <p>Production only: serves the built PWA and reverse-proxies <code>/api/*</code> to the backend, same origin.</p>
+    </div>
+  </div>
+
+  <div class="col" style="width: 30px; justify-content: center"><div class="arrow">→</div></div>
+
+  <!-- ─────────────── SERVER ─────────────── -->
+  <div class="panel p-server grow">
+    <div class="panel-title">EasyOrder Server · FastAPI</div>
+
+    <div class="box">
+      <h3>API layer</h3>
+      <ul>
+        <li><code>/api/whatsapp/webhook</code> — verify + signature, route intent</li>
+        <li><code>/api/session/*</code> — bootstrap, cart edits, checkout</li>
+        <li><code>/api/me/*</code> — OTP login, orders, profile, spend</li>
+        <li><code>/api/r/*</code> — short links used in chat copy</li>
+      </ul>
+    </div>
+
+    <div class="box tint-llm">
+      <h3><span class="step">2</span>Intent router</h3>
+      <p>Regex classification into intent families <em>before</em> any model call — greetings, targeted order, history, privacy, unsupported.</p>
+    </div>
+
+    <div class="box tint-food">
+      <h3><span class="step">3</span>LangGraph agent</h3>
+      <p>guardrails → intent parser → <b>profile defaults</b> → Swiggy workers → guardrails → persist</p>
+    </div>
+
+    <div class="box tint-store">
+      <h3>Order scheduler</h3>
+      <p>Background task, 30s poll. Places scheduled orders at <code>target_placement_at</code> and notifies the host.</p>
+    </div>
+  </div>
+
+  <div class="col" style="width: 30px; justify-content: center"><div class="arrow">⇄</div></div>
+
+  <!-- ─────────────── EXTERNAL ─────────────── -->
+  <div class="panel p-external" style="width: 208px">
+    <div class="panel-title">External Services</div>
+
+    <div class="box">
+      <h3>Swiggy MCP</h3>
+      <p>Food + Instamart search, cart creation, order placement over <b>Streamable HTTP</b> (official <code>mcp</code> SDK).</p>
+      <p style="margin-top:4px;color:#5f6368">Mock server today; a Swiggy-hosted endpoint is a URL and a token away.</p>
+    </div>
+
+    <div class="box">
+      <h3>WhatsApp Cloud API</h3>
+      <p>Meta Business Platform. Replies go privately to the sender's <code>wa_id</code>.</p>
+    </div>
+
+    <div class="box tint-llm">
+      <h3>OpenAI</h3>
+      <p>Optional. <code>LLM_MODE=openai</code> for intent extraction; falls back to the deterministic parser on any failure.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── PERSISTENCE ─────────────── -->
+<div class="panel p-store">
+  <div class="panel-title">Persistence</div>
+  <div class="box tint-store">
+    <h3>PostgreSQL · asyncpg (Supabase-compatible)</h3>
+    <p><code>sessions</code> · <code>cart_items</code> · <code>orders</code> · <code>session_events</code> · <code>short_links</code> · web auth ·
+       versioned migrations in <code>infra/migrations/</code>. In-memory adapter behind the same Protocol for local and test runs.</p>
+  </div>
+</div>
+
+<div class="flow">
+  <div><b>① Webhook</b>Meta POSTs the message</div>
+  <div><b>② Route</b>Regex intent family, no LLM</div>
+  <div><b>③ Graph</b>Guardrails → parse → profile</div>
+  <div><b>④ Search</b>Food + Instamart, concurrent</div>
+  <div><b>⑤ Persist</b>Session + cart to Postgres</div>
+  <div><b>⑥ Reply</b>Host link + guest link</div>
+  <div><b>⑦ Open</b>PWA canvas from the link</div>
+  <div><b>⑧ Sync</b>Poll the session API, 2.5s</div>
+  <div><b>⑨ Schedule</b>Scheduler places when due</div>
+</div>
+
+<div class="note">
+  <b>Not Firestore.</b> ADR 0001 chose PostgreSQL over Cloud Firestore and supersedes the original decision; ADR 0007 then dropped
+  row-level security in favour of app-layer authorization. Cart sync is <b>client polling every 2.5s</b>, not a realtime subscription —
+  the Supabase Realtime channel described in ADR 0001 is not wired up yet.
+</div>
+
+</body>
+</html>

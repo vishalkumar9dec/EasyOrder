@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>EasyOrder — Agentic Query Pipeline</title>
+<link rel="stylesheet" href="_style.css" />
+</head>
+<body>
+
+<h1>Agentic Query Pipeline — <span class="light">LangGraph</span></h1>
+<p class="subtitle">One deterministic path. The model does exactly one job, and never the arithmetic.</p>
+
+<div class="row grow">
+
+  <!-- ─────────────── THE GRAPH ─────────────── -->
+  <div class="panel p-neutral grow">
+    <div class="panel-title">Message → session</div>
+
+    <div class="box">
+      <h3>Inbound message</h3>
+      <p><code>get biryani</code> · <code>2 chicken biryani … under 2000 INR</code> · <code>hi</code></p>
+    </div>
+
+    <div class="box tint-llm">
+      <h3>Intent router — before the graph, before any model</h3>
+      <p>Regex → intent family. Greetings, history, saved lists, share, discovery and privacy commands are answered here for free; only real orders enter the graph.</p>
+    </div>
+
+    <div class="box tint-guard">
+      <h3>① Input guardrails</h3>
+      <p>Injection patterns rejected with <b>HTTP 400</b>. Emails, phone numbers and card numbers masked <em>before</em> the text reaches any model.</p>
+    </div>
+
+    <div class="box tint-llm">
+      <h3>② Intent parser — the only LLM call</h3>
+      <p><code>LLM_MODE=mock</code> regex, or OpenAI with <code>response_format: json_schema</code> → budget, headcount, dietary tag, food and grocery queries. Any exception falls back to the deterministic parser, so an outage degrades instead of breaking.</p>
+    </div>
+
+    <div class="box tint-profile">
+      <h3>③ Profile defaults — arithmetic, no model</h3>
+      <p>Medians and frequencies over <b>committed</b> history fill only the slots the message left unsaid. Explicit input always wins; nothing applies below 3 orders; whatever is applied is named in the reply.</p>
+    </div>
+
+    <div class="box tint-food">
+      <h3>④ Swiggy workers — two, concurrent</h3>
+      <p><code>asyncio.gather</code> over Food and Instamart, each wrapped in <code>wait_for(2.5s)</code>. A timeout returns partial results plus a warning and the session goes <b>DEGRADED</b> — never blank. Instamart is skipped entirely when the message never asked for it.</p>
+    </div>
+
+    <div class="box tint-guard">
+      <h3>⑤ Output guardrails</h3>
+      <p>Budget check (warn, never reject — the group trims it themselves) · dietary tag validation · placeholder filter · source-attribution check. <b>Portion and cost arithmetic happens here</b>, not in a worker.</p>
+    </div>
+
+    <div class="box tint-store">
+      <h3>⑥ Persist</h3>
+      <p>Session and cart written to PostgreSQL. Host token hashed, guest token stored, status <code>ACTIVE</code> or <code>DEGRADED</code>.</p>
+    </div>
+  </div>
+
+  <!-- ─────────────── SIDE PANELS ─────────────── -->
+  <div class="col" style="width: 300px">
+
+    <div class="panel p-external">
+      <div class="panel-title">Outcomes</div>
+      <div class="box tint-food">
+        <h3>✅ Resolved</h3>
+        <p>Both verticals answered, budget respected → <code>ACTIVE</code></p>
+      </div>
+      <div class="box tint-store">
+        <h3>⚠️ Resolved with warnings</h3>
+        <p>Over budget or dietary mismatch → <code>ACTIVE</code> + warnings the canvas renders</p>
+      </div>
+      <div class="box tint-profile">
+        <h3>🟠 Degraded</h3>
+        <p>A vertical timed out or failed → <code>DEGRADED</code>, partial cart, add items manually</p>
+      </div>
+      <div class="box tint-guard">
+        <h3>❌ Blocked</h3>
+        <p>Injection detected → no session, HTTP 400</p>
+      </div>
+    </div>
+
+    <div class="panel p-neutral">
+      <div class="panel-title">Stack, as shipped</div>
+      <div class="box">
+        <table class="stack">
+          <tr><td>Orchestration</td><td>LangGraph <code>StateGraph</code></td></tr>
+          <tr><td>LLM (default)</td><td>Deterministic regex parser</td></tr>
+          <tr><td>LLM (optional)</td><td>OpenAI · strict JSON schema</td></tr>
+          <tr><td>Profile</td><td>Pure arithmetic, no model</td></tr>
+          <tr><td>Swiggy</td><td>Official <code>mcp</code> SDK · Streamable HTTP</td></tr>
+          <tr><td>Tool names</td><td><code>search_restaurants</code>, <code>get_restaurant_menu</code>, <code>search_instamart</code></td></tr>
+          <tr><td>Worker timeout</td><td><code>2.5s</code> each, concurrent</td></tr>
+          <tr><td>Store</td><td>PostgreSQL · asyncpg</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <b>Two workers, not three.</b> Earlier drafts drew a Budget Worker beside Food and Instamart; the shipped graph fans out two and does the
+  budget and portion maths inside the output-guardrail node. <b>Nothing is written to Firestore</b> — persistence is PostgreSQL (ADR 0001),
+  and the model ladder in the HLD (Ollama → Gemini → GPT-4o mini) is a plan, not what runs: today it is the regex parser or OpenAI.
+</div>
+
+</body>
+</html>

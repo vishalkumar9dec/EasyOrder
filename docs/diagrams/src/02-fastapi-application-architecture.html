@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>EasyOrder — FastAPI Application Architecture</title>
+<link rel="stylesheet" href="_style.css" />
+</head>
+<body>
+
+<h1>Detailed Architecture A — <span class="light">FastAPI Application</span></h1>
+<p class="subtitle">Routers · services · adapters, and the two token systems that keep hosts and guests apart</p>
+
+<div class="row grow">
+
+  <!-- ─────────────── INGRESS ─────────────── -->
+  <div class="panel p-external" style="width: 236px">
+    <div class="panel-title">Ingress</div>
+
+    <div class="box">
+      <h3><code>GET /api/whatsapp/webhook</code></h3>
+      <p>Meta challenge-response · verify token echo.</p>
+    </div>
+
+    <div class="box tint-guard">
+      <h3><code>POST /api/whatsapp/webhook</code></h3>
+      <ul>
+        <li>HMAC signature validation</li>
+        <li>Business-chat routing by <code>phone_number_id</code></li>
+        <li>Replay suppression via <code>session_events</code></li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Cross-cutting</h3>
+      <ul>
+        <li>Structured JSON logging · request id</li>
+        <li>Prometheus <code>/metrics</code></li>
+        <li>OTP limiter — 3/phone, 30/IP per 10 min</li>
+        <li><code>/healthz</code> · <code>/readyz</code> per-integration</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col" style="width: 26px; justify-content: center"><div class="arrow">→</div></div>
+
+  <!-- ─────────────── CORE ─────────────── -->
+  <div class="panel p-server grow">
+    <div class="panel-title">Application Core</div>
+
+    <div class="box tint-llm">
+      <h3>Intent router</h3>
+      <p>One regex pass into intent families — start session, targeted order, history, saved lists, share, discovery, privacy, unsupported — before any model call.</p>
+    </div>
+
+    <div class="box tint-food">
+      <h3>Agent service · LangGraph</h3>
+      <p>Group planning sessions. Compiles the node graph, runs it per message, persists the session and returns host token material.</p>
+    </div>
+
+    <div class="box tint-food">
+      <h3>Targeted order service</h3>
+      <p>Single-restaurant orders: menu match, budget gate (<code>PENDING_CONFIRMATION</code>), deadline → <code>target_placement_at</code>, placement.</p>
+    </div>
+
+    <div class="box tint-store">
+      <h3>Order scheduler · profile builder · privacy</h3>
+      <ul>
+        <li>Scheduler places due orders every 30s</li>
+        <li>Profile derived live from committed history</li>
+        <li><code>delete my data confirm</code> cascades every record</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col" style="width: 26px; justify-content: center"><div class="arrow">→</div></div>
+
+  <!-- ─────────────── AUTH ─────────────── -->
+  <div class="panel p-auth" style="width: 232px">
+    <div class="panel-title">Authorization</div>
+
+    <div class="box tint-guard">
+      <h3>Host token</h3>
+      <p><code>host_&lt;urlsafe32&gt;</code>, stored only as a <b>SHA-256 hash</b>. Sent on the private channel. Checkout, confirm and OAuth are host-only.</p>
+    </div>
+
+    <div class="box">
+      <h3>Guest token</h3>
+      <p><code>guest_&lt;urlsafe24&gt;</code>, safe to forward into a group. Read and cart edits only — checkout returns <b>403</b>.</p>
+    </div>
+
+    <div class="box">
+      <h3>Web session</h3>
+      <p>WhatsApp OTP → <code>httponly</code> cookie (ADR 0006). Scopes every <code>/api/me/*</code> read to one <code>wa_id</code>.</p>
+    </div>
+
+    <div class="box tint-guard">
+      <h3>Enforced, not assumed</h3>
+      <p><code>make security-smoke</code> is release-blocking: guest checkout, guest confirm, cross-session tokens and host-token leakage all covered.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── ADAPTERS ─────────────── -->
+<div class="panel p-store">
+  <div class="panel-title">Adapters — every one has a Protocol and a mock</div>
+  <div class="row">
+    <div class="box grow tint-store">
+      <h3>Database</h3>
+      <p><code>AsyncPostgresDBAdapter</code> over a shared asyncpg pool, or <code>InMemoryDBAdapter</code> for tests and local mock mode.</p>
+    </div>
+    <div class="box grow tint-food">
+      <h3>Swiggy</h3>
+      <p><code>SwiggyMcpClient</code> over Streamable HTTP, or the in-process <code>MockSwiggyMcpClient</code>. Selected by <code>SWIGGY_CLIENT_MODE</code>.</p>
+    </div>
+    <div class="box grow tint-llm">
+      <h3>LLM</h3>
+      <p><code>LLMIntentParser</code> (OpenAI, strict JSON schema) with automatic fallback to <code>MockIntentParser</code>. Selected by <code>LLM_MODE</code>.</p>
+    </div>
+    <div class="box grow">
+      <h3>WhatsApp</h3>
+      <p><code>MetaCloudWhatsAppSender</code> (template → CTA → text) or <code>MockWhatsAppSender</code>, which captures sends in-process.</p>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <b>No Firebase anywhere.</b> There is no Firestore adapter, no Anonymous Auth and no security-rule evaluation: ADR 0001 chose PostgreSQL,
+  ADR 0006 replaced client auth with WhatsApp OTP, and ADR 0007 dropped row-level security in favour of authorization in the application,
+  checked by <code>security-smoke</code>. The MCP client speaks <b>Streamable HTTP</b>, not stdio JSON-RPC.
+</div>
+
+</body>
+</html>
