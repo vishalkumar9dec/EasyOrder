@@ -9,6 +9,11 @@ web app opened from a WhatsApp link, with mock integrations by default so the pr
 flow can be tested locally before live WhatsApp, Swiggy, OAuth, or Supabase credentials
 are required.
 
+The agent also learns from what a user has actually ordered, so a bare `get biryani`
+arrives with their usual budget, headcount and dietary preference already filled in —
+never overriding anything they stated, and always saying what it applied. See
+[Learned Preferences](#learned-preferences).
+
 ## Project Structure
 
 ```text
@@ -144,6 +149,59 @@ what the test suite and local demo use. `LLM_MODE=openai` uses a real OpenAI cal
 an automatic fallback to the deterministic parser if the API call fails, so an LLM
 outage degrades gracefully instead of breaking the whole flow. `make backend-dev`
 refuses to start with `LLM_MODE=openai` and no key set (fail-closed).
+
+## Learned Preferences
+
+The agent graph runs a `profile_defaults` node between intent parsing and the Swiggy
+workers:
+
+```text
+input_guardrails → intent_parser → profile_defaults → swiggy_workers → output_guardrails → persistence
+```
+
+It derives the sender's preferences from their **committed** order history — placed or
+delivered restaurant orders, and group sessions that reached `ORDERED` — and fills only
+the slots the prompt left unsaid. So `get biryani` produces a cart built on what that
+user actually orders instead of the stock 3000-budget-for-4 constants.
+
+What it learns: median spend and ceiling, usual headcount, dietary tendency, favourite
+restaurants, and the weekday/hour they order most.
+
+Three rules, all enforced in `app/services/agent.py` and covered by tests:
+
+- **Explicit input always wins.** `ParsedIntent.specified` records which fields the user
+  actually stated, so `under 2000` is never overwritten by a habit.
+- **Nothing is applied below `MIN_OBSERVATIONS` (3) committed orders.** A default guessed
+  from one order is worse than no default.
+- **Applied defaults are disclosed** in the WhatsApp reply, with how to override them.
+
+No LLM is involved: medians and frequencies are exact and cheap to compute directly, and
+a model asked to do arithmetic is wrong in ways tests don't catch. The profile is derived
+live on each use rather than cached, so it is never stale — an order placed a second ago
+already counts. A failed profile read is logged and skipped; personalization improves an
+order but is never a precondition for one.
+
+Design notes and what is deliberately *not* built yet (LLM cuisine/complaint analysis,
+override capture, Swiggy-sourced history):
+[docs/user-profile-agent.md](docs/user-profile-agent.md).
+
+## Account API
+
+Endpoints behind the OTP web session cookie (`/api/auth/otp/verify`), all scoped to the
+logged-in `wa_id`:
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/me` | The logged-in `wa_id`. |
+| `GET /api/me/orders` | Past group planning sessions with item counts and totals. |
+| `GET /api/me/orders/live` | Targeted orders bucketed Scheduled / Ongoing / Historical. |
+| `GET /api/me/profile` | Learned preferences, `observations`, and whether they are confident enough to apply. |
+| `GET /api/me/spend` | Lifetime committed spend, split into group and restaurant orders. |
+
+`spend` and `profile` are both aggregated over every qualifying record, not over the page
+of orders the listings show — the listings are paginated and summing them would
+under-report. Both count committed money/orders only: scheduled, pending, cancelled and
+failed orders are intent, not evidence.
 
 ## Manual Verification
 
@@ -437,7 +495,7 @@ default to mock/no-op behavior.
 - Local demo runbook: `docs/runbooks/local-demo.md`
 - Submission video voiceover script (2:00 / 0:60 cuts): `docs/promo-video-script.md`
 - Business Model Canvas (content: `docs/business-model-canvas.md`, slide: `docs/assets/business-model-canvas.html`)
-- User preference profile and the `profile_defaults` graph node: `docs/user-profile-agent.md`
+- Learned preferences and the `profile_defaults` graph node: `docs/user-profile-agent.md`
 - Operations runbook: `docs/runbooks/operations.md`
 - **Deployment runbook: `docs/runbooks/deployment.md`**
 - Tunnel 408/502 blank-page fix: `docs/runbooks/tunnel-408-502-blank-page.md`
