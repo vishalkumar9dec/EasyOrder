@@ -23,6 +23,7 @@ from app.models.session import (
     SessionInitResult,
     SessionStatus,
 )
+from app.models.spend import SpendSummary
 from app.models.whatsapp import IncomingMessage
 
 
@@ -261,6 +262,14 @@ class IDBAdapter(Protocol):
 
     async def list_orders_for_host(self, wa_id: str, *, limit: int = 30) -> list[Order]:
         """Retrieve the most recent targeted orders for a wa_id, newest first."""
+        ...
+
+    async def get_spend_summary(self, wa_id: str) -> SpendSummary:
+        """Total committed spend for a wa_id, split by surface.
+
+        Counts every qualifying record, not just the ones recent enough to
+        appear in the listings above.
+        """
         ...
 
     async def get_due_scheduled_orders(

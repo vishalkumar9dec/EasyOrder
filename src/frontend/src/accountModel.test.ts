@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { adaptOrder, adaptOrders, isValidPhoneInput } from './accountModel';
+import { adaptOrder, adaptOrders, adaptSpend, isValidPhoneInput } from './accountModel';
 
 const order = {
   session_id: 'session_abc123',
@@ -64,5 +64,43 @@ describe('isValidPhoneInput', () => {
     for (const phone of ['', 'hello', '12ab34', '+1']) {
       expect(isValidPhoneInput(phone)).toBe(false);
     }
+  });
+});
+
+describe('adaptSpend', () => {
+  const spend = {
+    wa_id: '919988776655',
+    currency: 'INR',
+    total: '1228.50',
+    order_count: 3,
+    group_orders: { total: '678.00', count: 1 },
+    restaurant_orders: { total: '550.50', count: 2 },
+  };
+
+  it('formats the headline total and per-surface breakdown', () => {
+    const view = adaptSpend(spend);
+
+    expect(view.totalLabel).toBe('₹1,228.50');
+    expect(view.ordersLabel).toBe('across 3 orders');
+    expect(view.groupOrdersLabel).toBe('₹678.00 · 1 order');
+    expect(view.restaurantOrdersLabel).toBe('₹550.50 · 2 orders');
+    expect(view.isEmpty).toBe(false);
+  });
+
+  it('marks a zero-spend account empty so the panel can be hidden', () => {
+    const view = adaptSpend({
+      ...spend,
+      total: '0.00',
+      order_count: 0,
+      group_orders: { total: '0.00', count: 0 },
+      restaurant_orders: { total: '0.00', count: 0 },
+    });
+
+    expect(view.isEmpty).toBe(true);
+    expect(view.totalLabel).toBe('₹0.00');
+  });
+
+  it('does not render NaN if the API sends something unparseable', () => {
+    expect(adaptSpend({ ...spend, total: 'oops' }).totalLabel).toBe('₹0.00');
   });
 });
