@@ -137,11 +137,11 @@ does not speak until 0:14 — the sketch has already made the argument.*
 > Built the way it runs: agent-first, from a locked skill set.
 
 **[1:35–2:05] — Onboarding, and what it learns**
-> It starts knowing nothing about you. Say hi, and it says what it is, what it stores,
-> and how to erase it — all in the first reply. Then it watches. Three orders later it
-> stops counting down and starts filling in what you leave out: your usual budget, the
-> place you keep going back to. Name a number and your number wins. Either way, it tells
-> you which.
+> It starts knowing nothing. Say hi, and the first reply tells you how to order,
+> what it stores, and how to erase it — before you've given it anything. Then it watches.
+> Three orders later it stops counting down and starts filling in what you leave out: your
+> usual budget, the place you keep going back to. Name a number and your number wins.
+> Either way, it says which.
 
 **[2:05–2:17] — Business model**
 > Free for the group, because the value lands on Swiggy — bigger carts, fewer abandoned
@@ -358,6 +358,24 @@ or wipe it first by sending `delete my data` then `delete my data confirm`.
 
    Hold on it. Orientation and the data promise arrive together, unprompted, before the
    user has given anything up — worth a beat of silence rather than narration.
+
+   ⚠️ **The middle sentence contradicts the rest of the video.** *"In a group chat, tag
+   @EasyOrder with the same request"* puts a group-tagging instruction on screen, while
+   every other beat — and every prompt on the message sheet — is a plain 1:1 message to
+   the business number. `docs/prompts/demo.md` is blunt about why: tagging a business
+   number is not a real WhatsApp mention feature, and the product does not need one. The
+   host forwards a link; that is the sharing mechanic.
+
+   The code does still route tagged messages (`ChatMode.MENTION_PLANNING`), so the line
+   is not false — it just advertises the one path you cannot demonstrate. Three ways to
+   handle it, best first:
+
+   1. **Change the copy** in `ONBOARDING_REPLY` (`services/intent_router.py`) so onboarding
+      describes the flow the product actually runs. One line, one test.
+   2. **Frame the shot** on the first and last sentences. Works, but you are hiding a line
+      rather than fixing it, and a judge who scrolls the chat sees it anyway.
+   3. **Leave it** and accept that the most-watched frame of your onboarding beat tells
+      the viewer to do something the demo never does.
 2. Place **one** order from this number, log in, and open `/orders` (**Group plans**).
    The **Your usual** card is there but greyed and dashed, reading *"2 more orders until
    EasyOrder starts using this."* That frame is what makes the threshold real: the system
