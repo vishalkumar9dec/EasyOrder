@@ -3,122 +3,169 @@
 <head>
 <meta charset="utf-8" />
 <title>EasyOrder — High-Level System Architecture</title>
-<link rel="stylesheet" href="_style.css" />
+<style> html, body { margin: 0; padding: 0; background: #fff; } </style>
+<link rel="stylesheet" href="_diagram.css" />
 </head>
 <body>
+<svg width="1120" height="860" viewBox="0 0 1120 860" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368" />
+    </marker>
+    <marker id="arrow-start" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368" />
+    </marker>
+    <marker id="arrow-light" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa0a6" />
+    </marker>
+  </defs>
 
-<h1>EasyOrder — <span class="light">High-Level System Architecture</span></h1>
-<p class="subtitle">WhatsApp in, Swiggy out, PostgreSQL in the middle · Python 3.13 · FastAPI · LangGraph</p>
+  <rect class="bg" width="1120" height="860" />
 
-<div class="row grow">
+  <text class="h1" x="560" y="40">EasyOrder — <tspan class="h1-light">High-Level System Architecture</tspan></text>
+  <text class="h2" x="560" y="62">WhatsApp in, Swiggy out, PostgreSQL in the middle · FastAPI · LangGraph · Python 3.13</text>
 
-  <!-- ─────────────── CLIENT ─────────────── -->
-  <div class="panel p-client" style="width: 210px">
-    <div class="panel-title">Client Ingress</div>
+  <!-- ══════════ PANELS ══════════ -->
+  <rect class="panel p-client" x="24" y="112" width="252" height="472" />
+  <text class="panel-title" x="150" y="134">CLIENT</text>
 
-    <div class="box">
-      <h3>WhatsApp</h3>
-      <p>Business number · 1:1 chat with the host. Meta delivers each message as a webhook.</p>
-    </div>
+  <rect class="panel p-server" x="316" y="112" width="420" height="556" />
+  <text class="panel-title" x="526" y="134">EASYORDER SERVER · FASTAPI</text>
 
-    <div class="box">
-      <h3>PWA</h3>
-      <ul>
-        <li>Planning canvas (host + guest links)</li>
-        <li>Group plans · Orders · profile</li>
-        <li>Polls the session API every 2.5s</li>
-      </ul>
-    </div>
+  <rect class="panel p-external" x="776" y="112" width="320" height="472" />
+  <text class="panel-title" x="936" y="134">EXTERNAL SERVICES</text>
 
-    <div class="box tint-store">
-      <h3>Caddy</h3>
-      <p>Production only: serves the built PWA and reverse-proxies <code>/api/*</code> to the backend, same origin.</p>
-    </div>
-  </div>
+  <rect class="panel p-store" x="316" y="706" width="780" height="96" />
+  <text class="panel-title" x="706" y="728">PERSISTENCE</text>
 
-  <div class="col" style="width: 30px; justify-content: center"><div class="arrow">→</div></div>
+  <!-- ══════════ CLIENT NODES ══════════ -->
+  <rect class="node a-guard node-accent" x="44" y="148" width="212" height="76" />
+  <text class="n-title" x="58" y="172">WhatsApp</text>
+  <text class="n-sub" x="58" y="190">Host's phone · 1:1 chat</text>
+  <text class="n-mono" x="58" y="208">business number</text>
 
-  <!-- ─────────────── SERVER ─────────────── -->
-  <div class="panel p-server grow">
-    <div class="panel-title">EasyOrder Server · FastAPI</div>
+  <rect class="node" x="44" y="268" width="212" height="98" />
+  <text class="n-title" x="58" y="292">PWA</text>
+  <text class="n-sub" x="58" y="310">Planning canvas · Group</text>
+  <text class="n-sub" x="58" y="326">plans · Orders · profile</text>
+  <text class="n-mono" x="58" y="346">React + Vite</text>
 
-    <div class="box">
-      <h3>API layer</h3>
-      <ul>
-        <li><code>/api/whatsapp/webhook</code> — verify + signature, route intent</li>
-        <li><code>/api/session/*</code> — bootstrap, cart edits, checkout</li>
-        <li><code>/api/me/*</code> — OTP login, orders, profile, spend</li>
-        <li><code>/api/r/*</code> — short links used in chat copy</li>
-      </ul>
-    </div>
+  <rect class="node a-store node-accent" x="44" y="410" width="212" height="76" />
+  <text class="n-title" x="58" y="434">Caddy</text>
+  <text class="n-sub" x="58" y="452">Serves the PWA, proxies</text>
+  <text class="n-mono" x="58" y="470">/api/* · production only</text>
 
-    <div class="box tint-llm">
-      <h3><span class="step">2</span>Intent router</h3>
-      <p>Regex classification into intent families <em>before</em> any model call — greetings, targeted order, history, privacy, unsupported.</p>
-    </div>
+  <!-- ══════════ SERVER NODES ══════════ -->
+  <rect class="node" x="336" y="148" width="380" height="84" />
+  <text class="n-title" x="352" y="172">API layer</text>
+  <text class="n-mono" x="352" y="192">/api/whatsapp/webhook · /api/session/*</text>
+  <text class="n-mono" x="352" y="210">/api/me/* · /api/r/*</text>
 
-    <div class="box tint-food">
-      <h3><span class="step">3</span>LangGraph agent</h3>
-      <p>guardrails → intent parser → <b>profile defaults</b> → Swiggy workers → guardrails → persist</p>
-    </div>
+  <rect class="node a-llm node-accent" x="336" y="276" width="380" height="68" />
+  <text class="n-title" x="352" y="300">Intent router</text>
+  <text class="n-sub" x="352" y="318">Regex → intent family. No model call.</text>
+  <text class="n-sub" x="352" y="334">Greetings, history, privacy answered here.</text>
 
-    <div class="box tint-store">
-      <h3>Order scheduler</h3>
-      <p>Background task, 30s poll. Places scheduled orders at <code>target_placement_at</code> and notifies the host.</p>
-    </div>
-  </div>
+  <rect class="node a-food node-accent" x="336" y="388" width="380" height="130" />
+  <text class="n-title" x="352" y="412">LangGraph agent</text>
+  <text class="n-sub" x="352" y="432">guardrails → intent parser → profile</text>
+  <text class="n-sub" x="352" y="448">defaults → workers → guardrails → persist</text>
+  <text class="n-sub" x="352" y="472">Targeted-order service shares the same</text>
+  <text class="n-sub" x="352" y="488">MCP client and the same budget gate.</text>
+  <text class="n-mono" x="352" y="508">services/agent.py</text>
 
-  <div class="col" style="width: 30px; justify-content: center"><div class="arrow">⇄</div></div>
+  <rect class="node a-store node-accent" x="336" y="562" width="380" height="80" />
+  <text class="n-title" x="352" y="586">Order scheduler</text>
+  <text class="n-sub" x="352" y="604">Background task · 30s poll · places due</text>
+  <text class="n-sub" x="352" y="620">orders and notifies the host</text>
 
-  <!-- ─────────────── EXTERNAL ─────────────── -->
-  <div class="panel p-external" style="width: 208px">
-    <div class="panel-title">External Services</div>
+  <!-- ══════════ EXTERNAL NODES ══════════ -->
+  <rect class="node a-food node-accent" x="796" y="148" width="280" height="94" />
+  <text class="n-title" x="810" y="172">Swiggy MCP</text>
+  <text class="n-sub" x="810" y="190">Food + Instamart search,</text>
+  <text class="n-sub" x="810" y="206">cart, place order</text>
+  <text class="n-mono" x="810" y="228">Streamable HTTP · mcp SDK</text>
 
-    <div class="box">
-      <h3>Swiggy MCP</h3>
-      <p>Food + Instamart search, cart creation, order placement over <b>Streamable HTTP</b> (official <code>mcp</code> SDK).</p>
-      <p style="margin-top:4px;color:#5f6368">Mock server today; a Swiggy-hosted endpoint is a URL and a token away.</p>
-    </div>
+  <rect class="node" x="796" y="288" width="280" height="76" />
+  <text class="n-title" x="810" y="312">WhatsApp Cloud API</text>
+  <text class="n-sub" x="810" y="330">Meta Business Platform</text>
+  <text class="n-mono" x="810" y="350">delivers + sends messages</text>
 
-    <div class="box">
-      <h3>WhatsApp Cloud API</h3>
-      <p>Meta Business Platform. Replies go privately to the sender's <code>wa_id</code>.</p>
-    </div>
+  <rect class="node a-llm node-accent" x="796" y="410" width="280" height="76" />
+  <text class="n-title" x="810" y="434">OpenAI</text>
+  <text class="n-sub" x="810" y="452">Optional · intent extraction</text>
+  <text class="n-mono" x="810" y="472">LLM_MODE=openai</text>
 
-    <div class="box tint-llm">
-      <h3>OpenAI</h3>
-      <p>Optional. <code>LLM_MODE=openai</code> for intent extraction; falls back to the deterministic parser on any failure.</p>
-    </div>
-  </div>
-</div>
+  <!-- ══════════ PERSISTENCE NODE ══════════ -->
+  <rect class="node a-store node-accent" x="336" y="740" width="740" height="48" />
+  <text class="n-title" x="352" y="762">PostgreSQL · asyncpg</text>
+  <text class="n-mono" x="352" y="780">sessions · cart_items · orders · session_events · short_links · web auth</text>
 
-<!-- ─────────────── PERSISTENCE ─────────────── -->
-<div class="panel p-store">
-  <div class="panel-title">Persistence</div>
-  <div class="box tint-store">
-    <h3>PostgreSQL · asyncpg (Supabase-compatible)</h3>
-    <p><code>sessions</code> · <code>cart_items</code> · <code>orders</code> · <code>session_events</code> · <code>short_links</code> · web auth ·
-       versioned migrations in <code>infra/migrations/</code>. In-memory adapter behind the same Protocol for local and test runs.</p>
-  </div>
-</div>
+  <!-- ══════════ EDGES ══════════ -->
 
-<div class="flow">
-  <div><b>① Webhook</b>Meta POSTs the message</div>
-  <div><b>② Route</b>Regex intent family, no LLM</div>
-  <div><b>③ Graph</b>Guardrails → parse → profile</div>
-  <div><b>④ Search</b>Food + Instamart, concurrent</div>
-  <div><b>⑤ Persist</b>Session + cart to Postgres</div>
-  <div><b>⑥ Reply</b>Host link + guest link</div>
-  <div><b>⑦ Open</b>PWA canvas from the link</div>
-  <div><b>⑧ Sync</b>Poll the session API, 2.5s</div>
-  <div><b>⑨ Schedule</b>Scheduler places when due</div>
-</div>
+  <!-- 1 WhatsApp → API -->
+  <path class="edge" d="M 256 186 H 336" />
+  <circle class="badge" cx="296" cy="186" r="8" /><text class="badge-text" x="296" y="189.5">1</text>
+  <text class="e-label" x="296" y="170" text-anchor="middle">webhook POST</text>
 
-<div class="note">
-  <b>Not Firestore.</b> ADR 0001 chose PostgreSQL over Cloud Firestore and supersedes the original decision; ADR 0007 then dropped
-  row-level security in favour of app-layer authorization. Cart sync is <b>client polling every 2.5s</b>, not a realtime subscription —
-  the Supabase Realtime channel described in ADR 0001 is not wired up yet.
-</div>
+  <!-- 2 API → router -->
+  <path class="edge" d="M 526 232 V 276" />
+  <circle class="badge" cx="508" cy="254" r="8" /><text class="badge-text" x="508" y="257.5">2</text>
+  <text class="e-label" x="520" y="258">route</text>
 
+  <!-- 3 router → agent -->
+  <path class="edge" d="M 526 344 V 388" />
+  <circle class="badge" cx="508" cy="366" r="8" /><text class="badge-text" x="508" y="369.5">3</text>
+  <text class="e-label" x="520" y="370">order intent → graph</text>
+
+  <!-- 4 agent ⇄ Swiggy MCP -->
+  <path class="edge-both" d="M 716 420 H 750 V 195 H 796" />
+  <circle class="badge" cx="750" cy="300" r="8" /><text class="badge-text" x="750" y="303.5">4</text>
+  <text class="e-label" x="744" y="256" text-anchor="end">MCP tool calls</text>
+  <text class="e-label-sub" x="744" y="270" text-anchor="end">Food + Instamart, 2.5s each</text>
+
+  <!-- agent → OpenAI (optional) -->
+  <path class="edge-dashed" d="M 716 470 H 768 V 448 H 796" />
+  <text class="e-label-sub" x="722" y="492">parse (optional)</text>
+
+  <!-- 5 agent → Postgres -->
+  <path class="edge" d="M 336 470 H 300 V 764 H 336" />
+  <circle class="badge" cx="300" cy="640" r="8" /><text class="badge-text" x="300" y="643.5">5</text>
+  <text class="e-label" x="286" y="700" text-anchor="end">persist session + cart</text>
+
+  <!-- 6 API → Cloud API -->
+  <path class="edge" d="M 716 200 H 756 V 326 H 796" />
+  <circle class="badge" cx="738" cy="240" r="8" /><text class="badge-text" x="738" y="243.5">6</text>
+  <text class="e-label" x="748" y="216">reply</text>
+
+  <!-- 7 Cloud API → WhatsApp -->
+  <path class="edge-dashed" d="M 936 288 V 92 H 150 V 148" />
+  <circle class="badge" cx="560" cy="92" r="8" /><text class="badge-text" x="560" y="95.5">7</text>
+  <text class="e-label" x="574" y="88">host link + guest link delivered</text>
+
+  <!-- 8 PWA ⇄ API -->
+  <path class="edge-both" d="M 256 300 H 296 V 214 H 336" />
+  <circle class="badge" cx="296" cy="256" r="8" /><text class="badge-text" x="296" y="259.5">8</text>
+  <text class="e-label" x="150" y="250" text-anchor="middle">open link · poll 2.5s</text>
+
+  <!-- PWA → Caddy -->
+  <path class="edge-dashed" d="M 150 366 V 410" />
+  <text class="e-label-sub" x="158" y="394">prod</text>
+
+  <!-- 9 scheduler ⇄ Postgres -->
+  <path class="edge-both" d="M 640 642 V 740" />
+  <circle class="badge" cx="622" cy="692" r="8" /><text class="badge-text" x="622" y="695.5">9</text>
+  <text class="e-label" x="650" y="696">due orders</text>
+
+  <!-- scheduler → MCP -->
+  <path class="edge-dashed" d="M 716 602 H 1092 V 242" />
+  <text class="e-label-sub" x="1084" y="594" text-anchor="end">places via MCP</text>
+
+  <!-- ══════════ FOOTNOTE ══════════ -->
+  <rect class="note-box" x="24" y="812" width="1072" height="36" />
+  <text class="note-text" x="38" y="835">
+    <tspan class="note-bold">Not Firestore.</tspan> ADR 0001 chose PostgreSQL and supersedes the original Firestore decision; ADR 0007 dropped row-level security for app-layer authorization. Cart sync is client polling, not a realtime subscription.
+  </text>
+</svg>
 </body>
 </html>

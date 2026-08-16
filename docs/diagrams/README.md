@@ -1,10 +1,13 @@
 # Architecture diagrams
 
-The three PNGs in this directory are **generated**, not drawn. Their source is the HTML in
-`src/`, so a change to the architecture and a change to the diagram can land in the same
-commit. The previous PNGs had no source at all, which is how they came to show Cloud
-Firestore, Firebase Anonymous Auth, stdio JSON-RPC and a Budget Worker long after none of
-those were true.
+The three PNGs in this directory are **generated**, not drawn. Their source is hand-written
+SVG (inside a thin HTML wrapper) in `src/`, so a change to the architecture and a change to
+the diagram can land in the same commit. The previous PNGs had no source at all, which is
+how they came to show Cloud Firestore, Firebase Anonymous Auth, stdio JSON-RPC and a Budget
+Worker long after none of those were true.
+
+They are node-and-edge diagrams: every component is a box, and every connection is a drawn,
+labelled arrow you can follow with a finger. Numbered badges mark the order of a request.
 
 | PNG | Source | Shows |
 | --- | --- | --- |
@@ -14,35 +17,41 @@ those were true.
 
 ## Regenerating
 
-Headless Chrome renders the page at a fixed window size; the CSS uses `height: 100vh`, so
-the window size *is* the canvas. Heights differ per diagram because content differs.
+Headless Chrome renders each page at the SVG's own size. The window size must match the
+`width`/`height` on the `<svg>` element, which differs per diagram.
 
 ```bash
 cd docs/diagrams/src
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 "$CHROME" --headless --disable-gpu --hide-scrollbars \
-  --window-size=1024,820 --screenshot=../01-high-level-architecture.png \
+  --window-size=1120,860 --screenshot=../01-high-level-architecture.png \
   01-high-level-architecture.html
 
 "$CHROME" --headless --disable-gpu --hide-scrollbars \
-  --window-size=1024,860 --screenshot=../02-fastapi-application-architecture.png \
+  --window-size=1120,900 --screenshot=../02-fastapi-application-architecture.png \
   02-fastapi-application-architecture.html
 
 "$CHROME" --headless --disable-gpu --hide-scrollbars \
-  --window-size=1024,908 --screenshot=../03-agentic-framework-architecture.png \
+  --window-size=1120,960 --screenshot=../03-agentic-framework-architecture.png \
   03-agentic-framework-architecture.html
 ```
 
-If you add content and it clips, raise that diagram's window height and update it here.
-Open the HTML in a normal browser while editing — it renders identically.
+If you add content and it clips, raise both the `<svg>` height and the window height here.
+Open the HTML in a normal browser while editing — it renders identically, and SVG
+coordinates make it easy to nudge a box or reroute an arrow.
 
 ## Editing
 
-`src/_style.css` holds the shared visual language: panel colours (`p-client`, `p-server`,
-`p-external`, `p-store`, `p-auth`, `p-neutral`), the `box` component, coloured left borders
-(`tint-food`, `tint-llm`, `tint-guard`, `tint-store`, `tint-profile`), the numbered `flow`
-strip and the dashed `note` footer.
+`src/_diagram.css` holds the shared visual language: panel fills (`p-client`, `p-server`,
+`p-external`, `p-store`, `p-auth`, `p-neutral`), the `node` box with coloured strokes
+(`a-food`, `a-llm`, `a-guard`, `a-store`, `a-profile`), the edge styles (`edge`,
+`edge-both` for two-way, `edge-dashed` for optional or out-of-band), numbered `badge`
+circles, and the dashed `note-box` footer.
+
+Boxes are `<rect>` plus `<text>` at explicit coordinates; connections are `<path>` with
+elbow routing (`M x y H x V y H x`). Keep arrows out of boxes they do not connect — a line
+crossing a component reads as a connection to it.
 
 Each diagram ends with a `note` stating what it deliberately does **not** claim. Keep that
 habit: the footnotes are where the old diagrams' drift would have been caught.

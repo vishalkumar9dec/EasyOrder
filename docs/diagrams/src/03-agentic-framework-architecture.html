@@ -3,106 +3,157 @@
 <head>
 <meta charset="utf-8" />
 <title>EasyOrder — Agentic Query Pipeline</title>
-<link rel="stylesheet" href="_style.css" />
+<style> html, body { margin: 0; padding: 0; background: #fff; } </style>
+<link rel="stylesheet" href="_diagram.css" />
 </head>
 <body>
+<svg width="1120" height="960" viewBox="0 0 1120 960" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368" />
+    </marker>
+    <marker id="arrow-start" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368" />
+    </marker>
+    <marker id="arrow-light" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa0a6" />
+    </marker>
+  </defs>
 
-<h1>Agentic Query Pipeline — <span class="light">LangGraph</span></h1>
-<p class="subtitle">One deterministic path. The model does exactly one job, and never the arithmetic.</p>
+  <rect class="bg" width="1120" height="960" />
 
-<div class="row grow">
+  <text class="h1" x="560" y="40">Agentic Query Pipeline — <tspan class="h1-light">LangGraph</tspan></text>
+  <text class="h2" x="560" y="62">One deterministic path. The model does exactly one job, and never the arithmetic.</text>
 
-  <!-- ─────────────── THE GRAPH ─────────────── -->
-  <div class="panel p-neutral grow">
-    <div class="panel-title">Message → session</div>
+  <!-- ══════════ PANELS ══════════ -->
+  <rect class="panel p-neutral" x="24" y="112" width="700" height="760" />
+  <text class="panel-title" x="374" y="134">MESSAGE → SESSION</text>
 
-    <div class="box">
-      <h3>Inbound message</h3>
-      <p><code>get biryani</code> · <code>2 chicken biryani … under 2000 INR</code> · <code>hi</code></p>
-    </div>
+  <rect class="panel p-external" x="756" y="112" width="340" height="342" />
+  <text class="panel-title" x="926" y="134">OUTCOMES</text>
 
-    <div class="box tint-llm">
-      <h3>Intent router — before the graph, before any model</h3>
-      <p>Regex → intent family. Greetings, history, saved lists, share, discovery and privacy commands are answered here for free; only real orders enter the graph.</p>
-    </div>
+  <rect class="panel p-store" x="756" y="482" width="340" height="390" />
+  <text class="panel-title" x="926" y="504">STACK, AS SHIPPED</text>
 
-    <div class="box tint-guard">
-      <h3>① Input guardrails</h3>
-      <p>Injection patterns rejected with <b>HTTP 400</b>. Emails, phone numbers and card numbers masked <em>before</em> the text reaches any model.</p>
-    </div>
+  <!-- ══════════ PIPELINE NODES ══════════ -->
+  <rect class="node" x="204" y="150" width="340" height="50" />
+  <text class="n-title" x="218" y="172">Inbound message</text>
+  <text class="n-mono" x="218" y="190">get biryani · order X from Y · hi</text>
 
-    <div class="box tint-llm">
-      <h3>② Intent parser — the only LLM call</h3>
-      <p><code>LLM_MODE=mock</code> regex, or OpenAI with <code>response_format: json_schema</code> → budget, headcount, dietary tag, food and grocery queries. Any exception falls back to the deterministic parser, so an outage degrades instead of breaking.</p>
-    </div>
+  <rect class="node a-llm node-accent" x="204" y="232" width="340" height="60" />
+  <text class="n-title" x="218" y="254">Intent router</text>
+  <text class="n-sub" x="218" y="272">Regex → intent family. No model call.</text>
+  <text class="n-mono" x="218" y="288">services/intent_router.py</text>
 
-    <div class="box tint-profile">
-      <h3>③ Profile defaults — arithmetic, no model</h3>
-      <p>Medians and frequencies over <b>committed</b> history fill only the slots the message left unsaid. Explicit input always wins; nothing applies below 3 orders; whatever is applied is named in the reply.</p>
-    </div>
+  <rect class="node a-guard node-accent" x="204" y="330" width="340" height="58" />
+  <text class="n-title" x="218" y="352">① Input guardrails</text>
+  <text class="n-sub" x="218" y="370">Injection → HTTP 400 · PII masked before the model</text>
 
-    <div class="box tint-food">
-      <h3>④ Swiggy workers — two, concurrent</h3>
-      <p><code>asyncio.gather</code> over Food and Instamart, each wrapped in <code>wait_for(2.5s)</code>. A timeout returns partial results plus a warning and the session goes <b>DEGRADED</b> — never blank. Instamart is skipped entirely when the message never asked for it.</p>
-    </div>
+  <rect class="node a-llm node-accent" x="204" y="426" width="340" height="66" />
+  <text class="n-title" x="218" y="448">② Intent parser — the only LLM call</text>
+  <text class="n-sub" x="218" y="466">Strict JSON schema → budget, headcount, diet, queries</text>
+  <text class="n-sub" x="218" y="482">Falls back to the regex parser on any failure</text>
 
-    <div class="box tint-guard">
-      <h3>⑤ Output guardrails</h3>
-      <p>Budget check (warn, never reject — the group trims it themselves) · dietary tag validation · placeholder filter · source-attribution check. <b>Portion and cost arithmetic happens here</b>, not in a worker.</p>
-    </div>
+  <rect class="node a-profile node-accent" x="204" y="530" width="340" height="66" />
+  <text class="n-title" x="218" y="552">③ Profile defaults — no model</text>
+  <text class="n-sub" x="218" y="570">Medians over committed history fill unsaid slots</text>
+  <text class="n-sub" x="218" y="586">Explicit input wins · needs 3+ orders · disclosed</text>
 
-    <div class="box tint-store">
-      <h3>⑥ Persist</h3>
-      <p>Session and cart written to PostgreSQL. Host token hashed, guest token stored, status <code>ACTIVE</code> or <code>DEGRADED</code>.</p>
-    </div>
-  </div>
+  <!-- fork -->
+  <rect class="node a-food node-accent" x="52" y="646" width="200" height="70" />
+  <text class="n-title" x="64" y="668">Food worker</text>
+  <text class="n-mono" x="64" y="686">search_restaurants</text>
+  <text class="n-mono" x="64" y="702">get_restaurant_menu</text>
 
-  <!-- ─────────────── SIDE PANELS ─────────────── -->
-  <div class="col" style="width: 300px">
+  <rect class="node a-food node-accent" x="292" y="646" width="200" height="70" />
+  <text class="n-title" x="304" y="668">Instamart worker</text>
+  <text class="n-mono" x="304" y="686">search_instamart</text>
+  <text class="n-sub" x="304" y="702">skipped if not asked for</text>
 
-    <div class="panel p-external">
-      <div class="panel-title">Outcomes</div>
-      <div class="box tint-food">
-        <h3>✅ Resolved</h3>
-        <p>Both verticals answered, budget respected → <code>ACTIVE</code></p>
-      </div>
-      <div class="box tint-store">
-        <h3>⚠️ Resolved with warnings</h3>
-        <p>Over budget or dietary mismatch → <code>ACTIVE</code> + warnings the canvas renders</p>
-      </div>
-      <div class="box tint-profile">
-        <h3>🟠 Degraded</h3>
-        <p>A vertical timed out or failed → <code>DEGRADED</code>, partial cart, add items manually</p>
-      </div>
-      <div class="box tint-guard">
-        <h3>❌ Blocked</h3>
-        <p>Injection detected → no session, HTTP 400</p>
-      </div>
-    </div>
+  <rect class="node a-guard node-accent" x="204" y="756" width="340" height="58" />
+  <text class="n-title" x="218" y="778">⑤ Output guardrails</text>
+  <text class="n-sub" x="218" y="796">Budget warn · dietary · placeholder · portion maths</text>
 
-    <div class="panel p-neutral">
-      <div class="panel-title">Stack, as shipped</div>
-      <div class="box">
-        <table class="stack">
-          <tr><td>Orchestration</td><td>LangGraph <code>StateGraph</code></td></tr>
-          <tr><td>LLM (default)</td><td>Deterministic regex parser</td></tr>
-          <tr><td>LLM (optional)</td><td>OpenAI · strict JSON schema</td></tr>
-          <tr><td>Profile</td><td>Pure arithmetic, no model</td></tr>
-          <tr><td>Swiggy</td><td>Official <code>mcp</code> SDK · Streamable HTTP</td></tr>
-          <tr><td>Tool names</td><td><code>search_restaurants</code>, <code>get_restaurant_menu</code>, <code>search_instamart</code></td></tr>
-          <tr><td>Worker timeout</td><td><code>2.5s</code> each, concurrent</td></tr>
-          <tr><td>Store</td><td>PostgreSQL · asyncpg</td></tr>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
+  <rect class="node a-store node-accent" x="560" y="756" width="148" height="58" />
+  <text class="n-title" x="572" y="778">⑥ Persist</text>
+  <text class="n-sub" x="572" y="796">PostgreSQL</text>
 
-<div class="note">
-  <b>Two workers, not three.</b> Earlier drafts drew a Budget Worker beside Food and Instamart; the shipped graph fans out two and does the
-  budget and portion maths inside the output-guardrail node. <b>Nothing is written to Firestore</b> — persistence is PostgreSQL (ADR 0001),
-  and the model ladder in the HLD (Ollama → Gemini → GPT-4o mini) is a plan, not what runs: today it is the regex parser or OpenAI.
-</div>
+  <!-- router side exit -->
+  <rect class="node" x="560" y="232" width="148" height="60" />
+  <text class="n-title" x="572" y="254">Canned reply</text>
+  <text class="n-sub" x="572" y="272">greeting · history</text>
+  <text class="n-sub" x="572" y="288">privacy · unsupported</text>
 
+  <!-- ══════════ OUTCOMES ══════════ -->
+  <rect class="node a-food node-accent" x="772" y="150" width="308" height="60" />
+  <text class="n-title" x="784" y="172">✅ Resolved</text>
+  <text class="n-sub" x="784" y="192">Both verticals answered · status ACTIVE</text>
+
+  <rect class="node a-store node-accent" x="772" y="226" width="308" height="60" />
+  <text class="n-title" x="784" y="248">⚠️ Resolved with warnings</text>
+  <text class="n-sub" x="784" y="268">Over budget or dietary mismatch · ACTIVE</text>
+
+  <rect class="node a-profile node-accent" x="772" y="302" width="308" height="60" />
+  <text class="n-title" x="784" y="324">🟠 Degraded</text>
+  <text class="n-sub" x="784" y="344">A vertical timed out · partial cart · DEGRADED</text>
+
+  <rect class="node a-guard node-accent" x="772" y="378" width="308" height="60" />
+  <text class="n-title" x="784" y="400">❌ Blocked</text>
+  <text class="n-sub" x="784" y="420">Injection detected · no session · HTTP 400</text>
+
+  <!-- ══════════ STACK ══════════ -->
+  <rect class="node" x="772" y="520" width="308" height="336" />
+  <text class="n-sub" x="786" y="546">Orchestration</text><text class="n-mono" x="960" y="546">LangGraph StateGraph</text>
+  <text class="n-sub" x="786" y="576">LLM default</text><text class="n-mono" x="960" y="576">regex parser</text>
+  <text class="n-sub" x="786" y="606">LLM optional</text><text class="n-mono" x="960" y="606">OpenAI · json_schema</text>
+  <text class="n-sub" x="786" y="636">Profile</text><text class="n-mono" x="960" y="636">arithmetic, no model</text>
+  <text class="n-sub" x="786" y="666">Swiggy</text><text class="n-mono" x="960" y="666">mcp SDK · HTTP</text>
+  <text class="n-sub" x="786" y="696">Concurrency</text><text class="n-mono" x="960" y="696">asyncio.gather</text>
+  <text class="n-sub" x="786" y="726">Per-worker timeout</text><text class="n-mono" x="960" y="726">2.5s</text>
+  <text class="n-sub" x="786" y="756">Store</text><text class="n-mono" x="960" y="756">PostgreSQL · asyncpg</text>
+  <text class="n-sub" x="786" y="786">Graph nodes</text><text class="n-mono" x="960" y="786">6</text>
+  <text class="n-sub" x="786" y="816">Concurrent workers</text><text class="n-mono" x="960" y="816">2</text>
+  <text class="n-sub" x="786" y="846">Budget maths</text><text class="n-mono" x="960" y="846">output guardrails</text>
+
+  <!-- ══════════ EDGES ══════════ -->
+  <path class="edge" d="M 374 200 V 232" />
+
+  <!-- router → canned reply (everything that is not an order) -->
+  <path class="edge" d="M 544 262 H 560" />
+  <text class="e-label-sub" x="500" y="222" text-anchor="middle">not an order</text>
+
+  <!-- router → guardrails -->
+  <path class="edge" d="M 374 292 V 330" />
+  <text class="e-label" x="384" y="316">order intent</text>
+
+  <path class="edge" d="M 374 388 V 426" />
+  <path class="edge" d="M 374 492 V 530" />
+
+  <!-- fork to the two workers -->
+  <path class="edge" d="M 374 596 V 620 H 152 V 646" />
+  <path class="edge" d="M 374 596 V 620 H 392 V 646" />
+  <circle class="badge" cx="374" cy="620" r="8" /><text class="badge-text" x="374" y="623.5">4</text>
+  <text class="e-label" x="392" y="614">concurrent · 2.5s each</text>
+
+  <!-- join into output guardrails -->
+  <path class="edge" d="M 152 716 V 736 H 374 V 756" />
+  <path class="edge" d="M 392 716 V 736 H 374" />
+
+  <!-- guardrails → persist -->
+  <path class="edge" d="M 544 785 H 560" />
+
+  <!-- persist → outcomes -->
+  <path class="edge-dashed" d="M 708 776 H 740 V 300 H 756" />
+  <text class="e-label-sub" x="716" y="742">status</text>
+
+  <!-- ══════════ FOOTNOTE ══════════ -->
+  <rect class="note-box" x="24" y="888" width="1072" height="52" />
+  <text class="note-text" x="38" y="910">
+    <tspan class="note-bold">Two workers, not three.</tspan> Earlier drafts drew a Budget Worker beside Food and Instamart. The shipped graph fans out two and does the budget and portion
+  </text>
+  <text class="note-text" x="38" y="928">
+    maths inside the output-guardrail node. <tspan class="note-bold">Nothing is written to Firestore</tspan> — persistence is PostgreSQL (ADR 0001), and the HLD's model ladder is a plan, not what runs.
+  </text>
+</svg>
 </body>
 </html>
