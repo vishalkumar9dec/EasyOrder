@@ -497,6 +497,7 @@ default to mock/no-op behavior.
 - Submission video voiceover script (2:00 / 0:60 cuts): `docs/promo-video-script.md`
 - Business Model Canvas (content: `docs/business-model-canvas.md`, slide: `docs/assets/business-model-canvas.html`)
 - Learned preferences and the `profile_defaults` graph node: `docs/user-profile-agent.md`
+- Architecture diagrams (generated from HTML source): `docs/diagrams/README.md`
 - Operations runbook: `docs/runbooks/operations.md`
 - **Deployment runbook: `docs/runbooks/deployment.md`**
 - Tunnel 408/502 blank-page fix: `docs/runbooks/tunnel-408-502-blank-page.md`

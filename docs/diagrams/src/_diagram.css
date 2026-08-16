@@ -1,0 +1,60 @@
+/* Shared look for the SVG architecture diagrams.
+ *
+ * These are real node-and-edge diagrams: every component is a box and every
+ * connection is a drawn, labelled arrow, so you can trace a request through the
+ * system with your finger. Rendered to PNG with headless Chrome — see README.md.
+ */
+
+.bg { fill: #ffffff; }
+
+/* Titled regions */
+.panel { rx: 14; fill-opacity: 1; stroke: none; }
+.p-client { fill: #fce8e6; }
+.p-server { fill: #e6f4ea; }
+.p-external { fill: #e8f0fe; }
+.p-store { fill: #fef7e0; }
+.p-auth { fill: #f3e8fd; }
+.p-neutral { fill: #f1f3f4; }
+
+.panel-title {
+  font: 700 11px -apple-system, 'Segoe UI', Helvetica, sans-serif;
+  letter-spacing: 0.09em;
+  fill: #3c4043;
+  text-anchor: middle;
+}
+
+/* Component boxes */
+.node { rx: 9; fill: #ffffff; stroke: rgba(0, 0, 0, 0.12); stroke-width: 1; }
+.node-accent { stroke-width: 1; }
+.a-food { stroke: #34a853; }
+.a-llm { stroke: #4285f4; }
+.a-guard { stroke: #ea4335; }
+.a-store { stroke: #f9ab00; }
+.a-profile { stroke: #a142f4; }
+
+.n-title { font: 700 14px -apple-system, 'Segoe UI', Helvetica, sans-serif; fill: #1a1a1a; }
+.n-sub { font: 400 11.5px -apple-system, 'Segoe UI', Helvetica, sans-serif; fill: #3c4043; }
+.n-mono { font: 400 10.5px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #5f6368; }
+
+/* Connections */
+.edge { fill: none; stroke: #5f6368; stroke-width: 1.6; marker-end: url(#arrow); }
+.edge-both { fill: none; stroke: #5f6368; stroke-width: 1.6; marker-end: url(#arrow); marker-start: url(#arrow-start); }
+.edge-dashed { fill: none; stroke: #9aa0a6; stroke-width: 1.4; stroke-dasharray: 5 4; marker-end: url(#arrow-light); }
+.edge-strong { stroke: #1a73e8; stroke-width: 2; marker-end: url(#arrow-blue); }
+
+.e-label { font: 600 10.5px -apple-system, 'Segoe UI', Helvetica, sans-serif; fill: #202124; }
+.e-label-sub { font: 400 10px -apple-system, 'Segoe UI', Helvetica, sans-serif; fill: #5f6368; }
+.e-chip { fill: #ffffff; stroke: none; }
+
+/* Numbered step badges */
+.badge { fill: #202124; }
+.badge-text { font: 700 9.5px -apple-system, sans-serif; fill: #ffffff; text-anchor: middle; }
+
+/* Footnote */
+.note-box { rx: 10; fill: #ffffff; stroke: rgba(0, 0, 0, 0.18); stroke-dasharray: 5 4; }
+.note-text { font: 400 11px -apple-system, 'Segoe UI', Helvetica, sans-serif; fill: #3c4043; }
+.note-bold { font-weight: 700; fill: #1a1a1a; }
+
+.h1 { font: 800 25px -apple-system, 'Segoe UI', Helvetica, sans-serif; fill: #1a1a1a; text-anchor: middle; }
+.h1-light { font-weight: 400; }
+.h2 { font: 400 12.5px -apple-system, 'Segoe UI', Helvetica, sans-serif; fill: #5f6368; text-anchor: middle; }
