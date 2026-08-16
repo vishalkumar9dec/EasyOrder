@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any, Protocol
 
 from langgraph.graph import END, StateGraph
 
+from app.models.profile import UserProfile
 from app.models.session import (
     CartItem,
     DietaryTag,
@@ -24,11 +25,15 @@ from app.models.session import (
 )
 from app.models.whatsapp import IncomingMessage
 from app.observability import AGENT_ERRORS_TOTAL
+from app.services.profile_builder import describe_applied_defaults, load_profile
 from app.services.protocols import IAgentService, IDBAdapter, ISwiggyMcpClient
 
 logger = logging.getLogger("easyorder.api")
 
 WORKER_TIMEOUT_SECONDS = 2.5
+# How far back the profile reads. Deep enough to be a real habit, shallow
+# enough that deriving it live stays two cheap indexed reads.
+PROFILE_HISTORY_LIMIT = 100
 DEFAULT_LAT = 12.9716
 DEFAULT_LNG = 77.5946
 
@@ -48,6 +53,10 @@ class ParsedIntent:
     # None when the prompt never asked for Instamart items; the vertical is
     # skipped entirely so the seeded cart only contains what was requested.
     instamart_query: str | None
+    # Field names the user actually stated, as opposed to ones carrying a
+    # fallback. Without this the profile node cannot tell "under 3000" from the
+    # 3000 the parser invented, and would overwrite a real instruction.
+    specified: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -57,6 +66,8 @@ class EasyOrderState:
     message: IncomingMessage
     sanitized_prompt: str | None = None
     intent: ParsedIntent | None = None
+    profile: UserProfile | None = None
+    applied_defaults: list[str] = field(default_factory=list)
     food_results: list[dict[str, Any]] = field(default_factory=list)
     instamart_results: list[dict[str, Any]] = field(default_factory=list)
     degraded_verticals: list[Vertical] = field(default_factory=list)
@@ -164,14 +175,26 @@ class MockIntentParser:
 
     async def parse(self, prompt: str) -> ParsedIntent:
         normalized = prompt.replace("@EasyOrder", "").strip()
-        budget = self._extract_decimal(normalized, r"\bunder\s+(\d+(?:\.\d+)?)", Decimal("3000"))
-        head_count = int(self._extract_decimal(normalized, r"\bfor\s+(\d+)\b", Decimal("4")))
+        specified: set[str] = set()
+
+        stated_budget = self._extract_decimal(normalized, r"\bunder\s+(\d+(?:\.\d+)?)")
+        if stated_budget is not None:
+            specified.add("budget_limit")
+        budget = stated_budget if stated_budget is not None else Decimal("3000")
+
+        stated_head_count = self._extract_decimal(normalized, r"\bfor\s+(\d+)\b")
+        if stated_head_count is not None:
+            specified.add("head_count")
+        head_count = int(stated_head_count if stated_head_count is not None else Decimal("4"))
+
         lowered = normalized.lower()
         dietary_preference = DietaryTag.ANY
         if "vegetarian" in lowered or re.search(r"\bveg\b", lowered):
             dietary_preference = DietaryTag.VEG
         elif "non-veg" in lowered or "chicken" in lowered:
             dietary_preference = DietaryTag.NON_VEG
+        if dietary_preference != DietaryTag.ANY:
+            specified.add("dietary_preference")
 
         return ParsedIntent(
             budget_limit=budget,
@@ -179,13 +202,15 @@ class MockIntentParser:
             dietary_preference=dietary_preference,
             food_query=self._extract_query(normalized, Vertical.FOOD) or "food",
             instamart_query=self._extract_query(normalized, Vertical.INSTAMART),
+            specified=frozenset(specified),
         )
 
     @staticmethod
-    def _extract_decimal(prompt: str, pattern: str, default: Decimal) -> Decimal:
+    def _extract_decimal(prompt: str, pattern: str) -> Decimal | None:
+        """Return the stated value, or None when the prompt didn't state one."""
         match = re.search(pattern, prompt, re.IGNORECASE)
         if not match:
-            return default
+            return None
         return Decimal(match.group(1)).quantize(Decimal("0.01"))
 
     @staticmethod
@@ -313,6 +338,7 @@ class EasyOrderAgentService(IAgentService):
             [
                 ("input_guardrails", self.apply_input_guardrails),
                 ("intent_parser", self.parse_intent),
+                ("profile_defaults", self.apply_profile_defaults),
                 ("swiggy_workers", self.run_workers),
                 ("output_guardrails", self.apply_output_guardrails),
                 ("persistence", self.persist_session),
@@ -331,7 +357,16 @@ class EasyOrderAgentService(IAgentService):
             raise RuntimeError("Agent graph finished without a persisted session")
         if final_state.host_token is None:
             raise RuntimeError("Agent graph finished without host token material")
-        return SessionInitResult(session=final_state.session, host_token=final_state.host_token)
+        return SessionInitResult(
+            session=final_state.session,
+            host_token=final_state.host_token,
+            applied_defaults=final_state.applied_defaults,
+            defaults_note=(
+                describe_applied_defaults(final_state.profile, final_state.applied_defaults)
+                if final_state.profile is not None
+                else ""
+            ),
+        )
 
     async def apply_input_guardrails(self, state: EasyOrderState) -> EasyOrderState:
         state.sanitized_prompt = self.guardrails.sanitize(state.message.message_text)
@@ -341,6 +376,66 @@ class EasyOrderAgentService(IAgentService):
         if state.sanitized_prompt is None:
             raise ValueError("sanitized prompt is required")
         state.intent = await self.parser.parse(state.sanitized_prompt)
+        return state
+
+    async def apply_profile_defaults(self, state: EasyOrderState) -> EasyOrderState:
+        """Fill slots the user left unsaid with what they usually order.
+
+        Three rules hold this node honest:
+
+        1. It only ever writes to a field absent from ``intent.specified`` —
+           an explicit instruction is never overwritten by a habit.
+        2. Nothing is applied below ``MIN_OBSERVATIONS``; a default guessed
+           from one order is worse than no default at all.
+        3. Whatever it applies is recorded in ``state.applied_defaults`` so the
+           reply can say so. A silent default the user cannot see is
+           indistinguishable from a bug, and they cannot correct it.
+
+        The profile is derived live from committed history, so it is current by
+        construction — there is no cache to invalidate and an order placed a
+        moment ago already counts. Failure here is never fatal: a profile is an
+        improvement to the order, not a precondition for it.
+        """
+        if state.intent is None:
+            raise ValueError("intent is required")
+
+        try:
+            profile = await load_profile(
+                self.db, state.message.sender_id, limit=PROFILE_HISTORY_LIMIT
+            )
+        except Exception:
+            logger.warning(
+                "profile_build_failed",
+                extra={"sender_id": state.message.sender_id},
+                exc_info=True,
+            )
+            return state
+
+        state.profile = profile
+        if not profile.is_confident:
+            return state
+
+        applied: list[str] = []
+        intent = state.intent
+        updates: dict[str, Any] = {}
+
+        if "budget_limit" not in intent.specified and profile.typical_budget is not None:
+            updates["budget_limit"] = profile.typical_budget
+            applied.append("budget_limit")
+        if "head_count" not in intent.specified and profile.usual_headcount is not None:
+            updates["head_count"] = profile.usual_headcount
+            applied.append("head_count")
+        if "dietary_preference" not in intent.specified and profile.dietary_tendency is not None:
+            updates["dietary_preference"] = profile.dietary_tendency
+            applied.append("dietary_preference")
+
+        if updates:
+            state.intent = replace(intent, **updates)
+            state.applied_defaults = applied
+            logger.info(
+                "profile_defaults_applied",
+                extra={"applied": applied, "observations": profile.observations},
+            )
         return state
 
     async def run_workers(self, state: EasyOrderState) -> EasyOrderState:

@@ -14,8 +14,10 @@ from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
 from app.models.order import Order, order_bucket
+from app.models.profile import MIN_OBSERVATIONS
 from app.models.session import Session
 from app.services.order_history import session_cart_total
+from app.services.profile_builder import load_profile
 from app.services.protocols import IDBAdapter, IShortLinkService, IWhatsAppSender
 from app.services.web_auth import (
     WEB_SESSION_COOKIE,
@@ -187,6 +189,51 @@ async def my_live_orders(
     for order in orders:
         buckets[order_bucket(order.status)].append(_live_order_entry(order))
     return {"wa_id": wa_id, **buckets}
+
+
+@router.get("/me/profile")
+async def my_profile(
+    request: Request,
+    easyorder_web_session: str | None = Cookie(default=None),
+) -> dict[str, object]:
+    """What EasyOrder has learned about how this user orders.
+
+    The same profile the agent graph applies when a prompt leaves something
+    unsaid, exposed so the user can see it — a preference you cannot inspect is
+    one you cannot disagree with. Derived live, so this is never a stale copy of
+    what the graph used.
+    """
+    wa_id = await require_wa_id(request, easyorder_web_session)
+    profile = await load_profile(get_db(request), wa_id)
+    return {
+        "wa_id": wa_id,
+        "observations": profile.observations,
+        "is_confident": profile.is_confident,
+        "min_observations": MIN_OBSERVATIONS,
+        "typical_budget": (
+            f"{profile.typical_budget:.2f}" if profile.typical_budget is not None else None
+        ),
+        "budget_ceiling": (
+            f"{profile.budget_ceiling:.2f}" if profile.budget_ceiling is not None else None
+        ),
+        "usual_headcount": profile.usual_headcount,
+        "dietary_tendency": (
+            str(profile.dietary_tendency) if profile.dietary_tendency is not None else None
+        ),
+        "favourites": [
+            {
+                "restaurant_name": favourite.restaurant_name,
+                "order_count": favourite.order_count,
+                "last_ordered_at": favourite.last_ordered_at.isoformat(),
+            }
+            for favourite in profile.favourites
+        ],
+        "busiest_weekday": profile.busiest_weekday,
+        "busiest_hour": profile.busiest_hour,
+        "last_ordered_at": (
+            profile.last_ordered_at.isoformat() if profile.last_ordered_at is not None else None
+        ),
+    }
 
 
 @router.get("/me/spend")
