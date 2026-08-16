@@ -290,7 +290,11 @@ scheduled delivery (business chat, same direct-message number as above; see
    30s poll interval).
 4. Log in to the PWA and open [http://localhost:5173/orders/live](http://localhost:5173/orders/live) —
    confirm the Scheduled/Ongoing/Historical tabs show the orders above.
-5. On the same page (and on `/orders`), confirm the **Total spent** panel counts the
+5. Send `get biryani` (no budget, no headcount) after at least three placed orders —
+   expect the host reply to name the budget it borrowed from your history and how to
+   override it. Send `get biryani for 8 under 2500` and expect no such line: an explicit
+   value always wins. `/orders` shows the same values under **Your usual**.
+6. On the same page (and on `/orders`), confirm the **Total spent** panel counts the
    placed order but *not* the scheduled one — scheduled money isn't spent yet. The
    figure comes from `GET /api/me/spend`, which aggregates every committed record
    rather than summing the page currently on screen.
@@ -433,7 +437,7 @@ default to mock/no-op behavior.
 - Local demo runbook: `docs/runbooks/local-demo.md`
 - Submission video voiceover script (2:00 / 0:60 cuts): `docs/promo-video-script.md`
 - Business Model Canvas (content: `docs/business-model-canvas.md`, slide: `docs/assets/business-model-canvas.html`)
-- User onboarding & preference profile (design proposal, **not implemented**): `docs/user-profile-agent.md`
+- User preference profile and the `profile_defaults` graph node: `docs/user-profile-agent.md`
 - Operations runbook: `docs/runbooks/operations.md`
 - **Deployment runbook: `docs/runbooks/deployment.md`**
 - Tunnel 408/502 blank-page fix: `docs/runbooks/tunnel-408-502-blank-page.md`

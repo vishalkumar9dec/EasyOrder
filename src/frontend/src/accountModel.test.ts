@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { adaptOrder, adaptOrders, adaptSpend, isValidPhoneInput } from './accountModel';
+import {
+  adaptOrder,
+  adaptOrders,
+  adaptProfile,
+  adaptSpend,
+  isValidPhoneInput,
+} from './accountModel';
 
 const order = {
   session_id: 'session_abc123',
@@ -102,5 +108,61 @@ describe('adaptSpend', () => {
 
   it('does not render NaN if the API sends something unparseable', () => {
     expect(adaptSpend({ ...spend, total: 'oops' }).totalLabel).toBe('₹0.00');
+  });
+});
+
+describe('adaptProfile', () => {
+  const profile = {
+    wa_id: '919988776655',
+    observations: 5,
+    is_confident: true,
+    min_observations: 3,
+    typical_budget: '800.00',
+    budget_ceiling: '1240.00',
+    usual_headcount: 6,
+    dietary_tendency: 'VEG',
+    favourites: [
+      { restaurant_name: 'MotiMahal', order_count: 3, last_ordered_at: '2026-08-03T20:30:00Z' },
+    ],
+    busiest_weekday: 'Monday',
+    busiest_hour: 20,
+    last_ordered_at: '2026-08-03T20:30:00Z',
+  };
+
+  it('turns learned values into readable traits', () => {
+    const view = adaptProfile(profile);
+
+    expect(view.headline).toBe('Learned from your last 5 orders');
+    expect(view.isConfident).toBe(true);
+    expect(view.traits).toEqual([
+      { label: 'Usual budget', value: '₹800.00' },
+      { label: 'Usually feeding', value: '6 people' },
+      { label: 'Goes back to', value: 'MotiMahal · 3x' },
+      { label: 'Usually orders', value: 'VEG' },
+      { label: 'Orders most on', value: 'Monday, around 8pm' },
+    ]);
+  });
+
+  it('counts down instead of implying a preference is already in use', () => {
+    const view = adaptProfile({ ...profile, observations: 2, is_confident: false });
+
+    expect(view.headline).toBe('1 more order until EasyOrder starts using this');
+    expect(view.isConfident).toBe(false);
+  });
+
+  it('omits traits with nothing learned yet', () => {
+    const view = adaptProfile({
+      ...profile,
+      usual_headcount: null,
+      dietary_tendency: null,
+      favourites: [],
+      busiest_weekday: null,
+    });
+
+    expect(view.traits.map((t) => t.label)).toEqual(['Usual budget']);
+  });
+
+  it('marks a user with no history empty so the card can be hidden', () => {
+    expect(adaptProfile({ ...profile, observations: 0 }).isEmpty).toBe(true);
   });
 });
