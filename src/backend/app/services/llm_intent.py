@@ -45,9 +45,23 @@ PARSED_INTENT_SCHEMA = {
                 "type": "number",
                 "description": "Total order budget in INR. Default to 3000 if not stated.",
             },
+            "budget_stated": {
+                "type": "boolean",
+                "description": (
+                    "True only if the message itself names a budget or spend limit. "
+                    "False when you fell back to the default."
+                ),
+            },
             "head_count": {
                 "type": "integer",
                 "description": "Number of people ordering for. Default to 4 if not stated.",
+            },
+            "head_count_stated": {
+                "type": "boolean",
+                "description": (
+                    "True only if the message itself says how many people are eating. "
+                    "False when you fell back to the default."
+                ),
             },
             "dietary_preference": {
                 "type": "string",
@@ -74,7 +88,9 @@ PARSED_INTENT_SCHEMA = {
         },
         "required": [
             "budget_limit",
+            "budget_stated",
             "head_count",
+            "head_count_stated",
             "dietary_preference",
             "food_query",
             "wants_instamart",
@@ -90,7 +106,9 @@ SYSTEM_PROMPT = (
     "assistant. Extract the budget in INR, headcount, dietary preference, and what "
     "food to search for. Only set wants_instamart=true if the message separately "
     "asks for drinks, ice, plates, napkins, or similar grocery/party items. Never "
-    "invent specifics the message does not provide; use the stated defaults instead."
+    "invent specifics the message does not provide; use the stated defaults instead, "
+    "and set the matching *_stated flag to false whenever you do — a default you "
+    "supplied is not something the user asked for."
 )
 
 
@@ -148,12 +166,23 @@ def _to_parsed_intent(data: dict[str, Any]) -> ParsedIntent:
     if not data.get("wants_instamart"):
         instamart_query = None
 
+    # Only fields the user actually stated. Anything the model defaulted stays
+    # unspecified so the profile node may fill it from the user's own history.
+    specified = set()
+    if data.get("budget_stated"):
+        specified.add("budget_limit")
+    if data.get("head_count_stated"):
+        specified.add("head_count")
+    if dietary_preference != DietaryTag.ANY:
+        specified.add("dietary_preference")
+
     return ParsedIntent(
         budget_limit=budget_limit,
         head_count=head_count,
         dietary_preference=dietary_preference,
         food_query=food_query,
         instamart_query=instamart_query,
+        specified=frozenset(specified),
     )
 
 

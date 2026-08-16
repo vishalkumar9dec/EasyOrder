@@ -1,8 +1,10 @@
 # User onboarding and profile building — design proposal
 
-> **Status: proposed, not implemented.** Nothing in this document ships today. It is
-> written so the roadmap beat in `docs/promo-video-script.md` has something real behind
-> it, and so the build can start from a decision rather than a blank page.
+> **Status: v1 shipped.** The deterministic profile and the `profile_defaults` graph node
+> are live — see `app/services/profile_builder.py`, the node in `app/services/agent.py`,
+> `GET /api/me/profile`, and the "Your usual" card on `/orders`. What is *not* built is
+> marked inline below: the LLM layer (cuisine affinity, complaint themes), override
+> capture, and Swiggy-sourced history.
 
 ## The goal, in one line
 
@@ -30,11 +32,19 @@ the whole design.
 
 ## Shape: two components, one on the request path and one off it
 
-### 1. Profile Builder — off the request path
+### 1. Profile Builder — derived on demand
 
-Triggered once at onboarding, then incrementally after each completed order. It is a
-**workflow, not an agent**: a fixed pipeline with no tool-choice loop, no autonomy, and a
-deterministic path.
+**Shipped**, with one simplification that removed most of the machinery below: the
+profile is derived live from committed history on each use rather than built at
+onboarding and cached. Two indexed reads, pure functions, no stored table.
+
+That choice deletes the entire staleness problem. There is nothing to invalidate, no
+rebuild job, no `source_version`, and no window where the profile disagrees with the
+orders it came from — an order placed a second ago already counts. The persisted table
+sketched below becomes worth building when the read cost stops being trivial, not before.
+
+It is a **workflow, not an agent**: a fixed pipeline with no tool-choice loop, no
+autonomy, and a deterministic path.
 
 ```
 fetch history (MCP get_order_history)
@@ -56,7 +66,7 @@ catches. The model's job is only the part that's actually language: reading
 
 ### 2. `profile_defaults` — on the request path
 
-One new node in the existing graph, between `intent_parser` and `swiggy_workers`:
+**Shipped.** One node in the existing graph, between `intent_parser` and `swiggy_workers`:
 
 ```
 input_guardrails → intent_parser → profile_defaults → swiggy_workers → output_guardrails → persist
@@ -82,7 +92,10 @@ It fills **only unspecified slots**. Three rules, none negotiable:
    which feeds straight back into the loop below. The confirmation isn't a limit on
    personalization; it's the thing that lets personalization be bold.
 
-## Data model sketch
+## Data model sketch — deferred
+
+Not built, and not currently needed: the profile is derived on demand. This is the shape
+to reach for when history volume makes the live read expensive.
 
 Migration `0009_user_profiles.sql`:
 

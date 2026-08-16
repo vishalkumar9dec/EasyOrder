@@ -2,22 +2,32 @@ import { useEffect, useState } from 'react';
 
 import {
   OrderView,
+  ProfileView,
   SpendView,
   adaptOrders,
+  adaptProfile,
   adaptSpend,
   fetchMe,
   fetchOrders,
+  fetchProfile,
   fetchSpend,
   logout,
 } from '../accountModel';
 import { LoginPage } from './LoginPage';
+import { ProfileCard } from './ProfileCard';
 import { SpendSummary } from './SpendSummary';
 
 type State =
   | { kind: 'loading' }
   | { kind: 'unauthenticated' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; waId: string; orders: OrderView[]; spend: SpendView | null };
+  | {
+      kind: 'ready';
+      waId: string;
+      orders: OrderView[];
+      spend: SpendView | null;
+      profile: ProfileView | null;
+    };
 
 export function MyOrdersPage() {
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -32,10 +42,11 @@ export function MyOrdersPage() {
           setState({ kind: 'unauthenticated' });
           return;
         }
-        // Spend is supplementary: if it fails, still show the orders.
-        const [orders, spend] = await Promise.all([
+        // Spend and profile are supplementary: if either fails, still show the orders.
+        const [orders, spend, profile] = await Promise.all([
           fetchOrders(),
           fetchSpend().catch(() => null),
+          fetchProfile().catch(() => null),
         ]);
         if (cancelled) return;
         setState({
@@ -43,6 +54,7 @@ export function MyOrdersPage() {
           waId,
           orders: adaptOrders(orders),
           spend: spend ? adaptSpend(spend) : null,
+          profile: profile ? adaptProfile(profile) : null,
         });
       } catch (err) {
         if (!cancelled) {
@@ -96,6 +108,7 @@ export function MyOrdersPage() {
               Logged in as +{state.waId}. Same history you get on WhatsApp.
             </p>
             {state.spend && <SpendSummary spend={state.spend} />}
+            {state.profile && <ProfileCard profile={state.profile} />}
             {state.orders.length === 0 ? (
               <p className="orders-empty">
                 No group orders yet. Message the EasyOrder WhatsApp number — for example:

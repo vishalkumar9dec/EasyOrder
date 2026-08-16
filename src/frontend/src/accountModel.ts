@@ -184,6 +184,87 @@ export async function fetchSpend(): Promise<ApiSpend> {
   return (await response.json()) as ApiSpend;
 }
 
+export interface ApiFavourite {
+  restaurant_name: string;
+  order_count: number;
+  last_ordered_at: string;
+}
+
+export interface ApiProfile {
+  wa_id: string;
+  observations: number;
+  is_confident: boolean;
+  min_observations: number;
+  typical_budget: string | null;
+  budget_ceiling: string | null;
+  usual_headcount: number | null;
+  dietary_tendency: string | null;
+  favourites: ApiFavourite[];
+  busiest_weekday: string | null;
+  busiest_hour: number | null;
+  last_ordered_at: string | null;
+}
+
+export interface ProfileTrait {
+  label: string;
+  value: string;
+}
+
+export interface ProfileView {
+  headline: string;
+  traits: ProfileTrait[];
+  isConfident: boolean;
+  isEmpty: boolean;
+}
+
+function hourLabel(hour: number): string {
+  const suffix = hour < 12 ? 'am' : 'pm';
+  const twelve = hour % 12 === 0 ? 12 : hour % 12;
+  return `${twelve}${suffix}`;
+}
+
+export function adaptProfile(profile: ApiProfile): ProfileView {
+  const traits: ProfileTrait[] = [];
+  if (profile.typical_budget) {
+    traits.push({ label: 'Usual budget', value: formatAmount(profile.typical_budget) });
+  }
+  if (profile.usual_headcount) {
+    traits.push({ label: 'Usually feeding', value: `${profile.usual_headcount} people` });
+  }
+  if (profile.favourites.length > 0) {
+    const top = profile.favourites[0];
+    traits.push({
+      label: 'Goes back to',
+      value: `${top.restaurant_name} · ${top.order_count}x`,
+    });
+  }
+  if (profile.dietary_tendency && profile.dietary_tendency !== 'ANY') {
+    traits.push({ label: 'Usually orders', value: profile.dietary_tendency });
+  }
+  if (profile.busiest_weekday) {
+    const hour = profile.busiest_hour === null ? '' : `, around ${hourLabel(profile.busiest_hour)}`;
+    traits.push({ label: 'Orders most on', value: `${profile.busiest_weekday}${hour}` });
+  }
+
+  // Below the threshold the profile is shown but explicitly not in use, so the
+  // page never implies a default was applied when it wasn't.
+  const remaining = profile.min_observations - profile.observations;
+  return {
+    headline: profile.is_confident
+      ? `Learned from your last ${profile.observations} orders`
+      : `${remaining} more order${remaining === 1 ? '' : 's'} until EasyOrder starts using this`,
+    traits,
+    isConfident: profile.is_confident,
+    isEmpty: profile.observations === 0,
+  };
+}
+
+export async function fetchProfile(): Promise<ApiProfile> {
+  const response = await fetch('/api/me/profile');
+  if (!response.ok) throw new Error(await readError(response));
+  return (await response.json()) as ApiProfile;
+}
+
 export function isValidPhoneInput(phone: string): boolean {
   return /^\+?[\d\s-]{8,18}$/.test(phone.trim());
 }
