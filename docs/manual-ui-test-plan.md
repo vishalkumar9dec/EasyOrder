@@ -871,12 +871,12 @@ The PWA login screen ships in Task 11.2; until then verify the API with curl.
 
 ### MT-11.2-A: Log in and see your orders in the browser
 
-1. Open `http://localhost:5173/orders` (or tap **My Orders** in the navbar).
+1. Open `http://localhost:5173/orders` (or tap **Group plans** in the navbar).
    → Not logged in, so the WhatsApp login screen appears.
 2. Enter your WhatsApp number (`+91 …`), tap **Send code**
    → a 6-digit code arrives on your WhatsApp (meta mode). In local mock
    mode, read it from `curl -s localhost:8000/api/dev/whatsapp-outbox`.
-3. Enter the code → **Verify and log in** → the My Orders page shows
+3. Enter the code → **Verify and log in** → the Group plans page shows
    "Logged in as +<your number>" and your sessions with status chips,
    date, item count, total — the **same history the chat answers with**.
 4. Tap **Open** on an order → lands on the planning canvas via the short

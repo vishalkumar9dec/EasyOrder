@@ -271,7 +271,7 @@ function SessionCanvas({
         </div>
         <div className="session-hero-side">
           <div className="session-role-pill">{getRoleLabel(session.role)}</div>
-          <a className="session-orders-link" href="/orders">View all my orders</a>
+          <a className="session-orders-link" href="/orders">View all group plans</a>
         </div>
       </div>
       {connectionState !== 'connected' && (

@@ -193,8 +193,8 @@ logged-in `wa_id`:
 | Endpoint | Returns |
 | --- | --- |
 | `GET /api/me` | The logged-in `wa_id`. |
-| `GET /api/me/orders` | Past group planning sessions with item counts and totals. |
-| `GET /api/me/orders/live` | Targeted orders bucketed Scheduled / Ongoing / Historical. |
+| `GET /api/me/orders` | Past group planning sessions with item counts and totals. Rendered at `/orders` as **Group plans**. |
+| `GET /api/me/orders/live` | Targeted orders bucketed Scheduled / Ongoing / Historical. Rendered at `/orders/live` as **Orders**. |
 | `GET /api/me/profile` | Learned preferences, `observations`, and whether they are confident enough to apply. |
 | `GET /api/me/spend` | Lifetime committed spend, split into group and restaurant orders. |
 
@@ -346,8 +346,9 @@ scheduled delivery (business chat, same direct-message number as above; see
    why). The background scheduler places it automatically once the
    computed placement time arrives (`ORDER_SCHEDULER_POLL_SECONDS`, default
    30s poll interval).
-4. Log in to the PWA and open [http://localhost:5173/orders/live](http://localhost:5173/orders/live) —
-   confirm the Scheduled/Ongoing/Historical tabs show the orders above.
+4. Log in to the PWA and open [http://localhost:5173/orders/live](http://localhost:5173/orders/live)
+   (**Orders** in the navbar) — confirm the Scheduled/Ongoing/Historical tabs show the
+   orders above. `/orders` (**Group plans**) lists group planning sessions instead.
 5. Send `get biryani` (no budget, no headcount) after at least three placed orders —
    expect the host reply to name the budget it borrowed from your history and how to
    override it. Send `get biryani for 8 under 2500` and expect no such line: an explicit

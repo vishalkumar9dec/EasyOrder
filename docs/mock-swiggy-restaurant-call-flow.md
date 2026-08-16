@@ -628,7 +628,7 @@ simplification.
 `GET /api/me/orders/live` (cookie-authenticated, same pattern as the
 existing `/api/me/orders`) returns every `Order` for the logged-in wa_id,
 bucketed into `scheduled` / `ongoing` / `historical` via
-`app.models.order.order_bucket`. The frontend's Live Orders page
+`app.models.order.order_bucket`. The frontend's Orders page (`/orders/live`)
 (`/orders/live`) renders these as three tabs.
 
 ## Real MCP flow (`SWIGGY_CLIENT_MODE=mcp`)
