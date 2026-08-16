@@ -1,35 +1,42 @@
 # EasyOrder promo voiceover script
 
-*Swiggy Builders Program submission. Target runtime: **2:13–2:21**.*
+*Swiggy Builders Program submission. Target runtime: **2:20–2:24**.*
 
-Written for an AI voice agent to read aloud over a screen recording of the real app.
+Written for an AI voice agent to read aloud over a screen recording of the real app, after
+a single sketch shot that states the problem before the product answers it.
 Two cuts below: the **primary** (four product beats + architecture + business model)
 and a **60-second** version for platforms that cap submissions at a minute. Pick one per
 recording — don't mix.
 
 Companion docs:
-- `docs/prompts/demo.md` — the longer (~3:00) comedic *Tale of Two Rohans* sketch. Same
-  three use cases, so B-roll is interchangeable; opposite register.
+- `docs/prompts/demo.md` — the full (~3:00) comedic *Tale of Two Rohans* sketch. This cut
+  borrows its **cold open, its hinge card and its before/after captions** and leaves the
+  rest; that doc also holds the production guide for generating the character shot.
+  Note its Part 2 live-demo section predates host/guest, spend, onboarding, the profile,
+  the architecture beat and the canvas — this script is the source of truth for what the
+  live demo shows.
 - `docs/business-model-canvas.md` — source of truth for beat 7.
 - `docs/user-profile-agent.md` — the design behind beat 6, including what the profile
   deliberately does *not* do yet.
 - `docs/assets/business-model-canvas.html` — the slide you actually put on screen.
 
-> **On the runtime.** This cut runs **2:21**, well past the 2:00 the earliest versions
-> held to. Beat 6 grew twice: first when personalization became a shipped feature rather
-> than a roadmap line, then again to cover onboarding — the first reply a new user ever
-> gets, and the profile visibly forming before it is trusted. That arc is the strongest
-> thing in the video and it does not compress into a sentence.
+> **On the runtime.** This cut runs **2:24**. The cold open costs only ~3 seconds net,
+> because it replaces the narrated hook rather than adding to it — the sketch *shows* the
+> coordination tax in the time the narration used to spend *asserting* it. The rest of the
+> growth is beat 6, which expanded when personalization shipped and again when onboarding
+> joined it; that arc is the strongest thing in the video and does not compress into a
+> sentence.
 >
-> **Two documented ways back down**, in the order I'd take them:
+> **Three documented ways back down**, in the order I'd take them:
 >
-> 1. **−9s:** drop the onboarding half of beat 6 (its first two sentences and sub-shots
->    a–b), leaving the learned-behaviour demo. Costs the "starts knowing nothing" arc but
->    keeps the payoff. Lands at ~2:12.
-> 2. **−23s:** also cut beat 3 (the budget gate) and renumber. It is the most expendable
+> 1. **−14s:** drop the cold open and restore the old narrated hook (it is preserved
+>    below the voiceover script). Do this if the character shot doesn't come out well —
+>    a mediocre AI clip costs more credibility than the beat buys. Lands at ~2:10.
+> 2. **−9s:** drop the onboarding half of beat 6 (its first two sentences and sub-shots
+>    a–b), leaving the learned-behaviour demo. Lands at ~2:15.
+> 3. **−23s:** also cut beat 3 (the budget gate) and renumber. It is the most expendable
 >    of the product beats *only* because beat 6 now makes the same point — your explicit
 >    instruction always wins — and the `Placed!` confirmation still appears in beat 4.
->    Lands at ~1:49.
 >
 > Nothing else in this cut is redundant with anything else.
 
@@ -72,7 +79,7 @@ open docs/assets/business-model-canvas.html
 
 ---
 
-## Primary cut (2:21)
+## Primary cut (2:24)
 
 ### Shot list
 
@@ -80,56 +87,75 @@ Record in this order. Voiceover timings below are cut to match.
 
 | # | Time | Screen | On-screen text overlay |
 |---|---|---|---|
-| 1 | 0:00–0:11 | Home page (`/`) — hero *"Craft Your Feast, Together"*, one quick scroll through **How It Works** | — |
-| 2 | 0:11–0:31 | WhatsApp Web: group-order prompt → reply carrying **both** links → forward the guest link into a real group → cut to the PWA. **Two windows side by side** (normal + incognito): host view left, guest view right. Guest bumps a quantity; it updates on the host's screen. Then pan the host's **Check out** control and land on the guest window, where it isn't there. | `Host link · private` / `Guest link · shared` then `Guests edit. Only the host checks out.` |
-| 3 | 0:31–0:43 | WhatsApp: MotiMahal prompt with the budget gate → reply naming the total and asking YES/NO → `yes` as a **separate** message → `Placed!` | `Nothing is placed until you say yes` |
-| 4 | 0:43–1:01 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (**Group plans**), landing on the **Total spent** panel | `Scheduled / Ongoing / Historical`, then `Placed 7:31 PM. You were in a meeting.`, then `Total spent · lifetime, not this page` |
-| 5 | 1:01–1:32 | **Architecture** — see the detailed sub-shot list below | Callouts, timed to the read |
-| 6 | 1:32–2:02 | **Onboarding → learning, live.** Four quick cuts: (a) a **fresh** WhatsApp number sends `hi` — show the whole onboarding reply, privacy line included; (b) `/orders` after one order — the greyed **Your usual** card reading *"2 more orders until EasyOrder starts using this"*; (c) the seasoned number sends just `get biryani`, and the reply discloses *"You didn't say, so I used your usual budget of INR 600 (from your last 3 orders)"*; (d) the same number sends `get biryani for 8 under 2500` — **no** disclosure line. End on the confident **Your usual** card. | `First message: what it is, what it stores` then `Learning · 2 more orders` then `You said 8 words. It filled the rest.` then `Your number always wins` |
-| 7 | 2:02–2:14 | **Business Model Canvas** — `docs/assets/business-model-canvas.html` full-screen | `Phase 1 monetizes nobody` |
-| 8 | 2:14–2:21 | Back to home page / logo, end card held under the closing line | End card (below) |
+| 1 | 0:00–0:14 | **Cold open — the one sketch shot.** Rohan to camera, mid-chaos: phone in one hand, calculator in the other, restaurant tabs behind him. He says his line (below), freeze-frame, title card, then the hinge card. No narrator over this. | `A Tale of Two Rohans` *(title card)* then, full frame, `No actors past this point. This is the real app.` |
+| 2 | 0:14–0:34 | WhatsApp Web: group-order prompt → reply carrying **both** links → forward the guest link into a real group → cut to the PWA. **Two windows side by side** (normal + incognito): host view left, guest view right. Guest bumps a quantity; it updates on the host's screen. Then pan the host's **Check out** control and land on the guest window, where it isn't there. `14 minutes. 3 restaurant tabs. 1 minor breakdown.` → `11 seconds. 1 message.` *(before/after flash over the send)*, then `Host link · private` / `Guest link · shared`, then `Guests edit. Only the host checks out.` |
+| 3 | 0:34–0:46 | WhatsApp: MotiMahal prompt with the budget gate → reply naming the total and asking YES/NO → `yes` as a **separate** message → `Placed!` `4 taps to find the dish. 1 tab-switch to check the balance.` → `1 message. Budget checked automatically.`, then `Nothing is placed until you say yes` |
+| 4 | 0:46–1:04 | WhatsApp: BiryaniByKilo "reach by 8 PM" → `Scheduled —…` → jump-cut (caption `Meanwhile…`) to `/orders/live`: **Scheduled** tab with its count, then the flip to **Ongoing** with the `Placed!` notification in the same shot → quick cut to `/orders` (**Group plans**), landing on the **Total spent** panel | `Forgot to order. Ate noodles. Again.` → `Scheduled once. Arrived on time.`, then `Scheduled / Ongoing / Historical`, then `Total spent · lifetime, not this page` |
+| 5 | 1:04–1:35 | **Architecture** — see the detailed sub-shot list below | Callouts, timed to the read |
+| 6 | 1:35–2:05 | **Onboarding → learning, live.** Four quick cuts: (a) a **fresh** WhatsApp number sends `hi` — show the whole onboarding reply, privacy line included; (b) `/orders` after one order — the greyed **Your usual** card reading *"2 more orders until EasyOrder starts using this"*; (c) the seasoned number sends just `get biryani`, and the reply discloses *"You didn't say, so I used your usual budget of INR 600 (from your last 3 orders)"*; (d) the same number sends `get biryani for 8 under 2500` — **no** disclosure line. End on the confident **Your usual** card. | `First message: what it is, what it stores` then `Learning · 2 more orders` then `You said 8 words. It filled the rest.` then `Your number always wins` |
+| 7 | 2:05–2:17 | **Business Model Canvas** — `docs/assets/business-model-canvas.html` full-screen | `Phase 1 monetizes nobody` |
+| 8 | 2:17–2:24 | Back to home page / logo, end card held under the closing line | End card (below) |
+
+> **On the before/after overlays.** Beats 2–4 open with a paired flash — the without-
+> EasyOrder cost, then the with-EasyOrder one — lifted from the *Two Rohans* sketch in
+> `docs/prompts/demo.md`. They cost no speech time and carry the comedy the voiceover
+> deliberately doesn't, which is what lets the read stay dry. Two lines, ~1.5s each, top
+> of the beat, gone before the demo lands. Don't let them run over the evidence.
 
 ### Voiceover script
 
-**[0:00–0:11] — Hook (home page)**
-> Every group order starts the same way. Forty messages, three menus, one person doing
-> arithmetic they never volunteered for. That person is the coordination tax.
+**[0:00–0:14] — Cold open (spoken in-shot by Rohan, not the narrator)**
+> Every Friday, my friend group asks me the same three questions. "What's the food plan?"
+> "Is it under budget?" And — my personal favourite — "Bro where's my biryani."
 
-**[0:11–0:31] — Group ordering + host and guest (WhatsApp → PWA)**
-> One message. EasyOrder searches Swiggy Food and Instamart at once and hands back two
+*Freeze. Title card. Hard cut to the hinge card, then straight into the app. The narrator
+does not speak until 0:14 — the sketch has already made the argument.*
+
+**[0:14–0:34] — Group ordering + host and guest (WhatsApp → PWA)**
+> That's the coordination tax. One message removes it. EasyOrder searches Swiggy Food and
+> Instamart at once and hands back two
 > links — a private one for the host, a shared one for everyone else. Guests add and edit
 > their own items, live; only the host can check out.
 
-**[0:31–0:43] — Named restaurant + budget gate**
-> It comes back at eight seventy-eight — over the eight hundred you set — and then it
-> stops. Nothing is placed until you reply yes.
+**[0:34–0:46] — Named restaurant + budget gate**
+> It comes back at five eighty — over the four hundred you set — and then it stops.
+> Nothing is placed until you reply yes.
 
-**[0:43–1:01] — Scheduled delivery + the host's orders page**
+**[0:46–1:04] — Scheduled delivery + the host's orders page**
 > Or order for later. It works backwards from the delivery time and places it at the right
 > moment. The host's page holds the record — what's scheduled, what's on its way, what's
 > delivered, and what it has all cost.
 
-**[1:01–1:32] — Under the hood (architecture)**
+**[1:04–1:35] — Under the hood (architecture)**
 > Underneath: a deterministic router runs first, so "hi" never costs a model call. Real
 > orders enter a LangGraph state machine. The model does one job — a sentence into a
 > strict JSON schema — with a deterministic parser standing by. Food and Instamart run
 > concurrently over MCP, Swiggy's own protocol. A slow vertical degrades. It doesn't fail.
 > Built the way it runs: agent-first, from a locked skill set.
 
-**[1:32–2:02] — Onboarding, and what it learns**
+**[1:35–2:05] — Onboarding, and what it learns**
 > It starts knowing nothing about you. Say hi, and it says what it is, what it stores,
 > and how to erase it — all in the first reply. Then it watches. Three orders later it
 > stops counting down and starts filling in what you leave out: your usual budget, the
 > place you keep going back to. Name a number and your number wins. Either way, it tells
 > you which.
 
-**[2:02–2:14] — Business model**
+**[2:05–2:17] — Business model**
 > Free for the group, because the value lands on Swiggy — bigger carts, fewer abandoned
 > ones. Revenue starts in Phase two: corporate lunches, on subscription.
 
-**[2:14–2:21] — Close**
+**[2:17–2:24] — Close**
 > Group orders are Swiggy's biggest carts. Coordination is what kills them. EasyOrder
 > takes it off the table.
+
+### Fallback hook (if you drop the cold open)
+
+Restores beat 1 to 0:00–0:11 over the home page hero, with the narrator opening the video.
+Beat 2 then loses its first two sentences ("That's the coordination tax. One message
+removes it.") and starts at "EasyOrder searches…".
+
+> Every group order starts the same way. Forty messages, three menus, one person doing
+> arithmetic they never volunteered for. That person is the coordination tax.
 
 ### End card (not narrated — text overlay, held ~4s)
 
@@ -142,27 +168,28 @@ Built for the Swiggy Builders Program.
 
 ### Word count / timing check
 
-310 spoken words, by beat:
+291 narrated words, plus 29 spoken in-shot by Rohan:
 
 | Beat | Words | @140 wpm |
 |---|---|---|
-| 1 Hook | 25 | 11s |
-| 2 Group order + host/guest | 42 | 18s |
+| 1 Cold open *(in-shot dialogue)* | 29 | ~14s incl. freeze + cards |
+| 2 Group order + host/guest | 48 | 21s |
 | 3 Budget gate | 25 | 11s |
 | 4 Scheduled + orders page | 39 | 17s |
 | 5 Architecture | 68 | 29s |
 | 6 Onboarding + learning | 69 | 30s |
 | 7 Business model | 25 | 11s |
 | 8 Close | 17 | 7s |
-| **Total** | **310** | **133s (2:13)** |
+| **Total narrated** | **291** | **125s (2:05)** |
 
-- At 150 wpm → **124s (2:04)**
-- At 140 wpm → **133s (2:13)**
-- At 130 wpm → **144s (2:24)**
+- At 150 wpm → **116s (1:56)**
+- At 140 wpm → **125s (2:05)**
+- At 130 wpm → **134s (2:14)**
 
-The shot list runs 2:21. At 140 wpm the read lands at 2:13, leaving ~8 seconds for the
-seven beat-boundary pauses, with the end card held *under* the closing line. **Read at
-140–150 wpm**; at 130 the read alone overruns the shot list.
+The shot list runs 2:24. At 140 wpm the narration lands at 2:05 — but 14 of those seconds
+belong to the cold open, where the narrator is silent, so the real narration window is
+2:10 for 2:05 of read. That is tighter than it looks: **read at 140–150 wpm**, and treat
+the cold open's own pacing as fixed rather than something to trim later.
 
 If your generated track comes in long, cut in this order — each is written to be
 droppable without breaking the argument:
@@ -246,10 +273,10 @@ seconds, four visuals, callouts landing on the clause that names them.
 
 | Time | Screen | Callout overlay | Lands on the words |
 |---|---|---|---|
-| 1:01–1:07 | `docs/diagrams/03-agentic-framework-architecture.png`, full-frame | `Router → intent families (no LLM call)` | *"a deterministic router runs first"* |
-| 1:07–1:17 | Same diagram; slow push-in on the graph nodes. Or, better, the rendered state machine from `docs/hld.md` §3.1 (GitHub renders the Mermaid — screenshot it beforehand). | `LangGraph: guardrails → intent → workers → guardrails → persist` then `LLM → strict JSON schema · deterministic fallback` | *"LangGraph state machine"* … *"strict JSON schema"* |
-| 1:17–1:26 | `docs/diagrams/01-high-level-architecture.png` — or split-screen the `services/mock-swiggy-mcp` terminal showing live `POST /mcp` lines, which is far more convincing than a static box | `MCP · Food ∥ Instamart · 2.5s each · degrade, don't fail` | *"concurrently over MCP"* |
-| 1:26–1:32 | Quick pan over the repo docs tree — `docs/` (PRD, HLD, LLD, `adr/`, `runbooks/`) — then `skills-lock.json` | `60+ locked skills · PRD → HLD/LLD → ADRs → tests` | *"agent-first, from a locked skill set"* |
+| 1:04–1:10 | `docs/diagrams/03-agentic-framework-architecture.png`, full-frame | `Router → intent families (no LLM call)` | *"a deterministic router runs first"* |
+| 1:10–1:20 | Same diagram; slow push-in on the graph nodes. Or, better, the rendered state machine from `docs/hld.md` §3.1 (GitHub renders the Mermaid — screenshot it beforehand). | `LangGraph: guardrails → intent → workers → guardrails → persist` then `LLM → strict JSON schema · deterministic fallback` | *"LangGraph state machine"* … *"strict JSON schema"* |
+| 1:20–1:29 | `docs/diagrams/01-high-level-architecture.png` — or split-screen the `services/mock-swiggy-mcp` terminal showing live `POST /mcp` lines, which is far more convincing than a static box | `MCP · Food ∥ Instamart · 2.5s each · degrade, don't fail` | *"concurrently over MCP"* |
+| 1:29–1:35 | Quick pan over the repo docs tree — `docs/` (PRD, HLD, LLD, `adr/`, `runbooks/`) — then `skills-lock.json` | `60+ locked skills · PRD → HLD/LLD → ADRs → tests` | *"agent-first, from a locked skill set"* |
 
 > The `POST /mcp` terminal is the single most persuasive frame in the whole video: it's
 > live protocol traffic, not a diagram of intent. If you show it, run
@@ -303,7 +330,7 @@ as *better defaults*, not as an agent deciding for you. "Nothing is autonomous" 
 fills in what you didn't say" are one beat apart, and they only sound consistent if the
 first is said plainly.
 
-Gives beat 5 ~40 seconds (1:01–1:41) and pushes the total to about 2:21 — or about 2:31
+Gives beat 5 ~40 seconds (1:04–1:44) and pushes the total to about 2:33 — or about 2:43
 with the canvas extension below as well. Only use these if your cap is genuinely 2:30+.
 
 ---
@@ -426,6 +453,12 @@ doc in the description.
    `/orders/live` flipping Scheduled → Ongoing with the `Placed!` notification.
 4. **0:48–0:58** — Home / logo, end card.
 
+> **On the before/after overlays.** Beats 2–4 open with a paired flash — the without-
+> EasyOrder cost, then the with-EasyOrder one — lifted from the *Two Rohans* sketch in
+> `docs/prompts/demo.md`. They cost no speech time and carry the comedy the voiceover
+> deliberately doesn't, which is what lets the read stay dry. Two lines, ~1.5s each, top
+> of the beat, gone before the demo lands. Don't let them run over the evidence.
+
 ### Voiceover script
 
 **[0:00–0:12] — Hook**
@@ -467,12 +500,18 @@ Use these verbatim — they are the three verified use cases from
    > `2 chicken biryani, 1 mixed veg and 3 tandoori roti from the best restaurant under 2000 INR`
 
 2. **Named restaurant + budget gate** — then `yes` as a **separate** message:
-   > `Order paneer tikka and chicken 65 from MotiMahal restaurant and if the budget exceeds INR 800, let me know before placing the order`
+   > `Order paneer tikka and chicken 65 from MotiMahal restaurant and if the budget exceeds INR 400, let me know before placing the order`
 
-   ⚠️ Check the gate actually trips before recording. If the current menu totals under
-   ₹800 the confirmation never fires and the beat dies on camera — lower the number in
-   the prompt until it trips, and re-record the voiceover line with the matching figures.
-   The script above says "eight seventy-eight, over the eight hundred you set."
+   The budget is **400, not 800**. Those two dishes come to **₹580** on the mock menu, so
+   an 800 limit is never crossed: the order just places, no confirmation is asked, and the
+   beat has nothing in it. Verified against a running stack — at 800 the reply is
+   `Placed! Paneer Tikka, Chicken 65 from MotiMahal — total INR 580.00`, while at 400 it is
+   `…comes to INR 580.00, which exceeds your INR 400 budget. Reply YES to place it anyway,
+   or NO to cancel.`
+
+   ⚠️ Re-check this if the mock menu ever changes: the voiceover quotes both numbers
+   ("five eighty, over the four hundred you set"), so a menu edit silently makes the read
+   wrong. `docs/prompts/demo.md` flagged the same trap.
 
 3. **Scheduled delivery**:
    > `Order Egg Biryani for me from BiryaniByKilo and it should reach by 8PM`
@@ -512,21 +551,28 @@ Judges will assume anything unlabelled is real. Keep these true on screen:
   landing on them too hard kills them. No exclamation points.
 - **Pace**: 140 wpm. This cut has less slack than the 60-second one — see the timing note
   above before slowing down.
-- **Register shift at 1:06**: the architecture beat should sound *flatter* and more
+- **The narrator is silent for the first 14 seconds.** The cold open is Rohan's, and the
+  first narrated words are "That's the coordination tax" — a reply to him, not an
+  introduction. Read that line as an answer, and it stitches the sketch to the product.
+- **Register shift at 1:04**: the architecture beat should sound *flatter* and more
   matter-of-fact than the product beats, not more excited. Technical confidence reads as
   calm. Then lift slightly again for the canvas and the close.
-- **Emphasis**: land on **"coordination tax"** in the hook and **"coordination"** in the
-  close — that's the through-line and the callback. Hit **"and then it stops"** in the
+- **Emphasis**: land on **"coordination tax"** in the first narrated line and
+  **"coordination"** in the close — that's the through-line and the callback. Hit **"and then it stops"** in the
   budget beat, **"It doesn't fail"** in the architecture beat, and **"the value lands on
   Swiggy"** in the canvas beat.
 - **Pauses**: a half-beat at every beat boundary — those are the cuts. A full beat after
   "and then it stops," after "while you were in a meeting," and after "It doesn't fail."
-- **Numbers and initialisms**: read prices as words ("eight seventy-eight"), not
-  "INR 878." Read **MCP** as three letters, and **LangGraph** as one word — check the
+- **Numbers and initialisms**: read prices as words ("five eighty"), not "INR 580." Read **MCP** as three letters, and **LangGraph** as one word — check the
   TTS pronunciation of both before you commit to a take.
 
 ## Production notes
 
+- **The cold-open shot** is the only thing here you cannot screen-record. It is one clip,
+  ~10 seconds, one character, one line to camera — generate it with any of the tools in
+  `docs/prompts/demo.md` (Veo 3 handles the synced dialogue itself; the 2D-explainer route
+  is the low-risk one if time is short). You need **one** take, not the sketch's six, and
+  character consistency stops mattering the moment you only have one shot.
 - **Recording**: QuickTime (`File → New Screen Recording`) is enough. OBS if you want
   WhatsApp Web and `/orders/live` in one frame for beat 4, or the diagram and the live
   `POST /mcp` terminal side by side for beat 5.
@@ -535,7 +581,9 @@ Judges will assume anything unlabelled is real. Keep these true on screen:
 - **Edit**: CapCut (free, good auto-captions — many judges watch muted) or DaVinci
   Resolve. Burn in the overlay text from the shot lists verbatim; it's written short on
   purpose, don't paraphrase it into narration.
-- **Music**: light instrumental bed under beats 1 and 7 only. Drop it out for the product
+- **Music**: light comedic bed under the cold open, cut dead on the hinge card — the
+  silence after `No actors past this point` is what sells the change of register. Bring a
+  light bed back for beats 7–8 only. Drop it out for the product
   beats (2–4) so the real app reads as grounded, and keep it out of the architecture beat
   (5) — silence there reads as substance.
 - **Diagram legibility**: the three PNGs in `docs/diagrams/` were drawn for a document,
