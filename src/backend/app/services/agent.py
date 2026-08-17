@@ -234,7 +234,14 @@ class MockIntentParser:
             specified.add("head_count")
         head_count = int(stated_head_count if stated_head_count is not None else Decimal("4"))
 
+        # Dietary words inside a dish name are part of the dish, not a rule for
+        # the whole order: "1 mixed veg" alongside "2 chicken biryani" is not a
+        # vegetarian session, and treating it as one flags the chicken the user
+        # explicitly asked for. Scan what is left once the dishes are removed.
+        requested = extract_requested_items(normalized)
         lowered = normalized.lower()
+        for item in requested:
+            lowered = lowered.replace(item.name, " ")
         dietary_preference = DietaryTag.ANY
         if "vegetarian" in lowered or re.search(r"\bveg\b", lowered):
             dietary_preference = DietaryTag.VEG
@@ -249,7 +256,7 @@ class MockIntentParser:
             dietary_preference=dietary_preference,
             food_query=self._extract_query(normalized, Vertical.FOOD) or "food",
             instamart_query=self._extract_query(normalized, Vertical.INSTAMART),
-            requested_items=extract_requested_items(normalized),
+            requested_items=requested,
             specified=frozenset(specified),
         )
 
