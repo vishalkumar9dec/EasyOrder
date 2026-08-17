@@ -25,6 +25,7 @@ from app.services.agent import (
     MockIntentParser,
     MockTargetedOrderIntentParser,
     ParsedIntent,
+    RequestedItem,
     TargetedOrderIntent,
     TargetedOrderIntentParser,
 )
@@ -67,6 +68,22 @@ PARSED_INTENT_SCHEMA = {
                 "type": "string",
                 "enum": ["VEG", "NON-VEG", "ANY"],
             },
+            "items": {
+                "type": "array",
+                "description": (
+                    "Every dish the message names with an explicit count, in order. "
+                    "Empty when the message names no counts, e.g. 'get biryani'."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "quantity": {"type": "integer"},
+                    },
+                    "required": ["name", "quantity"],
+                    "additionalProperties": False,
+                },
+            },
             "food_query": {
                 "type": "string",
                 "description": "Search terms to find dishes/restaurants on Swiggy Food.",
@@ -92,6 +109,7 @@ PARSED_INTENT_SCHEMA = {
             "head_count",
             "head_count_stated",
             "dietary_preference",
+            "items",
             "food_query",
             "wants_instamart",
             "instamart_query",
@@ -104,7 +122,9 @@ PARSED_INTENT_SCHEMA = {
 SYSTEM_PROMPT = (
     "You classify a WhatsApp group-order request for EasyOrder, a Swiggy ordering "
     "assistant. Extract the budget in INR, headcount, dietary preference, and what "
-    "food to search for. Only set wants_instamart=true if the message separately "
+    "food to search for. List each dish that carries an explicit count in items, "
+    "so a request for several dishes becomes several cart rows rather than one. "
+    "Only set wants_instamart=true if the message separately "
     "asks for drinks, ice, plates, napkins, or similar grocery/party items. Never "
     "invent specifics the message does not provide; use the stated defaults instead, "
     "and set the matching *_stated flag to false whenever you do — a default you "
@@ -176,12 +196,22 @@ def _to_parsed_intent(data: dict[str, Any]) -> ParsedIntent:
     if dietary_preference != DietaryTag.ANY:
         specified.add("dietary_preference")
 
+    requested_items = tuple(
+        RequestedItem(
+            name=str(entry["name"]).strip(),
+            quantity=max(1, min(99, int(entry["quantity"]))),
+        )
+        for entry in (data.get("items") or [])
+        if str(entry.get("name", "")).strip()
+    )
+
     return ParsedIntent(
         budget_limit=budget_limit,
         head_count=head_count,
         dietary_preference=dietary_preference,
         food_query=food_query,
         instamart_query=instamart_query,
+        requested_items=requested_items,
         specified=frozenset(specified),
     )
 

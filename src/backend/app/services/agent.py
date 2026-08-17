@@ -43,6 +43,19 @@ class AgentRejectedPromptError(ValueError):
 
 
 @dataclass(frozen=True)
+class RequestedItem:
+    """One dish the message named, with the quantity it asked for.
+
+    A group order is usually a list ("2 biryani, 1 mixed veg, 3 roti"), and
+    every one of those is a cart row the host expects to see. Collapsing them
+    into a single search string loses both the dishes and their counts.
+    """
+
+    name: str
+    quantity: int
+
+
+@dataclass(frozen=True)
 class ParsedIntent:
     """Structured order constraints extracted from a WhatsApp prompt."""
 
@@ -53,6 +66,10 @@ class ParsedIntent:
     # None when the prompt never asked for Instamart items; the vertical is
     # skipped entirely so the seeded cart only contains what was requested.
     instamart_query: str | None
+    # Dishes named with an explicit count. Empty when the prompt was vague
+    # ("get biryani"), in which case the agent seeds a starter recommendation
+    # for the group to edit instead of inventing quantities.
+    requested_items: tuple[RequestedItem, ...] = ()
     # Field names the user actually stated, as opposed to ones carrying a
     # fallback. Without this the profile node cannot tell "under 3000" from the
     # 3000 the parser invented, and would overwrite a real instruction.
@@ -162,6 +179,36 @@ class InputGuardrails:
         return sanitized.strip()
 
 
+# Everything before the first "from/under/for" is the list of dishes; the rest
+# is where to buy them and what to spend.
+_ITEM_CLAUSE_STOP = re.compile(r"\b(?:from|under|for)\b")
+_QUANTIFIED_ITEM = re.compile(r"^(?:get|order|need|want|send)?\s*(\d+)\s+(.+)$")
+
+
+def extract_requested_items(prompt: str) -> tuple[RequestedItem, ...]:
+    """Pull "2 chicken biryani, 1 mixed veg and 3 tandoori roti" apart.
+
+    Only fragments carrying an explicit count become requested items. A vague
+    prompt has none, and the caller falls back to a starter recommendation —
+    better than turning "get biryani" into a row literally named "get biryani".
+    """
+    clause = prompt.lower()
+    stop = _ITEM_CLAUSE_STOP.search(clause)
+    if stop is not None:
+        clause = clause[: stop.start()]
+
+    items: list[RequestedItem] = []
+    for fragment in re.split(r",|\band\b", clause):
+        match = _QUANTIFIED_ITEM.match(fragment.strip())
+        if match is None:
+            continue
+        name = match.group(2).strip()
+        if not name:
+            continue
+        items.append(RequestedItem(name=name, quantity=max(1, min(99, int(match.group(1))))))
+    return tuple(items)
+
+
 class IntentParser(Protocol):
     """Interface for parsing a sanitized WhatsApp prompt into a ParsedIntent."""
 
@@ -202,6 +249,7 @@ class MockIntentParser:
             dietary_preference=dietary_preference,
             food_query=self._extract_query(normalized, Vertical.FOOD) or "food",
             instamart_query=self._extract_query(normalized, Vertical.INSTAMART),
+            requested_items=extract_requested_items(normalized),
             specified=frozenset(specified),
         )
 
@@ -516,15 +564,7 @@ class EasyOrderAgentService(IAgentService):
         if state.intent is None:
             raise ValueError("intent is required")
 
-        recommendations = [
-            *self._starter_recommendations(state.food_results),
-            *self._starter_recommendations(state.instamart_results),
-        ]
-        state.cart_items = [
-            self._cart_item_from_result(result, state.message.sender_id)
-            for result in recommendations
-            if self._has_required_source_attribution(result, state)
-        ]
+        state.cart_items = self._build_cart(state)
         self._apply_quantity_budget(state)
         self._apply_dietary_warning(state)
         if state.degraded_verticals:
@@ -584,7 +624,15 @@ class EasyOrderAgentService(IAgentService):
         if state.intent is None:
             raise ValueError("intent is required")
 
+        # Only size the rows the user did not size themselves. Scaling an
+        # explicit "3 tandoori roti" up to the headcount would silently reorder
+        # the group's own decision.
+        requested_names = {item.name.lower() for item in state.intent.requested_items}
         for item in state.cart_items:
+            if requested_names and any(
+                word in item.name.lower() for name in requested_names for word in name.split()
+            ):
+                continue
             if item.vertical == Vertical.FOOD:
                 item.quantity = min(99, max(1, state.intent.head_count))
             else:
@@ -619,6 +667,86 @@ class EasyOrderAgentService(IAgentService):
                         item_id=item.item_id,
                     )
                 )
+
+    def _build_cart(self, state: EasyOrderState) -> list[CartItem]:
+        """One cart row per dish the message named, else a starter to edit.
+
+        The old behaviour took the first usable search result and nothing else,
+        so "2 chicken biryani, 1 mixed veg and 3 tandoori roti" produced a
+        single row — the host saw one dish and had to rebuild the rest by hand.
+        """
+        if state.intent is None:
+            raise ValueError("intent is required")
+
+        usable = [
+            result
+            for result in state.food_results
+            if not self._is_placeholder_result(result)
+            and self._has_required_source_attribution(result, state)
+        ]
+        cart: list[CartItem] = []
+
+        if state.intent.requested_items and usable:
+            claimed: set[str] = set()
+            missed: list[str] = []
+            for requested in state.intent.requested_items:
+                match = self._best_match(requested.name, usable, claimed)
+                if match is None:
+                    missed.append(requested.name)
+                    continue
+                claimed.add(str(match["item_id"]))
+                item = self._cart_item_from_result(match, state.message.sender_id)
+                item.quantity = requested.quantity
+                cart.append(item)
+            if missed:
+                # Say what could not be found rather than silently dropping it —
+                # a short cart with no explanation reads as a broken agent.
+                state.warnings.append(
+                    SessionWarning(
+                        code="ITEM_NOT_FOUND",
+                        message=(
+                            "Couldn't find " + ", ".join(missed) + " nearby. "
+                            "Add it on the canvas or try a different name."
+                        ),
+                        vertical=Vertical.FOOD,
+                    )
+                )
+
+        if not cart:
+            # Reuse the already-filtered list: `_has_required_source_attribution`
+            # records a warning per rejected item, so calling it twice on the
+            # same result would report the same problem twice.
+            cart = [
+                self._cart_item_from_result(result, state.message.sender_id)
+                for result in usable[:1]
+            ]
+
+        cart += [
+            self._cart_item_from_result(result, state.message.sender_id)
+            for result in self._starter_recommendations(state.instamart_results)
+            if self._has_required_source_attribution(result, state)
+        ]
+        return cart
+
+    @staticmethod
+    def _best_match(
+        name: str,
+        results: list[dict[str, Any]],
+        claimed: set[str],
+    ) -> dict[str, Any] | None:
+        """Pick the search result whose name shares the most words with the request."""
+        wanted = {word for word in re.findall(r"[a-z]+", name.lower()) if len(word) > 2}
+        best: tuple[int, dict[str, Any]] | None = None
+        for result in results:
+            if str(result["item_id"]) in claimed:
+                continue
+            tokens = {
+                word for word in re.findall(r"[a-z]+", str(result["name"]).lower()) if len(word) > 2
+            }
+            score = len(wanted & tokens)
+            if score and (best is None or score > best[0]):
+                best = (score, result)
+        return best[1] if best else None
 
     @staticmethod
     def _starter_recommendations(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
