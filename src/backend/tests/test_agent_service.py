@@ -264,3 +264,75 @@ def test_graph_node_error_is_captured_as_degraded_session() -> None:
     assert created.status == SessionStatus.DEGRADED
     assert [warning.code for warning in created.warnings] == ["AGENT_ERROR"]
     assert created.cart_items == []
+
+
+def test_multi_dish_prompt_becomes_one_cart_row_per_dish() -> None:
+    # The exact prompt the demo script sends. It used to produce a single row:
+    # the agent seeded the first search result and dropped the rest.
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(
+        service.initialize_tagged_message(
+            message(
+                "2 chicken biryani, 1 mixed veg and 3 tandoori roti "
+                "from the best restaurant under 2000 INR"
+            )
+        )
+    )
+
+    rows = {item.name: item.quantity for item in result.session.cart_items}
+    assert len(rows) == 3
+    assert rows["Chicken dum biryani family pack"] == 2
+    assert rows["Mixed veg curry"] == 1
+    assert rows["Tandoori roti"] == 3
+
+
+def test_requested_quantities_survive_the_budget_node() -> None:
+    # head_count is 4 here, and the output guardrail used to overwrite every
+    # food quantity with it — turning "3 tandoori roti" into 4.
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(
+        service.initialize_tagged_message(
+            message("2 chicken biryani and 3 tandoori roti for 4 under 2000")
+        )
+    )
+
+    quantities = {item.name: item.quantity for item in result.session.cart_items}
+    assert quantities["Chicken dum biryani family pack"] == 2
+    assert quantities["Tandoori roti"] == 3
+    assert result.session.head_count == 4
+
+
+def test_multi_restaurant_request_splits_across_restaurants() -> None:
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(
+        service.initialize_tagged_message(
+            message("2 chicken biryani, 1 mixed veg and 3 tandoori roti under 2000")
+        )
+    )
+
+    restaurants = {item.restaurant_name for item in result.session.cart_items}
+    assert restaurants == {"Biryani House", "Spice Garden"}
+
+
+def test_vague_prompt_still_seeds_a_single_starter() -> None:
+    # No explicit counts, so there is nothing to itemize: seed one row for the
+    # group to edit rather than inventing dishes.
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(service.initialize_tagged_message(message("get biryani for 4 under 2000")))
+
+    assert len(result.session.cart_items) == 1
+    assert result.session.cart_items[0].quantity == 4
+
+
+def test_unavailable_dish_is_reported_not_silently_dropped() -> None:
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(
+        service.initialize_tagged_message(
+            message("2 chicken biryani and 1 lobster thermidor under 3000")
+        )
+    )
+
+    names = {item.name for item in result.session.cart_items}
+    assert "Chicken dum biryani family pack" in names
+    codes = [warning.code for warning in result.session.warnings]
+    assert "ITEM_NOT_FOUND" in codes
