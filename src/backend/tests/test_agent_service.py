@@ -358,3 +358,28 @@ def test_a_stated_dietary_rule_still_applies() -> None:
     result = run(service.initialize_tagged_message(message("get vegetarian food for 6 under 1500")))
 
     assert result.session.dietary_preference == DietaryTag.VEG
+
+
+def test_unavailable_dish_is_announced_to_the_host_in_chat() -> None:
+    # The canvas signal alone is a surprise: the host does not open the canvas
+    # before sharing it, so a quietly shorter cart is discovered at checkout.
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(
+        service.initialize_tagged_message(
+            message("2 chicken biryani and 1 lobster thermidor under 3000")
+        )
+    )
+
+    assert "lobster thermidor" in result.host_note
+    assert "canvas" in result.host_note
+
+
+def test_host_note_is_empty_when_everything_was_found() -> None:
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(
+        service.initialize_tagged_message(
+            message("2 chicken biryani and 3 tandoori roti under 2000")
+        )
+    )
+
+    assert result.host_note == ""
