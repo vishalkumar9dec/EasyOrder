@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -180,45 +181,105 @@ class MockSwiggyMcpClient:
         if self.scenario.empty_food:
             return []
 
-        query_lower = query.lower()
-        if "veg" in query_lower or "paneer" in query_lower:
-            return [
-                self._food_item(
-                    "food-paneer-roll",
-                    "Paneer tikka rolls",
-                    "180.00",
-                    DietaryTag.VEG,
-                    restaurant_id="rest-roll-house",
-                    restaurant_name="Roll House",
-                ),
-                self._food_item(
-                    "food-masala-dosa",
-                    "Masala dosa",
-                    "140.00",
-                    DietaryTag.VEG,
-                    restaurant_id="rest-dosa-corner",
-                    restaurant_name="Dosa Corner",
-                ),
-            ]
-        if "pizza" in query_lower:
-            return [
-                self._food_item(
-                    "food-farmhouse-pizza",
-                    "Large farmhouse pizza",
-                    "560.00",
-                    DietaryTag.VEG,
-                    restaurant_id="rest-pizza-yard",
-                    restaurant_name="Pizza Yard",
-                ),
-                self._food_item(
-                    "food-brownie-box",
-                    "Chocolate brownie box",
-                    "320.00",
-                    DietaryTag.VEG,
-                    restaurant_id="rest-pizza-yard",
-                    restaurant_name="Pizza Yard",
-                ),
-            ]
+        return self._search_food_catalogue(query)
+
+    # Every dish EasyOrder can seed, in one place. The old implementation
+    # branched on a couple of keywords and returned a fixed pair, so a request
+    # naming three dishes could only ever surface whichever branch matched
+    # first — and dishes the demo asks for by name did not exist at all.
+    _FOOD_CATALOGUE: tuple[tuple[str, str, str, DietaryTag, str, str], ...] = (
+        (
+            "food-chicken-biryani",
+            "Chicken dum biryani family pack",
+            "620.00",
+            DietaryTag.NON_VEG,
+            "rest-biryani-house",
+            "Biryani House",
+        ),
+        (
+            "food-mixed-veg",
+            "Mixed veg curry",
+            "240.00",
+            DietaryTag.VEG,
+            "rest-spice-garden",
+            "Spice Garden",
+        ),
+        (
+            "food-tandoori-roti",
+            "Tandoori roti",
+            "45.00",
+            DietaryTag.VEG,
+            "rest-spice-garden",
+            "Spice Garden",
+        ),
+        (
+            "food-paneer-roll",
+            "Paneer tikka rolls",
+            "180.00",
+            DietaryTag.VEG,
+            "rest-roll-house",
+            "Roll House",
+        ),
+        (
+            "food-masala-dosa",
+            "Masala dosa",
+            "140.00",
+            DietaryTag.VEG,
+            "rest-dosa-corner",
+            "Dosa Corner",
+        ),
+        (
+            "food-farmhouse-pizza",
+            "Large farmhouse pizza",
+            "560.00",
+            DietaryTag.VEG,
+            "rest-pizza-yard",
+            "Pizza Yard",
+        ),
+        (
+            "food-brownie-box",
+            "Chocolate brownie box",
+            "320.00",
+            DietaryTag.VEG,
+            "rest-pizza-yard",
+            "Pizza Yard",
+        ),
+    )
+
+    def _search_food_catalogue(self, query: str) -> list[dict[str, Any]]:
+        """Rank the catalogue by word overlap with the query.
+
+        A multi-dish request carries every dish in one query string, so the
+        search has to answer for all of them at once — scoring beats branching
+        because "chicken biryani mixed veg tandoori roti" then returns all
+        three, and the agent can match each requested dish to its own row.
+        """
+        tokens = {word for word in re.findall(r"[a-z]+", query.lower()) if len(word) > 2}
+        scored: list[tuple[int, int, dict[str, Any]]] = []
+        for position, entry in enumerate(self._FOOD_CATALOGUE):
+            item_id, name, price, tag, restaurant_id, restaurant_name = entry
+            name_tokens = {word for word in re.findall(r"[a-z]+", name.lower()) if len(word) > 2}
+            score = len(tokens & name_tokens)
+            if score:
+                scored.append(
+                    (
+                        -score,
+                        position,
+                        self._food_item(
+                            item_id,
+                            name,
+                            price,
+                            tag,
+                            restaurant_id=restaurant_id,
+                            restaurant_name=restaurant_name,
+                        ),
+                    )
+                )
+        if scored:
+            return [item for _score, _position, item in sorted(scored, key=lambda row: row[:2])]
+
+        # Nothing matched by name — fall back to the house recommendations so a
+        # vague prompt ("get food") still seeds something reviewable.
         return [
             self._food_item(
                 "food-chicken-biryani",
