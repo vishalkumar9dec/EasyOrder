@@ -196,8 +196,11 @@ def test_the_node_runs_between_parsing_and_the_swiggy_workers() -> None:
 
 def test_a_stated_headcount_is_never_reported_as_missing() -> None:
     # "for 4" is in the message. The profile must not fill head_count and the
-    # reply must not claim "you didn't say" — the live LLM reported
-    # head_count_stated=false for exactly this prompt.
+    # reply must not claim "you didn't say". Guards the deterministic
+    # (LLM_MODE=mock) path specifically; the nullable-field redesign in
+    # llm_intent.py covers the LLM_MODE=openai path — see
+    # test_llm_intent.py::
+    # test_llm_intent_parser_marks_a_stated_head_count_even_when_phrased_unusually
     service = service_with_history(orders=3, sessions=3, head_count=8)
 
     state = run(_intent_after_profile(service, "get biryani for 4 under 2000"))

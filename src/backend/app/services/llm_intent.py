@@ -28,7 +28,7 @@ from app.services.agent import (
     RequestedItem,
     TargetedOrderIntent,
     TargetedOrderIntentParser,
-    detect_stated_fields,
+    extract_requested_items,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,25 +44,18 @@ PARSED_INTENT_SCHEMA = {
         "type": "object",
         "properties": {
             "budget_limit": {
-                "type": "number",
-                "description": "Total order budget in INR. Default to 3000 if not stated.",
-            },
-            "budget_stated": {
-                "type": "boolean",
+                "type": ["number", "null"],
                 "description": (
-                    "True only if the message itself names a budget or spend limit. "
-                    "False when you fell back to the default."
+                    "The budget in INR, exactly as the message states it — 'under 2000', "
+                    "'budget of 2000', 'within 2000 rs' all mean 2000. null if the message "
+                    "names no budget at all. Never invent a number to fill this in."
                 ),
             },
             "head_count": {
-                "type": "integer",
-                "description": "Number of people ordering for. Default to 4 if not stated.",
-            },
-            "head_count_stated": {
-                "type": "boolean",
+                "type": ["integer", "null"],
                 "description": (
-                    "True only if the message itself says how many people are eating. "
-                    "False when you fell back to the default."
+                    "How many people the order is for, if the message says. null if it "
+                    "does not. Never invent a headcount to fill this in."
                 ),
             },
             "dietary_preference": {
@@ -106,9 +99,7 @@ PARSED_INTENT_SCHEMA = {
         },
         "required": [
             "budget_limit",
-            "budget_stated",
             "head_count",
-            "head_count_stated",
             "dietary_preference",
             "items",
             "food_query",
@@ -126,10 +117,11 @@ SYSTEM_PROMPT = (
     "food to search for. List each dish that carries an explicit count in items, "
     "so a request for several dishes becomes several cart rows rather than one. "
     "Only set wants_instamart=true if the message separately "
-    "asks for drinks, ice, plates, napkins, or similar grocery/party items. Never "
-    "invent specifics the message does not provide; use the stated defaults instead, "
-    "and set the matching *_stated flag to false whenever you do — a default you "
-    "supplied is not something the user asked for."
+    "asks for drinks, ice, plates, napkins, or similar grocery/party items. "
+    "budget_limit and head_count must be null when the message does not state them — "
+    "the caller applies its own defaults. Do not write a number to fill either field "
+    "in; a filled-in default is worse than null, because it looks like something the "
+    "user asked for."
 )
 
 
@@ -174,36 +166,48 @@ class LLMIntentParser:
         return _to_parsed_intent(json.loads(content), prompt)
 
 
-def _to_parsed_intent(data: dict[str, Any], prompt: str = "") -> ParsedIntent:
-    try:
-        budget_limit = Decimal(str(data["budget_limit"])).quantize(Decimal("0.01"))
-    except (InvalidOperation, KeyError, TypeError) as error:
-        raise ValueError("LLM response had an invalid budget_limit") from error
+# Applied only when the model reports the field as null. Matching
+# MockIntentParser's literals so the two backends agree on what "unstated"
+# defaults to.
+_DEFAULT_BUDGET = Decimal("3000")
+_DEFAULT_HEAD_COUNT = 4
 
-    head_count = max(1, min(100, int(data["head_count"])))
+
+def _to_parsed_intent(data: dict[str, Any], prompt: str = "") -> ParsedIntent:
+    # budget_limit and head_count are nullable in the schema: null is the only
+    # signal for "not stated", so there is nothing else that can disagree with
+    # it. This replaced a pair of *_stated booleans the model reported
+    # alongside an always-filled value — two outputs for one fact, which could
+    # (and did) drift apart, e.g. head_count=4 with head_count_stated=false for
+    # a message that plainly said "for 4".
+    specified: set[str] = set()
+
+    raw_budget = data.get("budget_limit")
+    if raw_budget is None:
+        budget_limit = _DEFAULT_BUDGET
+    else:
+        try:
+            budget_limit = Decimal(str(raw_budget)).quantize(Decimal("0.01"))
+        except InvalidOperation as error:
+            raise ValueError("LLM response had an invalid budget_limit") from error
+        specified.add("budget_limit")
+
+    raw_head_count = data.get("head_count")
+    if raw_head_count is None:
+        head_count = _DEFAULT_HEAD_COUNT
+    else:
+        head_count = max(1, min(100, int(raw_head_count)))
+        specified.add("head_count")
+
     dietary_preference = DietaryTag(str(data["dietary_preference"]))
     food_query = str(data["food_query"]).strip() or "food"
     instamart_query = str(data.get("instamart_query") or "").strip() or None
     if not data.get("wants_instamart"):
         instamart_query = None
-
-    # Only fields the user actually stated. Anything the model defaulted stays
-    # unspecified so the profile node may fill it from the user's own history.
-    #
-    # The model's own flags are taken as one source of evidence, not the only
-    # one: it sometimes reports head_count_stated=false for a message that says
-    # "for 4", and the profile then announces "you didn't say" about a number
-    # the user clearly said. Deterministic detection cannot produce that false
-    # negative, so the two are unioned.
-    specified = detect_stated_fields(prompt)
-    if data.get("budget_stated"):
-        specified.add("budget_limit")
-    if data.get("head_count_stated"):
-        specified.add("head_count")
     if dietary_preference != DietaryTag.ANY:
         specified.add("dietary_preference")
 
-    requested_items = tuple(
+    llm_items = tuple(
         RequestedItem(
             name=str(entry["name"]).strip(),
             quantity=max(1, min(99, int(entry["quantity"]))),
@@ -211,6 +215,16 @@ def _to_parsed_intent(data: dict[str, Any], prompt: str = "") -> ParsedIntent:
         for entry in (data.get("items") or [])
         if str(entry.get("name", "")).strip()
     )
+    # "2 chicken biryani, 1 mixed veg and 3 tandoori roti" is a closed grammar
+    # — quantity plus noun phrase, comma/and-separated — not open-vocabulary
+    # language, so a regex parses it exactly where an LLM call only
+    # approximates it. When the message matches that grammar, its result
+    # replaces the model's item list outright rather than merging with it, so
+    # the cart the demo's own scripted prompts produce carries zero model
+    # variance. The LLM's list is used only when the message does not match —
+    # free-form phrasing with no explicit per-item counts.
+    regex_items = extract_requested_items(prompt)
+    requested_items = regex_items or llm_items
 
     return ParsedIntent(
         budget_limit=budget_limit,
