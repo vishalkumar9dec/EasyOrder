@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import itertools
 import os
+import re
 from typing import Any
 
 import uvicorn
@@ -72,6 +73,13 @@ RESTAURANTS: tuple[dict[str, Any], ...] = (
         "eta_minutes": 40,
     },
     {
+        "id": "rest-spice-garden",
+        "name": "Spice Garden",
+        "cuisines": ["North Indian", "Tandoor"],
+        "rating": 4.2,
+        "eta_minutes": 30,
+    },
+    {
         "id": "rest-biryani-by-kilo",
         "name": "BiryaniByKilo",
         "cuisines": ["Biryani", "North Indian"],
@@ -108,6 +116,20 @@ FOOD_ITEMS: tuple[dict[str, Any], ...] = (
         "price": "560.00",
         "diet": "veg",
         "restaurant": {"id": "rest-pizza-yard", "name": "Pizza Yard"},
+    },
+    {
+        "id": "food-mixed-veg",
+        "title": "Mixed veg curry",
+        "price": "240.00",
+        "diet": "veg",
+        "restaurant": {"id": "rest-spice-garden", "name": "Spice Garden"},
+    },
+    {
+        "id": "food-tandoori-roti",
+        "title": "Tandoori roti",
+        "price": "45.00",
+        "diet": "veg",
+        "restaurant": {"id": "rest-spice-garden", "name": "Spice Garden"},
     },
     {
         "id": "food-mm-paneer-tikka",
@@ -222,9 +244,34 @@ def get_restaurant(restaurant_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 def search_restaurants(lat: float, lng: float, query: str) -> dict[str, Any]:
-    """Search Swiggy Food restaurants or dishes."""
-    del lat, lng, query
-    return {"items": [dict(item) for item in FOOD_ITEMS]}
+    """Search Swiggy Food restaurants or dishes.
+
+    Ranks by word overlap against the dish title and its restaurant name, so a
+    multi-dish query ("chicken biryani mixed veg tandoori roti") answers for
+    every dish it names in one call. This used to ignore the query entirely and
+    return the whole catalogue in a fixed order, which made the caller's first
+    result an accident of list position rather than of relevance.
+    """
+    del lat, lng
+    wanted = _words(query)
+    if not wanted:
+        return {"items": [dict(item) for item in FOOD_ITEMS]}
+
+    ranked: list[tuple[int, int, dict[str, Any]]] = []
+    for position, item in enumerate(FOOD_ITEMS):
+        haystack = _words(f"{item['title']} {item['restaurant']['name']}")
+        score = len(wanted & haystack)
+        if score:
+            ranked.append((-score, position, dict(item)))
+    if not ranked:
+        # An unknown dish still gets the house list back; the caller decides
+        # whether anything is close enough to seed.
+        return {"items": [dict(item) for item in FOOD_ITEMS]}
+    return {"items": [item for _score, _position, item in sorted(ranked, key=lambda row: row[:2])]}
+
+
+def _words(text: str) -> set[str]:
+    return {word for word in re.findall(r"[a-z]+", text.lower()) if len(word) > 2}
 
 
 @mcp.tool()
