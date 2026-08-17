@@ -173,3 +173,42 @@ def test_onboarding_reply_does_not_advertise_group_tagging() -> None:
     # and contradicts every flow the product actually demonstrates.
     assert "tag @EasyOrder" not in reply
     assert "group chat" not in reply.lower()
+
+
+def test_scripted_group_order_prompt_creates_a_session() -> None:
+    # The exact prompt the demo script and local-demo runbook tell you to send
+    # on camera. It says "from the best restaurant", and a bare \bbest\b used to
+    # route it to DISCOVERY_OFFERS — the reply was "discovery is coming soon"
+    # and no session was created, which killed the main product beat.
+    routed = route_business_chat_message(
+        "2 chicken biryani, 1 mixed veg and 3 tandoori roti "
+        "from the best restaurant under 2000 INR"
+    )
+
+    assert routed.family == IntentFamily.START_SESSION
+    assert routed.creates_session is True
+    assert routed.reply_text is None
+
+
+def test_order_verbs_outrank_discovery_keywords() -> None:
+    for text in (
+        "get me the best biryani under 500",
+        "order the best paneer tikka for 4",
+        "need snacks for 6, best place nearby",
+    ):
+        routed = route_business_chat_message(text)
+        assert routed.family in {IntentFamily.START_SESSION, IntentFamily.TARGETED_ORDER}, text
+        assert routed.family != IntentFamily.DISCOVERY_OFFERS, text
+
+
+def test_browsing_questions_still_route_to_discovery() -> None:
+    # No order verb, no budget, no headcount — the user is asking, not ordering.
+    for text in (
+        "which is the best restaurant near me",
+        "any offers today?",
+        "recommend a pizza place",
+        "nearest best chole bhature",
+    ):
+        routed = route_business_chat_message(text)
+        assert routed.family == IntentFamily.DISCOVERY_OFFERS, text
+        assert routed.creates_session is False, text

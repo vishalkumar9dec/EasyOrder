@@ -208,7 +208,14 @@ def route_business_chat_message(message_text: str) -> RoutedIntent:
     if "share" in normalized:
         confirmed = _SHARE_CONFIRMATION.search(normalized) is not None
         return RoutedIntent(IntentFamily.SHARE_REQUEST, SHARE_REPLY, share_confirmed=confirmed)
-    if any(pattern.search(normalized) for pattern in _DISCOVERY_PATTERNS):
+    # An order outranks a discovery keyword. "2 chicken biryani ... from the
+    # best restaurant under 2000" is someone ordering and delegating the choice
+    # of restaurant, not someone browsing — but a bare \bbest\b used to send it
+    # to the "discovery is coming soon" reply and no session was ever created.
+    # Browsing questions ("recommend a pizza place", "any offers today?") carry
+    # no order verb, budget or headcount, so they still land here.
+    looks_like_order = any(pattern.search(normalized) for pattern in _ORDER_REQUEST_PATTERNS)
+    if not looks_like_order and any(pattern.search(normalized) for pattern in _DISCOVERY_PATTERNS):
         return RoutedIntent(IntentFamily.DISCOVERY_OFFERS, DISCOVERY_REPLY)
     if _ORDER_VERB_PATTERN.search(normalized) and _TARGETED_ORDER_PATTERN.search(normalized):
         return RoutedIntent(IntentFamily.TARGETED_ORDER, None)
