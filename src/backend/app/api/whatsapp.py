@@ -95,11 +95,11 @@ def build_group_session_message(guest_short_url: str) -> str:
     return f"EasyOrder is ready. Open the planning canvas: {guest_short_url}"
 
 
-def build_private_host_message(host_short_url: str, defaults_note: str = "") -> str:
+def build_private_host_message(host_short_url: str, host_note: str = "") -> str:
     base = f"Your EasyOrder host link is ready. Keep this private: {host_short_url}"
     # Preferences the profile filled in are always disclosed here: the user has
     # to be able to see a default to disagree with it.
-    return f"{base}\n\n{defaults_note}" if defaults_note else base
+    return f"{base}\n\n{host_note}" if host_note else base
 
 
 def redact_timeline_message(message_text: str) -> str:
@@ -374,7 +374,7 @@ async def ingest_webhook(
             host_short_url=host_short_url,
             guest_short_url=guest_short_url,
         )
-        defaults_note = result.defaults_note
+        host_note = result.host_note
 
         try:
             if settings.whatsapp_provider_mode == "meta":
@@ -386,8 +386,8 @@ async def ingest_webhook(
                     channel="private",
                 )
                 await whatsapp_sender.send_session_handoff(message.sender_id, handoff)
-                if defaults_note:
-                    await whatsapp_sender.send_private_message(message.sender_id, defaults_note)
+                if host_note:
+                    await whatsapp_sender.send_private_message(message.sender_id, host_note)
             else:
                 await whatsapp_sender.send_group_message(
                     message.phone_number_id,
@@ -395,7 +395,7 @@ async def ingest_webhook(
                 )
                 await whatsapp_sender.send_private_message(
                     message.sender_id,
-                    build_private_host_message(host_short_url, defaults_note),
+                    build_private_host_message(host_short_url, host_note),
                 )
         except WhatsAppSendError as error:
             log_webhook_event(

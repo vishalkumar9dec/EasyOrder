@@ -28,6 +28,7 @@ from app.services.agent import (
     RequestedItem,
     TargetedOrderIntent,
     TargetedOrderIntentParser,
+    detect_stated_fields,
 )
 
 logger = logging.getLogger(__name__)
@@ -170,10 +171,10 @@ class LLMIntentParser:
         content = response.choices[0].message.content
         if not content:
             raise ValueError("LLM returned no content")
-        return _to_parsed_intent(json.loads(content))
+        return _to_parsed_intent(json.loads(content), prompt)
 
 
-def _to_parsed_intent(data: dict[str, Any]) -> ParsedIntent:
+def _to_parsed_intent(data: dict[str, Any], prompt: str = "") -> ParsedIntent:
     try:
         budget_limit = Decimal(str(data["budget_limit"])).quantize(Decimal("0.01"))
     except (InvalidOperation, KeyError, TypeError) as error:
@@ -188,7 +189,13 @@ def _to_parsed_intent(data: dict[str, Any]) -> ParsedIntent:
 
     # Only fields the user actually stated. Anything the model defaulted stays
     # unspecified so the profile node may fill it from the user's own history.
-    specified = set()
+    #
+    # The model's own flags are taken as one source of evidence, not the only
+    # one: it sometimes reports head_count_stated=false for a message that says
+    # "for 4", and the profile then announces "you didn't say" about a number
+    # the user clearly said. Deterministic detection cannot produce that false
+    # negative, so the two are unioned.
+    specified = detect_stated_fields(prompt)
     if data.get("budget_stated"):
         specified.add("budget_limit")
     if data.get("head_count_stated"):
