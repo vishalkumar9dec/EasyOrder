@@ -186,11 +186,12 @@ class SessionInitResult(BaseModel):
     session: Session
     host_token: str
     #: Which preference slots the profile filled because the prompt left them
-    #: unsaid, and the ready-to-send sentence disclosing them. Plain types on
-    #: purpose: a profile is derived *from* sessions, so this model must not
-    #: depend on that module.
+    #: unsaid. Plain types on purpose: a profile is derived *from* sessions, so
+    #: this model must not depend on that module.
     applied_defaults: list[str] = Field(default_factory=list)
-    defaults_note: str = ""
+    #: Everything the host should be told in chat — items that could not be
+    #: sourced first, then any preference the profile filled in.
+    host_note: str = ""
 
 
 class SessionRole(StrEnum):

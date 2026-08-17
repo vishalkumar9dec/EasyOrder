@@ -185,6 +185,28 @@ _ITEM_CLAUSE_STOP = re.compile(r"\b(?:from|under|for)\b")
 _QUANTIFIED_ITEM = re.compile(r"^(?:get|order|need|want|send)?\s*(\d+)\s+(.+)$")
 
 
+_STATED_BUDGET = re.compile(r"\bunder\s+\d+")
+_STATED_HEAD_COUNT = re.compile(r"\bfor\s+\d+\b")
+
+
+def detect_stated_fields(prompt: str) -> set[str]:
+    """Fields the message states outright, whatever a model believes.
+
+    The LLM reports its own `*_stated` flags, and when it gets one wrong the
+    profile fills a slot the user already filled — so the reply claims "you
+    didn't say" about something they plainly said. These patterns are
+    unambiguous, so they are treated as evidence and unioned with the model's
+    answer rather than trusting it alone.
+    """
+    lowered = prompt.lower()
+    stated: set[str] = set()
+    if _STATED_BUDGET.search(lowered):
+        stated.add("budget_limit")
+    if _STATED_HEAD_COUNT.search(lowered):
+        stated.add("head_count")
+    return stated
+
+
 def extract_requested_items(prompt: str) -> tuple[RequestedItem, ...]:
     """Pull "2 chicken biryani, 1 mixed veg and 3 tandoori roti" apart.
 
@@ -222,16 +244,12 @@ class MockIntentParser:
 
     async def parse(self, prompt: str) -> ParsedIntent:
         normalized = prompt.replace("@EasyOrder", "").strip()
-        specified: set[str] = set()
+        specified: set[str] = detect_stated_fields(normalized)
 
         stated_budget = self._extract_decimal(normalized, r"\bunder\s+(\d+(?:\.\d+)?)")
-        if stated_budget is not None:
-            specified.add("budget_limit")
         budget = stated_budget if stated_budget is not None else Decimal("3000")
 
         stated_head_count = self._extract_decimal(normalized, r"\bfor\s+(\d+)\b")
-        if stated_head_count is not None:
-            specified.add("head_count")
         head_count = int(stated_head_count if stated_head_count is not None else Decimal("4"))
 
         # Dietary words inside a dish name are part of the dish, not a rule for
@@ -416,12 +434,25 @@ class EasyOrderAgentService(IAgentService):
             session=final_state.session,
             host_token=final_state.host_token,
             applied_defaults=final_state.applied_defaults,
-            defaults_note=(
-                describe_applied_defaults(final_state.profile, final_state.applied_defaults)
-                if final_state.profile is not None
-                else ""
-            ),
+            host_note=self._compose_host_note(final_state),
         )
+
+    @staticmethod
+    def _compose_host_note(state: EasyOrderState) -> str:
+        """What the host needs told in chat, not just shown on the canvas.
+
+        A dish that could not be sourced is the one thing they must hear about
+        immediately: the cart is quietly shorter than they asked for, and
+        finding that out at checkout is the worst possible moment.
+        """
+        parts = [
+            warning.message for warning in state.warnings if warning.code == "ITEM_NOT_FOUND"
+        ]
+        if state.profile is not None:
+            disclosure = describe_applied_defaults(state.profile, state.applied_defaults)
+            if disclosure:
+                parts.append(disclosure)
+        return "\n\n".join(parts)
 
     async def apply_input_guardrails(self, state: EasyOrderState) -> EasyOrderState:
         state.sanitized_prompt = self.guardrails.sanitize(state.message.message_text)
