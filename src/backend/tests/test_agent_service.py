@@ -336,3 +336,25 @@ def test_unavailable_dish_is_reported_not_silently_dropped() -> None:
     assert "Chicken dum biryani family pack" in names
     codes = [warning.code for warning in result.session.warnings]
     assert "ITEM_NOT_FOUND" in codes
+
+
+def test_a_veg_dish_name_does_not_make_the_whole_order_vegetarian() -> None:
+    # "1 mixed veg" beside "2 chicken biryani" is a dish, not a rule. Treating
+    # it as a session-wide preference raised DIETARY_MISMATCH against the
+    # chicken the user explicitly ordered.
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(
+        service.initialize_tagged_message(
+            message("2 chicken biryani and 1 mixed veg under 2000")
+        )
+    )
+
+    assert result.session.dietary_preference == DietaryTag.ANY
+    assert "DIETARY_MISMATCH" not in [warning.code for warning in result.session.warnings]
+
+
+def test_a_stated_dietary_rule_still_applies() -> None:
+    service = EasyOrderAgentService(db=InMemoryDBAdapter(), swiggy_client=MockSwiggyMcpClient())
+    result = run(service.initialize_tagged_message(message("get vegetarian food for 6 under 1500")))
+
+    assert result.session.dietary_preference == DietaryTag.VEG
