@@ -192,3 +192,16 @@ def test_the_node_runs_between_parsing_and_the_swiggy_workers() -> None:
         "output_guardrails",
         "persistence",
     ]
+
+
+def test_a_stated_headcount_is_never_reported_as_missing() -> None:
+    # "for 4" is in the message. The profile must not fill head_count and the
+    # reply must not claim "you didn't say" — the live LLM reported
+    # head_count_stated=false for exactly this prompt.
+    service = service_with_history(orders=3, sessions=3, head_count=8)
+
+    state = run(_intent_after_profile(service, "get biryani for 4 under 2000"))
+
+    assert "head_count" not in state.applied_defaults
+    assert "budget_limit" not in state.applied_defaults
+    assert state.intent.head_count == 4
