@@ -32,3 +32,6 @@ docker-compose.override.yml
 # Claude Code local state
 .claude/worktrees/
 .claude/settings.local.json
+
+# Internal docs (not shared)
+docs/
